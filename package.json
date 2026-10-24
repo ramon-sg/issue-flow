@@ -1,0 +1,22 @@
+{
+  "name": "@ramon-sg/issue-flow",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Issue-to-PR workflow for any repo: names each issue's branch, creates its worktree, opens the draft PR and launches Claude Code, locally and in Claude's cloud.",
+  "license": "MIT",
+  "type": "module",
+  "bin": { "issue-flow": "dist/cli.js" },
+  "files": ["dist", "schema.json"],
+  "engines": { "node": ">=20" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ramon-sg/issue-flow.git"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "tsc && node --test test/*.test.mjs",
+    "prepublishOnly": "npm test"
+  },
+  "dependencies": { "@ramon-sg/github-rest": "0.2.1" },
+  "devDependencies": { "@types/node": "^24.0.0", "typescript": "^5.9.3" }
+}
