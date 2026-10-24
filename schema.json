@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/ramon-sg/issue-flow/main/schema.json",
+  "title": "issue-flow config (.agents/flow.json)",
+  "description": "Every key is optional; a missing one takes its default. Unknown keys are an error.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "repo": {
+      "description": "owner/repo. By default, -R, then GH_REPO, then the checkout's origin.",
+      "type": "string",
+      "pattern": "^[^/\\s]+/[^/\\s]+$"
+    },
+    "baseBranch": {
+      "description": "Branch the work starts from and PRs target. By default, the repo's default branch.",
+      "type": "string",
+      "minLength": 1
+    },
+    "branch": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "template": {
+          "description": "Name of an issue's branch. Needs {number} and {slug}; {type} is optional.",
+          "type": "string",
+          "default": "{type}/{number}-{slug}",
+          "allOf": [{ "pattern": "\\{number\\}" }, { "pattern": "\\{slug\\}" }]
+        },
+        "namer": {
+          "description": "Who names a branch when the issue has no usable \"Rama sugerida\" block: Claude (falls back to the title) or the title.",
+          "enum": ["claude", "title"],
+          "default": "claude"
+        },
+        "claudeModel": {
+          "description": "Model passed to claude -p --model.",
+          "type": "string",
+          "minLength": 1,
+          "default": "haiku"
+        },
+        "types": {
+          "description": "Branch type of an issue: by label first, then by title prefix (case-insensitive). Each map given replaces its default whole.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "labels": { "$ref": "#/$defs/typeMap" },
+            "titlePrefixes": { "$ref": "#/$defs/typeMap" }
+          }
+        }
+      }
+    },
+    "worktrees": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dir": {
+          "description": "Where issue worktrees go, relative to the repo root.",
+          "type": "string",
+          "minLength": 1,
+          "default": ".claude/worktrees"
+        }
+      }
+    },
+    "start": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "commitMessage": {
+          "description": "Message of the empty commit that starts an issue; {number} is the issue.",
+          "type": "string",
+          "minLength": 1,
+          "default": "chore: empieza el trabajo en la issue #{number}"
+        },
+        "prBody": {
+          "description": "Body of the draft PR; {keyword} is Closes, or Part of when the issue has another live branch.",
+          "type": "string",
+          "minLength": 1,
+          "default": "{keyword} #{number}\n\nEn progreso."
+        }
+      }
+    }
+  },
+  "$defs": {
+    "typeMap": {
+      "type": "object",
+      "additionalProperties": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$" }
+    }
+  }
+}
