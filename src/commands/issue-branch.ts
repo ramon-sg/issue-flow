@@ -121,6 +121,22 @@ async function mayWrite(options: BranchOptions, count: number, out: Output): Pro
 }
 
 /**
+ * Adds the block to one issue, from a copy read right before writing: Claude and the
+ * question can take minutes, and an edit made meanwhile must not be lost. If the issue got
+ * a block in the meantime, it is left alone.
+ * @param repo - `owner/repo`.
+ * @param proposal - The issue and its branch.
+ * @returns Whether the block was added (false if the issue already had one or is gone).
+ * @throws GitHubError if GitHub fails.
+ */
+async function addBlock(repo: string, proposal: Proposal): Promise<boolean> {
+  const fresh = await viewIssue(repo, proposal.number);
+  if (fresh === null || fresh.body.includes(BRANCH_HEADING)) return false;
+  await editIssue(repo, proposal.number, { body: withBranchBlock(fresh.body, proposal.branch) });
+  return true;
+}
+
+/**
  * `issue branch --missing`: proposes the branch of every open issue without a block, in
  * one Claude call, and adds the block after confirming. A failed edit does not stop the
  * others.
@@ -137,7 +153,6 @@ export async function branchMissing(options: BranchOptions, out: Output): Promis
     ...(options.limit === undefined ? {} : { limit: options.limit }),
   });
   if (truncated) warn(out, "GitHub has more issues than were read; run it again after this.");
-  const bodies = new Map(issues.map((issue) => [issue.number, issue.body]));
   const { proposals, warnings } = proposeBranches(issues.map(info), options.config, {
     cwd: options.cwd,
     ...(options.namer === undefined ? {} : { namer: options.namer }),
@@ -149,8 +164,10 @@ export async function branchMissing(options: BranchOptions, out: Output): Promis
   let code = 0;
   for (const proposal of proposals) {
     try {
-      const body = withBranchBlock(bodies.get(proposal.number) ?? "", proposal.branch);
-      await editIssue(options.repo, proposal.number, { body });
+      if (!(await addBlock(options.repo, proposal))) {
+        warn(out, `#${proposal.number}: it got a "Rama sugerida" block or was deleted meanwhile; left alone.`);
+        continue;
+      }
       if (!options.json) out.stdout(`#${proposal.number}: block added.\n`);
     } catch (error) {
       warn(out, `#${proposal.number}: ${error instanceof Error ? error.message : String(error)}`);

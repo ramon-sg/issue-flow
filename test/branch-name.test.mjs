@@ -33,6 +33,8 @@ test("branchProblem: <prefix>/<n>-<slug> of this issue, lowercase", () => {
   assert.match(branchProblem("feat/21-odoo", 214), /is not/);
   assert.match(branchProblem("feat/2140-odoo", 214), /is not/);
   assert.match(branchProblem("feat/214_Odoo", 214), /is not/);
+  for (const unsafe of ["../../214-x", "-x/214-y", ".x/214-y", "a..b/214-x", "fix/214-a..b"])
+    assert.match(branchProblem(unsafe, 214), /is not/, unsafe);
 });
 
 test("titleSlug: no type prefix, phase tag, accents or symbols, cut by whole words at 40", () => {
@@ -66,4 +68,16 @@ test("withBranchBlock: after the first paragraph, or alone in an empty body", ()
   );
   assert.equal(withBranchBlock("Only a header.", "fix/1-x"), "Only a header.\n\n**Rama sugerida**\n`fix/1-x`");
   assert.equal(withBranchBlock("  \n", "fix/1-x"), "**Rama sugerida**\n`fix/1-x`");
+  assert.equal(withBranchBlock("Only a header.\n", "fix/1-x"), "Only a header.\n\n**Rama sugerida**\n`fix/1-x`");
+});
+
+test("withBranchBlock: never inside a code block, and the rest of the body unchanged", () => {
+  assert.equal(
+    withBranchBlock("```\ncode\n\nmore\n```\n\nText.", "fix/1-x"),
+    "**Rama sugerida**\n`fix/1-x`\n\n```\ncode\n\nmore\n```\n\nText.",
+  );
+  assert.equal(
+    withBranchBlock("Header.\r\n\r\nDetail.\r\n  ", "fix/1-x"),
+    "Header.\n\n**Rama sugerida**\n`fix/1-x`\r\n\r\nDetail.\r\n  ",
+  );
 });

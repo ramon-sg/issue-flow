@@ -1,6 +1,7 @@
 // Tests of `issue-flow issue branch` against the fake gh and the fake claude.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { CLAUDE_ARGS } from "../dist/claude-namer.js";
 import { ISSUES, issue, sandbox } from "./helpers.mjs";
 
 const MISSING_LIST = `GET ${ISSUES}?state=open&per_page=100&page=1`;
@@ -34,7 +35,8 @@ test("issues without a block are named in one Claude call and rendered with the 
   assert.equal(r.out, "#5 fix/5-cart-total (claude)\n#6 docs/6-other-thing (claude)\n");
   const calls = s.claudeCalls();
   assert.equal(calls.length, 1);
-  assert.deepEqual(calls[0].args, ["-p", "--model", "haiku", "--output-format", "text"]);
+  assert.deepEqual(calls[0].args, [...CLAUDE_ARGS, "--model", "haiku"]);
+  assert.ok(calls[0].args.includes("--safe-mode") && calls[0].args[calls[0].args.indexOf("--tools") + 1] === "");
   assert.match(calls[0].input, /"number": 5[\s\S]*"number": 6/);
 });
 
@@ -126,9 +128,11 @@ test("--missing --dry-run: one Claude call for every issue without a block, noth
   assert.doesNotMatch(r.err, /nothing written/);
 });
 
-test("--missing --yes adds the block after the header of each issue", () => {
+test("--missing --yes adds the block after the header of each issue, re-reading it first", () => {
   const s = sandbox();
   s.route(MISSING_LIST, [issue(3, { title: "Tres", body: "Header.\n\n**Detalle**\nText." }), issue(4, { title: "Cuatro" })]);
+  s.route(`GET ${ISSUES}/3`, issue(3, { title: "Tres", body: "Header.\n\n**Detalle**\nText edited meanwhile." }));
+  s.route(`GET ${ISSUES}/4`, issue(4, { title: "Cuatro" }));
   s.route(`PATCH ${ISSUES}/3`, issue(3));
   s.route(`PATCH ${ISSUES}/4`, issue(4));
 
@@ -136,15 +140,31 @@ test("--missing --yes adds the block after the header of each issue", () => {
 
   assert.equal(r.status, 0, r.err);
   assert.deepEqual(s.ghCalls().slice(1), [
-    { method: "PATCH", path: `${ISSUES}/3`, body: { body: "Header.\n\n**Rama sugerida**\n`3-tres`\n\n**Detalle**\nText." } },
+    { method: "GET", path: `${ISSUES}/3` },
+    { method: "PATCH", path: `${ISSUES}/3`, body: { body: "Header.\n\n**Rama sugerida**\n`3-tres`\n\n**Detalle**\nText edited meanwhile." } },
+    { method: "GET", path: `${ISSUES}/4` },
     { method: "PATCH", path: `${ISSUES}/4`, body: { body: "**Rama sugerida**\n`4-cuatro`" } },
   ]);
   assert.match(r.out, /#3: block added\.\n#4: block added\./);
 });
 
+test("--missing --yes leaves alone an issue that got a block meanwhile", () => {
+  const s = sandbox();
+  s.route(MISSING_LIST, [issue(3, { title: "Tres" })]);
+  s.route(`GET ${ISSUES}/3`, issue(3, { body: "**Rama sugerida**\n`feat/3-other`" }));
+
+  const r = s.run(["issue", "branch", "--missing", "--yes", "--namer", "title"]);
+
+  assert.equal(r.status, 0, r.err);
+  assert.deepEqual(s.ghCalls().map((call) => call.method), ["GET", "GET"]);
+  assert.match(r.err, /#3: it got a "Rama sugerida" block or was deleted meanwhile; left alone/);
+});
+
 test("--missing without a terminal and without --yes writes nothing; a failed edit exits with 1", () => {
   const s = sandbox();
   s.route(MISSING_LIST, [issue(3, { title: "Tres" }), issue(4, { title: "Cuatro" })]);
+  s.route(`GET ${ISSUES}/3`, issue(3, { title: "Tres" }));
+  s.route(`GET ${ISSUES}/4`, issue(4, { title: "Cuatro" }));
   s.route(`PATCH ${ISSUES}/4`, issue(4));
 
   const asked = s.run(["issue", "branch", "--missing", "--namer", "title"]);
@@ -197,4 +217,24 @@ test("the repo comes from -R, then from the config's repo", () => {
   assert.equal(flag.status, 0, flag.err);
   assert.equal(config.status, 0, config.err);
   assert.equal(s.ghCalls()[0].path, "repos/from/config/issues/5");
+});
+
+test("--missing in a terminal writes only after a yes; no, or just Enter, writes nothing", async () => {
+  const s = sandbox();
+  s.route(MISSING_LIST, [issue(3, { title: "Tres" })]);
+  s.route(`GET ${ISSUES}/3`, issue(3, { title: "Tres" }));
+  s.route(`PATCH ${ISSUES}/3`, issue(3));
+  const args = ["issue", "branch", "--missing", "--namer", "title"];
+
+  for (const answer of ["n", ""]) {
+    const r = await s.runTty(args, answer);
+    assert.equal(r.asked, true, r.out);
+    assert.equal(r.status, 0, r.out);
+    assert.deepEqual(s.ghCalls().map((call) => call.method), ["GET"], `answer "${answer}"`);
+  }
+  const yes = await s.runTty(args, "y");
+
+  assert.equal(yes.status, 0, yes.out);
+  assert.deepEqual(s.ghCalls().map((call) => call.method), ["GET", "GET", "PATCH"]);
+  assert.match(yes.out, /#3: block added\./);
 });

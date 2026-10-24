@@ -58,7 +58,8 @@ export function suggestedBranch(body: string): string | null {
 
 /**
  * Why a branch does not fit the issue: it must be `<prefix>/<n>-<slug>`, with any number
- * of prefix folders (or none) and a lowercase slug.
+ * of prefix folders (or none) and a lowercase slug. No part may start with `.` or `-`, nor
+ * hold `..`: the branch later becomes a folder under the worktrees directory.
  * @param branch - The branch, or null if the issue has none.
  * @param number - The issue number.
  * @returns The reason, or null if it fits.
@@ -66,8 +67,8 @@ export function suggestedBranch(body: string): string | null {
  */
 export function branchProblem(branch: string | null, number: number): string | null {
   if (branch === null) return 'the issue has no "Rama sugerida" block';
-  const fits = new RegExp(`^([a-z0-9._-]+/)*${number}-[a-z0-9][a-z0-9._-]*$`);
-  return fits.test(branch)
+  const fits = new RegExp(`^([a-z0-9][a-z0-9._-]*/)*${number}-[a-z0-9][a-z0-9._-]*$`);
+  return fits.test(branch) && !branch.includes("..")
     ? null
     : `the suggested branch "${branch}" is not <prefix>/${number}-<slug>`;
 }
@@ -178,9 +179,14 @@ export function renderBranch(
     .replace(/[/-]+$/, "");
 }
 
+/** A blank line, with or without `\r`. */
+const BLANK_LINE = /\r?\n[ \t]*\r?\n/;
+
 /**
  * The issue body with a "Rama sugerida" block after its first paragraph (the header the
- * `github-issues` skill writes), or as the whole body if it is empty.
+ * `github-issues` skill writes), or as the whole body if it is empty. If the first
+ * paragraph opens a code block, the block goes first, so it never lands inside the code.
+ * The rest of the body is kept byte for byte.
  * @param body - The current body.
  * @param branch - The branch.
  * @returns The new body.
@@ -188,9 +194,10 @@ export function renderBranch(
  */
 export function withBranchBlock(body: string, branch: string): string {
   const block = `${BRANCH_BLOCK_TITLE}\n\`${branch}\``;
-  const clean = body.replace(/\r/g, "").trim();
-  if (clean === "") return block;
-  const end = clean.indexOf("\n\n");
-  if (end === -1) return `${clean}\n\n${block}`;
-  return `${clean.slice(0, end)}\n\n${block}${clean.slice(end)}`;
+  if (body.trim() === "") return block;
+  const blank = BLANK_LINE.exec(body);
+  const header = blank === null ? body : body.slice(0, blank.index);
+  if (header.includes("```")) return `${block}\n\n${body}`;
+  if (blank === null) return `${body.trimEnd()}\n\n${block}`;
+  return `${header}\n\n${block}${body.slice(blank.index)}`;
 }
