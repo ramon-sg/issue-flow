@@ -7,7 +7,7 @@ Flujo de trabajo de issue a PR para cualquier repo, en local y en las sesiones d
 ## Qué va a tener
 
 - **`issue-flow init`:** pregunta cómo es el repo (rama base, gestor de paquetes, Docker, secretos), ofrece recetas, escribe `.agents/flow.json` y abre el menú de skills.
-- **`issue-flow issue branch <n>`:** propone la rama sugerida de una issue (con Claude por defecto, o desde el título). Con `--missing`, la agrega a todas las issues abiertas que no la tienen.
+- **`issue-flow issue branch <n>`:** propone la rama de una issue (con Claude por defecto, o desde el título). Con `--missing`, agrega el slug de rama a todas las issues abiertas que no lo tienen.
 - **`issue-flow issue start <n>`:** crea la rama y el worktree, hace el commit inicial, abre el PR en draft, asigna la issue y abre Claude. Con `--cloud`, lo hace en una sesión en la nube.
 - **`issue-flow worktree status|ports|prune|cleanup`:** puertos por worktree y limpieza de worktrees con el PR cerrado.
 - **`issue-flow session`:** el hook `SessionStart`; en la nube llama a [`claude-cloud`](https://github.com/ramon-sg/claude-cloud).
@@ -21,15 +21,23 @@ issue-flow issue branch --missing       # la de cada issue abierta sin bloque, y
 issue-flow issue branch --missing --dry-run --json
 ```
 
-La rama sale, en este orden:
+La issue guarda solo el slug, en un bloque así:
 
-1. **Del bloque "Rama sugerida"** de la issue, si es `<prefijo>/<n>-<slug>` de esa issue.
-2. **De Claude** (`claude -p`, una sola llamada para todas las issues): Claude propone el slug en inglés y, si la issue no tiene tipo, lo elige de la lista del repo. Su respuesta se valida.
-3. **Del título**, si Claude no está, falla o responde algo que no sirve.
+```markdown
+**Slug de rama**
+`cart-total-with-credit`
+```
 
-El tipo sale de las labels y, si no, del prefijo del título (`bug:` da `fix`). La rama se arma siempre con la plantilla del repo.
+El número es el de la issue y el tipo sale de las labels (o, si no hay, del prefijo del título: `bug:` da `fix`). Así el cuerpo se escribe antes de que la issue tenga número, de una sola vez, y no queda viejo si cambia el label o la plantilla. Es lo mismo que hacen GitHub, GitLab y Linear: la rama se calcula al crearla.
 
-`--missing` agrega el bloque después del primer párrafo de la issue, solo con `--yes` o si respondes que sí en la terminal; `--dry-run` nunca escribe.
+La rama se arma con la plantilla del repo y el slug sale, en este orden:
+
+1. **Del bloque "Slug de rama"** de la issue.
+2. **Del bloque antiguo "Rama sugerida"**, con la rama completa (`fix/42-cart`), si es `<prefijo>/<n>-<slug>` de esa issue. Se usa tal cual, así las issues de antes siguen funcionando; nunca se escribe.
+3. **De Claude** (`claude -p`, una sola llamada para todas las issues): Claude propone el slug en inglés y, si la issue no tiene tipo, lo elige de la lista del repo. Su respuesta se valida.
+4. **Del título**, si Claude no está, falla o responde algo que no sirve.
+
+`--missing` agrega el bloque "Slug de rama" después del primer párrafo de cada issue abierta sin bloque (ni nuevo ni antiguo), solo con `--yes` o si respondes que sí en la terminal; `--dry-run` nunca escribe. Como solo guarda el slug, no usa el tipo que elegiría Claude: muestra la rama que dará la issue y avisa de las que no tienen label de tipo.
 
 ## Config: `.agents/flow.json`
 

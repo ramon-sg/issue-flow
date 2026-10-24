@@ -1,19 +1,27 @@
 /**
- * @file Branch names of issues, with no git, GitHub nor Claude: read the "Rama sugerida"
- * block, check that a name fits the issue, find the issue's type, make a slug from the
- * title and render the repo's template. Ported from Abastio's `scripts/lib/issue.sh` and
- * `scripts/lib/project.sh`.
+ * @file Branch names of issues, with no git, GitHub nor Claude: read the "Slug de rama"
+ * block (or the older "Rama sugerida" one, with the whole branch), check that a name fits
+ * the issue, find the issue's type, make a slug from the title and render the repo's
+ * template. Ported from Abastio's `scripts/lib/issue.sh` and `scripts/lib/project.sh`.
  */
 import type { TypeRules } from "./config.js";
 
 /**
- * Start of the block that holds the branch in the issue body, as the `github-issues`
- * skill writes it. Without the closing `**`, so `**Rama sugerida:**` also matches.
+ * Start of the block that holds the branch slug in the issue body, as the `github-issues`
+ * skill writes it. Only the slug: the number is the issue's and the type comes from its
+ * labels, so the block can be written before the issue has a number and never goes stale.
+ * Without the closing `**`, so `**Slug de rama:**` also matches.
  */
-export const BRANCH_HEADING = "**Rama sugerida";
+export const SLUG_HEADING = "**Slug de rama";
 
 /** The full heading written when a block is added. */
-export const BRANCH_BLOCK_TITLE = "**Rama sugerida**";
+export const SLUG_BLOCK_TITLE = "**Slug de rama**";
+
+/**
+ * Start of the older block, with the whole branch (`fix/42-cart`), that Abastio and Clean
+ * Queen issues still have. It is read, never written.
+ */
+export const BRANCH_HEADING = "**Rama sugerida";
 
 /** Longest slug made from a title (the `github-issues` skill asks for about 40). */
 export const SLUG_MAX = 40;
@@ -36,24 +44,65 @@ const BACKTICKS = /`([^`]+)`/;
 /** A phase tag at the start of a title (`[F0-09]`). */
 const PHASE_TAG = /^\[[^\]]*\]\s*/;
 
-/** A valid slug: lowercase letters, digits and dashes, starting with a letter or digit. */
-export const SLUG = /^[a-z0-9][a-z0-9-]*$/;
+/** A valid slug: lowercase words of letters and digits joined by single dashes. */
+export const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 /**
- * The branch of the "Rama sugerida" block: what is between backticks on the heading's own
- * line or, if not there, on the first non-empty line after it.
+ * What is between backticks on the line of a heading or, if not there, on the first
+ * non-empty line after it.
  * @param body - The issue body.
- * @returns The branch, or null if the block is missing or has no backticks.
- * @example suggestedBranch("**Rama sugerida**\n`fix/9-a`") // "fix/9-a"
+ * @param heading - The start of the heading line.
+ * @returns The text, or null if the heading is missing or has no backticks.
  */
-export function suggestedBranch(body: string): string | null {
+function blockValue(body: string, heading: string): string | null {
   const lines = body.replace(/\r/g, "").split("\n");
-  const start = lines.findIndex((line) => line.startsWith(BRANCH_HEADING));
+  const start = lines.findIndex((line) => line.startsWith(heading));
   if (start === -1) return null;
   const sameLine = BACKTICKS.exec(lines[start] as string);
   if (sameLine) return sameLine[1] as string;
   const next = lines.slice(start + 1).find((line) => line.trim() !== "");
   return next === undefined ? null : (BACKTICKS.exec(next)?.[1] ?? null);
+}
+
+/**
+ * The slug of the "Slug de rama" block.
+ * @param body - The issue body.
+ * @returns The slug as written (maybe invalid), or null if there is no block.
+ * @example suggestedSlug("**Slug de rama**\n`cart-total`") // "cart-total"
+ */
+export function suggestedSlug(body: string): string | null {
+  return blockValue(body, SLUG_HEADING);
+}
+
+/**
+ * The branch of the older "Rama sugerida" block.
+ * @param body - The issue body.
+ * @returns The branch, or null if the block is missing or has no backticks.
+ * @example suggestedBranch("**Rama sugerida**\n`fix/9-a`") // "fix/9-a"
+ */
+export function suggestedBranch(body: string): string | null {
+  return blockValue(body, BRANCH_HEADING);
+}
+
+/**
+ * Whether the body already has a branch block, new or old.
+ * @param body - The issue body.
+ * @returns True if it has one.
+ * @example hasBranchBlock("**Rama sugerida**\n`fix/9-a`") // true
+ */
+export function hasBranchBlock(body: string): boolean {
+  return body.includes(SLUG_HEADING) || body.includes(BRANCH_HEADING);
+}
+
+/**
+ * Whether a value is a slug this tool accepts, from a person or from Claude: lowercase
+ * words joined by single dashes (as `start-issue` checks), at most `SLUG_MAX` characters.
+ * @param value - The value.
+ * @returns True if it is one.
+ * @example isSlug("cart-total") // true
+ */
+export function isSlug(value: unknown): value is string {
+  return typeof value === "string" && value.length <= SLUG_MAX && SLUG.test(value);
 }
 
 /**
@@ -126,7 +175,7 @@ function cutSlug(words: string[]): string {
 }
 
 /**
- * Branch slug from the title, for an issue with no usable "Rama sugerida": without the
+ * Branch slug from the title, for an issue with no usable block: without the
  * type prefix (`bug:`, `mejora:`…) or the phase tag (`[F0-09]`), lowercase, without
  * accents or symbols, cut at `SLUG_MAX` characters by whole words.
  * @param title - The title.
@@ -183,17 +232,17 @@ export function renderBranch(
 const BLANK_LINE = /\r?\n[ \t]*\r?\n/;
 
 /**
- * The issue body with a "Rama sugerida" block after its first paragraph (the header the
+ * The issue body with a "Slug de rama" block after its first paragraph (the header the
  * `github-issues` skill writes), or as the whole body if it is empty. If the first
  * paragraph opens a code block, the block goes first, so it never lands inside the code.
  * The rest of the body is kept byte for byte.
  * @param body - The current body.
- * @param branch - The branch.
+ * @param slug - The slug.
  * @returns The new body.
- * @example withBranchBlock("Header.\n\nDetail.", "fix/1-x") // "Header.\n\n**Rama sugerida**\n`fix/1-x`\n\nDetail."
+ * @example withSlugBlock("Header.\n\nDetail.", "cart") // "Header.\n\n**Slug de rama**\n`cart`\n\nDetail."
  */
-export function withBranchBlock(body: string, branch: string): string {
-  const block = `${BRANCH_BLOCK_TITLE}\n\`${branch}\``;
+export function withSlugBlock(body: string, slug: string): string {
+  const block = `${SLUG_BLOCK_TITLE}\n\`${slug}\``;
   if (body.trim() === "") return block;
   const blank = BLANK_LINE.exec(body);
   const header = blank === null ? body : body.slice(0, blank.index);

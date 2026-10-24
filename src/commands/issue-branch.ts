@@ -1,14 +1,17 @@
 /**
  * @file `issue-flow issue branch`: proposes the branch of some issues, or with `--missing`
- * of every open issue without a "Rama sugerida" block, and adds the block to those only
- * after a confirmation (`--yes`, or answering in the terminal).
+ * of every open issue without a branch block, and adds a "Slug de rama" block to those
+ * only after a confirmation (`--yes`, or answering in the terminal).
  */
 import { createInterface } from "node:readline/promises";
-import { editIssue, listIssues, viewIssue } from "@ramon-sg/github-rest";
-import { BRANCH_HEADING, withBranchBlock } from "../branch-name.js";
+import { editIssue, type IssueView, listIssues, viewIssue } from "@ramon-sg/github-rest";
+import { hasBranchBlock, SLUG_HEADING, withSlugBlock } from "../branch-name.js";
 import type { FlowConfig, Namer } from "../config.js";
 import { type IssueInfo, type Proposal, proposeBranches } from "../propose.js";
 import { emitJson, type Output, UsageError, warn } from "../output.js";
+
+/** Issues `--missing` proposes at most when no `--limit` is given. */
+export const MISSING_LIMIT = 100;
 
 /** Options of `issue branch`. */
 export interface BranchOptions {
@@ -95,7 +98,7 @@ export async function branchOf(
 async function confirm(count: number): Promise<boolean> {
   const prompt = createInterface({ input: process.stdin, output: process.stderr });
   try {
-    const answer = await prompt.question(`Add the "Rama sugerida" block to ${count} issue(s)? [y/N] `);
+    const answer = await prompt.question(`Add the "Slug de rama" block to ${count} issue(s)? [y/N] `);
     return /^y(es)?$/i.test(answer.trim());
   } finally {
     prompt.close();
@@ -131,14 +134,38 @@ async function mayWrite(options: BranchOptions, count: number, out: Output): Pro
  */
 async function addBlock(repo: string, proposal: Proposal): Promise<boolean> {
   const fresh = await viewIssue(repo, proposal.number);
-  if (fresh === null || fresh.body.includes(BRANCH_HEADING)) return false;
-  await editIssue(repo, proposal.number, { body: withBranchBlock(fresh.body, proposal.branch) });
+  if (fresh === null || hasBranchBlock(fresh.body)) return false;
+  await editIssue(repo, proposal.number, { body: withSlugBlock(fresh.body, proposal.slug) });
   return true;
 }
 
 /**
- * `issue branch --missing`: proposes the branch of every open issue without a block, in
- * one Claude call, and adds the block after confirming. A failed edit does not stop the
+ * The open issues without a block, new or old. GitHub can only skip one heading, so the
+ * pages are read without a limit (up to github-rest's page ceiling) and both are filtered
+ * here; otherwise issues with the old block would use up the limit and leave out, without
+ * a warning, issues that have none.
+ * @param options - The options (repo and limit).
+ * @param out - Where to warn that the list was cut short.
+ * @returns The issues, at most the limit.
+ * @throws GitHubError if the issues cannot be listed.
+ */
+async function missingIssues(options: BranchOptions, out: Output): Promise<IssueView[]> {
+  const listed = await listIssues(options.repo, {
+    missingHeading: SLUG_HEADING,
+    limit: Number.POSITIVE_INFINITY,
+  });
+  const limit = options.limit ?? MISSING_LIMIT;
+  const issues = listed.issues.filter((issue) => !hasBranchBlock(issue.body));
+  if (listed.truncated || issues.length > limit)
+    warn(out, "GitHub has more issues than were read; run it again after this.");
+  return issues.slice(0, limit);
+}
+
+/**
+ * `issue branch --missing`: proposes the branch of every open issue without a block, new
+ * or old, in one Claude call, and adds the slug block after confirming. Only the slug is
+ * written, so a type Claude would pick is not used: the branch shown is the one the issue
+ * will give, and an issue without a type gets a warning if the template uses `{type}`. A failed edit does not stop the
  * others.
  * @param options - The options.
  * @param out - Where to write.
@@ -148,16 +175,16 @@ async function addBlock(repo: string, proposal: Proposal): Promise<boolean> {
 export async function branchMissing(options: BranchOptions, out: Output): Promise<number> {
   if (options.json && !options.dryRun && !options.yes)
     throw new UsageError("--missing --json needs --dry-run or --yes: there is no terminal to confirm in.");
-  const { issues, truncated } = await listIssues(options.repo, {
-    missingHeading: BRANCH_HEADING,
-    ...(options.limit === undefined ? {} : { limit: options.limit }),
-  });
-  if (truncated) warn(out, "GitHub has more issues than were read; run it again after this.");
+  const issues = await missingIssues(options, out);
   const { proposals, warnings } = proposeBranches(issues.map(info), options.config, {
     cwd: options.cwd,
+    claudeType: false,
     ...(options.namer === undefined ? {} : { namer: options.namer }),
   });
-  for (const line of [...warnings, ...proposals.flatMap((proposal) => proposal.warnings)])
+  const untyped = proposals
+    .filter((proposal) => proposal.type === null && options.config.branch.template.includes("{type}"))
+    .map((proposal) => `#${proposal.number}: it has no type label, so its branch has no type until it gets one.`);
+  for (const line of [...warnings, ...proposals.flatMap((proposal) => proposal.warnings), ...untyped])
     warn(out, line);
   print(proposals, out, options.json);
   if (proposals.length === 0 || !(await mayWrite(options, proposals.length, out))) return 0;
@@ -165,7 +192,7 @@ export async function branchMissing(options: BranchOptions, out: Output): Promis
   for (const proposal of proposals) {
     try {
       if (!(await addBlock(options.repo, proposal))) {
-        warn(out, `#${proposal.number}: it got a "Rama sugerida" block or was deleted meanwhile; left alone.`);
+        warn(out, `#${proposal.number}: it got a branch block or was deleted meanwhile; left alone.`);
         continue;
       }
       if (!options.json) out.stdout(`#${proposal.number}: block added.\n`);

@@ -28,7 +28,7 @@
           "allOf": [{ "pattern": "\\{number\\}" }, { "pattern": "\\{slug\\}" }]
         },
         "namer": {
-          "description": "Who names a branch when the issue has no usable \"Rama sugerida\" block: Claude (falls back to the title) or the title.",
+          "description": "Who names a branch when the issue has no usable \"Slug de rama\" block: Claude (falls back to the title) or the title.",
           "enum": ["claude", "title"],
           "default": "claude"
         },

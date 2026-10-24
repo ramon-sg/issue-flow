@@ -4,10 +4,13 @@ import assert from "node:assert/strict";
 import {
   branchProblem,
   branchType,
+  hasBranchBlock,
+  isSlug,
   renderBranch,
   suggestedBranch,
+  suggestedSlug,
   titleSlug,
-  withBranchBlock,
+  withSlugBlock,
 } from "../dist/branch-name.js";
 import { DEFAULT_CONFIG } from "../dist/config.js";
 
@@ -22,6 +25,23 @@ test("suggestedBranch: the backticks after the heading, on its line or the next 
   assert.equal(suggestedBranch("Solo texto con `feat/1-x`."), null);
   assert.equal(suggestedBranch("**Rama sugerida**\nsin backticks\n`fix/1-x`"), null);
   assert.equal(suggestedBranch("**Rama sugerida**"), null);
+});
+
+test("suggestedSlug reads only the slug block, and hasBranchBlock sees either block", () => {
+  assert.equal(suggestedSlug("H.\n\n**Slug de rama**\n\n`cart-total`\n\n**Detalle**"), "cart-total");
+  assert.equal(suggestedSlug("**Slug de rama:** `cart`"), "cart");
+  assert.equal(suggestedSlug("**Rama sugerida**\n`fix/7-cart`"), null);
+  assert.equal(suggestedBranch("**Slug de rama**\n`cart`"), null);
+  assert.equal(hasBranchBlock("**Slug de rama**\n`cart`"), true);
+  assert.equal(hasBranchBlock("**Rama sugerida:** `fix/7-cart`"), true);
+  assert.equal(hasBranchBlock("Header.\n\n**Detalle**"), false);
+});
+
+test("isSlug: lowercase words and single dashes, at most 40, no dash at the ends", () => {
+  assert.equal(isSlug("cart-total-2"), true);
+  assert.equal(isSlug("a".repeat(40)), true);
+  for (const bad of ["Cart", "cart total", "fix/cart", "-cart", "cart-", "cart--total", "a".repeat(41), "", 7, null])
+    assert.equal(isSlug(bad), false, String(bad));
 });
 
 test("branchProblem: <prefix>/<n>-<slug> of this issue, lowercase", () => {
@@ -61,23 +81,23 @@ test("renderBranch: the template, and without a type no separator is left over",
   assert.equal(renderBranch("ramon/{type}-{number}-{slug}", null, 7, "x"), "ramon/7-x");
 });
 
-test("withBranchBlock: after the first paragraph, or alone in an empty body", () => {
+test("withSlugBlock: after the first paragraph, or alone in an empty body", () => {
   assert.equal(
-    withBranchBlock("Header line.\nSecond line.\n\n**Detalle**\nText.", "fix/1-x"),
-    "Header line.\nSecond line.\n\n**Rama sugerida**\n`fix/1-x`\n\n**Detalle**\nText.",
+    withSlugBlock("Header line.\nSecond line.\n\n**Detalle**\nText.", "x"),
+    "Header line.\nSecond line.\n\n**Slug de rama**\n`x`\n\n**Detalle**\nText.",
   );
-  assert.equal(withBranchBlock("Only a header.", "fix/1-x"), "Only a header.\n\n**Rama sugerida**\n`fix/1-x`");
-  assert.equal(withBranchBlock("  \n", "fix/1-x"), "**Rama sugerida**\n`fix/1-x`");
-  assert.equal(withBranchBlock("Only a header.\n", "fix/1-x"), "Only a header.\n\n**Rama sugerida**\n`fix/1-x`");
+  assert.equal(withSlugBlock("Only a header.", "x"), "Only a header.\n\n**Slug de rama**\n`x`");
+  assert.equal(withSlugBlock("  \n", "x"), "**Slug de rama**\n`x`");
+  assert.equal(withSlugBlock("Only a header.\n", "x"), "Only a header.\n\n**Slug de rama**\n`x`");
 });
 
-test("withBranchBlock: never inside a code block, and the rest of the body unchanged", () => {
+test("withSlugBlock: never inside a code block, and the rest of the body unchanged", () => {
   assert.equal(
-    withBranchBlock("```\ncode\n\nmore\n```\n\nText.", "fix/1-x"),
-    "**Rama sugerida**\n`fix/1-x`\n\n```\ncode\n\nmore\n```\n\nText.",
+    withSlugBlock("```\ncode\n\nmore\n```\n\nText.", "x"),
+    "**Slug de rama**\n`x`\n\n```\ncode\n\nmore\n```\n\nText.",
   );
   assert.equal(
-    withBranchBlock("Header.\r\n\r\nDetail.\r\n  ", "fix/1-x"),
-    "Header.\n\n**Rama sugerida**\n`fix/1-x`\r\n\r\nDetail.\r\n  ",
+    withSlugBlock("Header.\r\n\r\nDetail.\r\n  ", "x"),
+    "Header.\n\n**Slug de rama**\n`x`\r\n\r\nDetail.\r\n  ",
   );
 });

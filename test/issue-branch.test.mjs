@@ -8,14 +8,44 @@ const MISSING_LIST = `GET ${ISSUES}?state=open&per_page=100&page=1`;
 
 const answer = (items) => JSON.stringify(items);
 
-test("a block that fits is used as is and Claude is not called", () => {
+test("a slug block gives the branch with the template and the label's type, without Claude", () => {
+  const s = sandbox();
+  s.route(`GET ${ISSUES}/42`, issue(42, { body: "H.\n\n**Slug de rama**\n`cart-total`", labels: [{ name: "bug" }] }));
+  s.route(`GET ${ISSUES}/43`, issue(43, { body: "**Slug de rama**\n`cart`\n\n**Rama sugerida**\n`feat/43-old`" }));
+
+  const r = s.run(["issue", "branch", "42", "43", "--json"]);
+  s.config({ branch: { template: "ramon/{number}-{slug}" } });
+  const templated = s.run(["issue", "branch", "42"]);
+
+  assert.equal(r.status, 0, r.err);
+  assert.deepEqual(r.json(), [
+    { number: 42, branch: "fix/42-cart-total", slug: "cart-total", type: "fix", source: "slug", warnings: [] },
+    { number: 43, branch: "43-cart", slug: "cart", type: null, source: "slug", warnings: [] },
+  ]);
+  assert.equal(templated.out, "#42 ramon/42-cart-total (slug)\n");
+  assert.deepEqual(s.claudeCalls(), []);
+});
+
+test("an invalid slug block warns and the issue is named by Claude", () => {
+  const s = sandbox();
+  s.route(`GET ${ISSUES}/5`, issue(5, { body: "**Slug de rama**\n`Cart Total`", labels: [{ name: "bug" }] }));
+
+  const r = s.run(["issue", "branch", "5", "--json"], { claude: answer([{ number: 5, slug: "cart-total" }]) });
+
+  assert.equal(r.status, 0, r.err);
+  assert.equal(r.json()[0].branch, "fix/5-cart-total");
+  assert.deepEqual(r.json()[0].warnings, ['#5: "Cart Total" in "Slug de rama" is not a valid slug; proposing another.']);
+  assert.equal(s.claudeCalls().length, 1);
+});
+
+test("an older Rama sugerida block that fits is used as is and Claude is not called", () => {
   const s = sandbox();
   s.route(`GET ${ISSUES}/42`, issue(42, { body: "H.\n\n**Rama sugerida**\n`fix/42-cart`", labels: [{ name: "bug" }] }));
 
   const r = s.run(["issue", "branch", "42", "--json"]);
 
   assert.equal(r.status, 0, r.err);
-  assert.deepEqual(r.json(), [{ number: 42, branch: "fix/42-cart", source: "suggested", warnings: [] }]);
+  assert.deepEqual(r.json(), [{ number: 42, branch: "fix/42-cart", slug: "cart", type: "fix", source: "suggested", warnings: [] }]);
   assert.deepEqual(s.claudeCalls(), []);
 });
 
@@ -50,6 +80,8 @@ test("a bad or partial Claude answer falls back to the title, with a warning per
   assert.deepEqual(r.json()[0], {
     number: 5,
     branch: "fix/5-el-carro-suma-mal",
+    slug: "el-carro-suma-mal",
+    type: "fix",
     source: "title",
     warnings: ["#5: Claude gave no valid name; using the title."],
   });
@@ -114,18 +146,44 @@ test("an issue that does not exist exits with 1 and the others are still named",
 test("--missing --dry-run: one Claude call for every issue without a block, nothing written", () => {
   const s = sandbox();
   s.route(MISSING_LIST, [
+    issue(4, { title: "Cuatro", labels: [{ name: "bug" }] }),
     issue(3, { title: "Tres", body: "Header.\n\n**Detalle**" }),
     issue(2, { title: "Dos", body: "**Rama sugerida**\n`fix/2-dos`" }),
+    issue(5, { title: "Cinco", body: "**Slug de rama**\n`five`" }),
     issue(1, { title: "Uno", pull_request: {} }),
   ]);
 
-  const r = s.run(["issue", "branch", "--missing", "--dry-run"], { claude: answer([{ number: 3, type: "feat", slug: "three" }]) });
+  const r = s.run(["issue", "branch", "--missing", "--dry-run"], {
+    claude: answer([{ number: 4, slug: "four" }, { number: 3, type: "feat", slug: "three" }]),
+  });
 
   assert.equal(r.status, 0, r.err);
-  assert.equal(r.out, "#3 feat/3-three (claude)\n");
+  assert.equal(r.out, "#4 fix/4-four (claude)\n#3 3-three (claude)\n");
+  assert.match(r.err, /#3: it has no type label, so its branch has no type until it gets one/);
+  assert.doesNotMatch(r.err, /#4: it has no type/);
   assert.equal(s.claudeCalls().length, 1);
+  s.config({ branch: { template: "ramon/{number}-{slug}" } });
+  const typeless = s.run(["issue", "branch", "--missing", "--dry-run", "--namer", "title"]);
+  assert.match(typeless.out, /#3 ramon\/3-tres \(title\)/);
+  assert.doesNotMatch(typeless.err, /no type label/);
   assert.deepEqual(s.ghCalls().map((call) => call.method), ["GET"]);
   assert.doesNotMatch(r.err, /nothing written/);
+});
+
+test("--missing: issues with the older block do not use up --limit", () => {
+  const s = sandbox();
+  s.route(MISSING_LIST, [
+    issue(9, { title: "Nueve", body: "**Rama sugerida**\n`fix/9-nine`" }),
+    issue(8, { title: "Ocho", body: "**Rama sugerida**\n`fix/8-eight`" }),
+    issue(7, { title: "Siete" }),
+    issue(6, { title: "Seis" }),
+  ]);
+
+  const r = s.run(["issue", "branch", "--missing", "--dry-run", "--namer", "title", "--limit", "1"]);
+
+  assert.equal(r.status, 0, r.err);
+  assert.equal(r.out, "#7 7-siete (title)\n");
+  assert.match(r.err, /GitHub has more issues than were read/);
 });
 
 test("--missing --yes adds the block after the header of each issue, re-reading it first", () => {
@@ -141,23 +199,25 @@ test("--missing --yes adds the block after the header of each issue, re-reading 
   assert.equal(r.status, 0, r.err);
   assert.deepEqual(s.ghCalls().slice(1), [
     { method: "GET", path: `${ISSUES}/3` },
-    { method: "PATCH", path: `${ISSUES}/3`, body: { body: "Header.\n\n**Rama sugerida**\n`3-tres`\n\n**Detalle**\nText edited meanwhile." } },
+    { method: "PATCH", path: `${ISSUES}/3`, body: { body: "Header.\n\n**Slug de rama**\n`tres`\n\n**Detalle**\nText edited meanwhile." } },
     { method: "GET", path: `${ISSUES}/4` },
-    { method: "PATCH", path: `${ISSUES}/4`, body: { body: "**Rama sugerida**\n`4-cuatro`" } },
+    { method: "PATCH", path: `${ISSUES}/4`, body: { body: "**Slug de rama**\n`cuatro`" } },
   ]);
   assert.match(r.out, /#3: block added\.\n#4: block added\./);
 });
 
-test("--missing --yes leaves alone an issue that got a block meanwhile", () => {
+test("--missing --yes leaves alone an issue that got a block, new or old, meanwhile", () => {
   const s = sandbox();
-  s.route(MISSING_LIST, [issue(3, { title: "Tres" })]);
+  s.route(MISSING_LIST, [issue(3, { title: "Tres" }), issue(4, { title: "Cuatro" })]);
   s.route(`GET ${ISSUES}/3`, issue(3, { body: "**Rama sugerida**\n`feat/3-other`" }));
+  s.route(`GET ${ISSUES}/4`, issue(4, { body: "**Slug de rama**\n`other`" }));
 
   const r = s.run(["issue", "branch", "--missing", "--yes", "--namer", "title"]);
 
   assert.equal(r.status, 0, r.err);
-  assert.deepEqual(s.ghCalls().map((call) => call.method), ["GET", "GET"]);
-  assert.match(r.err, /#3: it got a "Rama sugerida" block or was deleted meanwhile; left alone/);
+  assert.deepEqual(s.ghCalls().map((call) => call.method), ["GET", "GET", "GET"]);
+  assert.match(r.err, /#3: it got a branch block or was deleted meanwhile; left alone/);
+  assert.match(r.err, /#4: it got a branch block or was deleted meanwhile; left alone/);
 });
 
 test("--missing without a terminal and without --yes writes nothing; a failed edit exits with 1", () => {

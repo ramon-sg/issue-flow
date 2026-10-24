@@ -14,8 +14,9 @@ const USAGE = `Usage:
   issue-flow issue branch <n>... [--namer claude|title] [--json] [-R owner/repo]
   issue-flow issue branch --missing [--limit <n>] [--namer claude|title] [--dry-run | --yes] [--json] [-R owner/repo]
 
-The branch comes from the issue's "Rama sugerida" block if it fits, then from Claude, then
-from the title. --missing adds the block to every open issue without one, after confirming.`;
+The slug comes from the issue's "Slug de rama" block, then from Claude, then from the title,
+and the branch from the repo's template (an older "Rama sugerida" block is used if it fits).
+--missing adds the slug block to every open issue without a block, after confirming.`;
 
 /** Options of the CLI. */
 const OPTIONS = {

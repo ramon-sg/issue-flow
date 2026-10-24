@@ -6,7 +6,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { SLUG, SLUG_MAX } from "./branch-name.js";
+import { isSlug, SLUG_MAX } from "./branch-name.js";
 
 /** What Claude is told about an issue. */
 export interface IssueToName {
@@ -124,8 +124,7 @@ export function parseNames(
     const { number, slug, type } = item as Record<string, unknown>;
     const issue = typeof number === "number" ? byNumber.get(number) : undefined;
     if (issue === undefined || names.has(issue.number)) continue;
-    if (typeof slug !== "string" || slug.length > SLUG_MAX || !SLUG.test(slug) || slug.endsWith("-"))
-      continue;
+    if (!isSlug(slug)) continue;
     const picked = typeof type === "string" && types.includes(type) ? type : null;
     names.set(issue.number, { slug, type: issue.type ?? picked });
   }
