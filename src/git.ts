@@ -101,7 +101,7 @@ function real(path: string): string {
 }
 
 /** A worktree as `git worktree list --porcelain` gives it. */
-interface WorktreeEntry {
+export interface WorktreeEntry {
   path: string;
   branch: string | null;
   lock: string | null;
@@ -111,8 +111,9 @@ interface WorktreeEntry {
  * The worktrees of the repo, the main checkout first.
  * @param cwd - Any checkout of the repo.
  * @returns Path, branch and lock reason of each.
+ * @example worktrees("/repo")[0].path // "/repo"
  */
-function worktrees(cwd: string): WorktreeEntry[] {
+export function worktrees(cwd: string): WorktreeEntry[] {
   const found: WorktreeEntry[] = [];
   for (const line of git(cwd, ["worktree", "list", "--porcelain"]).out.split("\n")) {
     if (line.startsWith("worktree ")) found.push({ path: real(line.slice(9)), branch: null, lock: null });
@@ -173,7 +174,8 @@ export function currentBranch(cwd: string): string | null {
 
 /**
  * Where a directory's repo lives: its shared `.git` and the main checkout, the same from
- * any worktree.
+ * any worktree. The main checkout is the first one git lists, which also holds in a
+ * submodule or with `--separate-git-dir`, where the shared `.git` is not inside it.
  * @param cwd - A directory inside the repo.
  * @returns The common git dir and the main checkout, or null outside git.
  * @example locateRepo(process.cwd())?.mainRoot
@@ -182,7 +184,7 @@ export function locateRepo(cwd: string): { commonDir: string; mainRoot: string }
   const result = git(cwd, ["rev-parse", "--path-format=absolute", "--git-common-dir"]);
   if (!result.ok) return null;
   const commonDir = real(result.out);
-  return { commonDir, mainRoot: dirname(commonDir) };
+  return { commonDir, mainRoot: worktrees(cwd)[0]?.path ?? dirname(commonDir) };
 }
 
 /**
@@ -195,4 +197,19 @@ export function locateRepo(cwd: string): { commonDir: string; mainRoot: string }
 export function checkoutRoot(cwd: string): string | null {
   const result = git(cwd, ["rev-parse", "--show-toplevel"]);
   return result.ok ? real(result.out) : null;
+}
+
+/**
+ * Whether deleting the branch loses no work: all its commits are in some branch of
+ * origin, or it does not go past the PR's head (the branch already deleted on GitHub, or
+ * a squash merge).
+ * @param cwd - The checkout.
+ * @param branch - The branch.
+ * @param head - The merged PR's head.
+ * @returns True if it is safe.
+ * @example safeToDelete("/repo", "feat/42-x", "")
+ */
+export function safeToDelete(cwd: string, branch: string, head: string): boolean {
+  if (git(cwd, ["rev-list", "--count", branch, "--not", "--remotes=origin"]).out === "0") return true;
+  return head !== "" && git(cwd, ["merge-base", "--is-ancestor", branch, head]).ok;
 }

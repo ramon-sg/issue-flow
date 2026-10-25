@@ -10,6 +10,7 @@ import { currentBranch, git, hasLocal, onOrigin, ownCommits } from "./git.js";
 import { cloudSessionUrl, issueColor, issueHeader, prBody, sameCloudSession, sessionName } from "./issue-text.js";
 import { type PermissionArgs, savedSession } from "./launch.js";
 import { again, type StartState } from "./start-state.js";
+import type { StepPlace } from "./worktree-steps.js";
 import { branchPr, openPrsElsewhere } from "./work-state.js";
 
 /** Width of the summary's labels. */
@@ -200,4 +201,15 @@ function sessionLines(state: StartState): string[] {
   if (cloudSession !== null)
     lines.push(line("Cloud:", `the issue has a cloud session (${cloudSessionUrl(cloudSession)}). To bring it: ${again(options.number, "--teleport")}`));
   return lines;
+}
+
+/**
+ * Where the worktree's steps run, for its setup and its teardown.
+ * @param state - The start.
+ * @returns The place.
+ * @example stepPlaceOf(state).root
+ */
+export function stepPlaceOf(state: StartState): StepPlace {
+  const { workDir, mainRoot, base, out, options } = state;
+  return { root: workDir, mainRoot, base, config: options.config, out, remote: false };
 }

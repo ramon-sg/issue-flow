@@ -63,7 +63,9 @@ export function startSandbox() {
     mkdirSync(dir);
     symlinkSync(process.execPath, join(dir, "node"));
     symlinkSync(which("git"), join(dir, "git"));
+    symlinkSync(which("sh"), join(dir, "sh"));
     wrapper(dir, "gh", "fake-gh.mjs");
+    wrapper(dir, "docker", "fake-docker.mjs");
   }
   wrapper(bin, "claude", "fake-claude.mjs");
   const files = {
@@ -72,7 +74,10 @@ export function startSandbox() {
     gh: join(tmp, "gh.jsonl"),
     claude: join(tmp, "claude.jsonl"),
     config: join(tmp, "claude-config"),
+    docker: join(tmp, "docker.json"),
+    dockerLog: join(tmp, "docker.jsonl"),
   };
+  writeFileSync(files.docker, JSON.stringify({ running: true, items: [] }));
   const world = { repo: "acme/widgets", defaultBranch: "main", origin, login: "me", issues: { 214: rawIssue(214) }, pulls: [], nextPr: 900 };
   const lines = (file) => (existsSync(file) ? readFileSync(file, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line)) : []);
   const sandbox = {
@@ -112,12 +117,23 @@ export function startSandbox() {
       const dir = join(main, ".git", "issue-flow-sessions");
       return existsSync(dir) ? execFileSync("ls", [dir], { encoding: "utf8" }).split("\n").filter(Boolean) : [];
     },
-    run(args, { input = "", withoutClaude = false, env = {}, cwd = main } = {}) {
+    run(args, options) {
+      return sandbox.cli(["issue", "start", ...args], options);
+    },
+    // The Docker of fake-docker.mjs: items are { kind, id, project, dir }.
+    docker: {
+      get: () => JSON.parse(readFileSync(files.docker, "utf8")),
+      set: (state) => writeFileSync(files.docker, JSON.stringify(state)),
+      calls: () => lines(files.dockerLog),
+    },
+    stateDir: join(tmp, "state"),
+    cli(args, { input = "", withoutClaude = false, env = {}, cwd = main } = {}) {
       writeFileSync(files.world, JSON.stringify(world, null, 2));
       writeFileSync(files.routes, "{}");
       writeFileSync(files.gh, "");
       writeFileSync(files.claude, "");
-      const r = spawnSync(process.execPath, [CLI, "issue", "start", ...args], {
+      writeFileSync(files.dockerLog, "");
+      const r = spawnSync(process.execPath, [CLI, ...args], {
         cwd,
         encoding: "utf8",
         input,
@@ -130,6 +146,9 @@ export function startSandbox() {
           FAKE_GH_LOG: files.gh,
           FAKE_CLAUDE_LOG: files.claude,
           CLAUDE_CONFIG_DIR: files.config,
+          FAKE_DOCKER_STATE: files.docker,
+          FAKE_DOCKER_LOG: files.dockerLog,
+          ISSUE_FLOW_STATE_DIR: join(tmp, "state"),
           ...env,
         },
       });

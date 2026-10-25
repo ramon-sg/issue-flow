@@ -1,7 +1,7 @@
 // A GitHub with state, for the tests of `issue start`: fake-gh.mjs hands the call here when
 // FAKE_GH_WORLD names a JSON file. It answers the REST calls github-rest makes for one repo,
 // reads the branches from a real bare origin, and saves PRs it creates or edits back to the
-// file. GraphQL always fails, as in Claude's cloud.
+// file. GraphQL always fails, as in Claude's cloud. `pullsFail` makes listing PRs fail.
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 
@@ -82,6 +82,7 @@ export function handle(method, path, body) {
     return answer(200, issue);
   }
   if (route === `${base}/pulls` && method === "GET") {
+    if (world.pullsFail) return answer(503, { message: "Service Unavailable" });
     const head = decodeURIComponent(params.get("head") ?? "").split(":").slice(1).join(":");
     const found = world.pulls.filter((pull) => pull.branch === head && !pull.fork).sort((a, b) => b.number - a.number);
     return answer(200, found.map((pull) => rawPull(world, pull)));

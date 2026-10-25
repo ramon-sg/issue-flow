@@ -8,7 +8,9 @@ import { parseArgs } from "node:util";
 import { GitHubError, InvalidRepoEnvError, resolveRepo } from "@ramon-sg/github-rest";
 import { branchMissing, branchOf } from "./commands/issue-branch.js";
 import { issueStart } from "./commands/issue-start.js";
-import { ConfigError, type FlowConfig, loadConfig, type Namer } from "./config.js";
+import { runSession, runWorktree, WORKTREE_COMMANDS } from "./cli-worktree.js";
+import { ConfigError } from "./config-base.js";
+import { type FlowConfig, loadConfig, type Namer } from "./config.js";
 import type { Permissions } from "./launch.js";
 import { type Output, processOutput, UsageError } from "./output.js";
 
@@ -20,6 +22,12 @@ const USAGE = `Usage:
                              [--ask-permissions | --free] [--namer claude|title] [-R owner/repo]
   issue-flow issue start <n> --plan [--ask-permissions | --free] [--namer claude|title] [-R owner/repo]
   issue-flow issue start <n> --cloud | --here | --teleport | --adopt [...]
+  issue-flow worktree setup [--only <step>]
+  issue-flow worktree teardown [--path <dir>]
+  issue-flow worktree ports [--next]
+  issue-flow worktree cleanup [--path <dir>]
+  issue-flow worktree prune [--only <dir>] [--yes] [-R owner/repo]
+  issue-flow session
 
 The slug comes from the issue's "Slug de rama" block, then from Claude, then from the title,
 and the branch from the repo's template (an older "Rama sugerida" block is used if it fits).
@@ -34,7 +42,12 @@ and the prompt as JSON and changes nothing.
 --cloud confirms here and opens a Claude cloud session that starts the issue there.
 --here, inside a cloud session, starts it in this checkout and opens nothing. --teleport
 brings the cloud session noted in the PR to the worktree. --adopt starts it in the
-worktree another tool (Orca, Paseo) just made, without asking nor opening Claude.`;
+worktree another tool (Orca, Paseo) just made, without asking nor opening Claude.
+
+worktree runs the steps of "worktrees" in .agents/flow.json: setup prepares this worktree,
+teardown cleans it before it goes (steps, ports, Docker), ports prints or moves its block
+of ports, cleanup deletes the Docker of deleted worktrees, and prune deletes the worktrees
+whose PR was merged or closed. session is the SessionStart hook of Claude Code.`;
 
 /** Options of the CLI. */
 const OPTIONS = {
@@ -57,10 +70,13 @@ const OPTIONS = {
   here: { type: "boolean" },
   teleport: { type: "boolean" },
   adopt: { type: "boolean" },
+  only: { type: "string" },
+  path: { type: "string" },
+  next: { type: "boolean" },
 } as const;
 
 /** The parsed flags. */
-type Flags = ReturnType<typeof parseArgs<{ options: typeof OPTIONS; allowPositionals: true; strict: true }>>["values"];
+export type Flags = ReturnType<typeof parseArgs<{ options: typeof OPTIONS; allowPositionals: true; strict: true }>>["values"];
 
 /** Flags each command takes, besides `--repo`, `--help` and `--namer`. */
 const COMMAND_FLAGS: Record<string, (keyof Flags)[]> = {
@@ -80,6 +96,12 @@ const COMMAND_FLAGS: Record<string, (keyof Flags)[]> = {
     "teleport",
     "adopt",
   ],
+  "worktree setup": ["only"],
+  "worktree teardown": ["path"],
+  "worktree ports": ["next"],
+  "worktree cleanup": ["path"],
+  "worktree prune": ["only", "yes"],
+  session: [],
 };
 
 /** An issue number: digits only. */
@@ -99,7 +121,7 @@ const REPO = /^[^/\s]+\/[^/\s]+$/;
  * @returns `owner/repo`.
  * @throws UsageError if `-R` or `GH_REPO` is malformed; GitHubError if there is no repo.
  */
-function repoOf(flag: string | undefined, config: FlowConfig, cwd: string): string {
+export function repoOf(flag: string | undefined, config: FlowConfig, cwd: string): string {
   if (flag !== undefined && !REPO.test(flag))
     throw new UsageError(`-R expects owner/repo: ${flag}`);
   let repo: string | null;
@@ -130,14 +152,17 @@ function namerOf(value: string | undefined): Namer | undefined {
 
 /**
  * Checks that only the command's own flags were given.
- * @param command - The command.
+ * @param command - The command (`start`, `worktree prune`, `session`).
  * @param flags - The flags.
  * @throws UsageError if one belongs to another command.
+ * @example ownFlags("worktree ports", { next: true })
  */
-function ownFlags(command: string, flags: Flags): void {
-  const allowed = new Set<string>(["repo", "help", "namer", ...(COMMAND_FLAGS[command] ?? [])]);
+export function ownFlags(command: string, flags: Flags): void {
+  const shared = command === "branch" || command === "start" ? ["repo", "help", "namer"] : ["repo", "help"];
+  const allowed = new Set<string>([...shared, ...(COMMAND_FLAGS[command] ?? [])]);
   const other = Object.keys(flags).find((flag) => !allowed.has(flag));
-  if (other !== undefined) throw new UsageError(`--${other} does not go with issue ${command}.`);
+  const name = command === "branch" || command === "start" ? `issue ${command}` : command;
+  if (other !== undefined) throw new UsageError(`--${other} does not go with ${name}.`);
 }
 
 /**
@@ -215,6 +240,19 @@ export async function main(argv: string[], out: Output, cwd: string): Promise<nu
     return 0;
   }
   const [group, command, ...rest] = positionals;
+  if (group === "session") {
+    ownFlags("session", flags);
+    if (positionals.length > 1) throw new UsageError("session takes no arguments.");
+    return runSession(out, cwd);
+  }
+  if (group === "worktree") {
+    if (command === undefined || !WORKTREE_COMMANDS.includes(command))
+      throw new UsageError(`worktree expects ${WORKTREE_COMMANDS.join(", ")}.`);
+    ownFlags(`worktree ${command}`, flags);
+    if (rest.length > 0) throw new UsageError(`worktree ${command} takes no arguments.`);
+    const config = loadConfig(cwd);
+    return runWorktree(command, flags, { out, cwd, config, repo: () => repoOf(flags.repo, config, cwd) });
+  }
   if (group !== "issue" || (command !== "branch" && command !== "start"))
     throw new UsageError(group === undefined ? "missing the command." : `unknown command: ${positionals.join(" ")}`);
   ownFlags(command, flags);

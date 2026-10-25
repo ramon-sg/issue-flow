@@ -34,7 +34,8 @@ import {
   withoutFresh,
 } from "../start-modes.js";
 import { type Adopted, again, StartError, type StartOptions, type StartState } from "../start-state.js";
-import { describeBranch, summary } from "../start-summary.js";
+import { describeBranch, stepPlaceOf, summary } from "../start-summary.js";
+import { runSetup } from "../worktree-steps.js";
 import { branchPr, type WorkState, workState } from "../work-state.js";
 
 /** What was read before choosing the branch. */
@@ -350,7 +351,10 @@ export async function issueStart(options: StartOptions, out: Output): Promise<nu
     out.stdout(`Ready: issue #${options.number} is on branch ${branch}, with its draft PR.\n${plan === null ? "" : `Open plan of this issue, to resume: ${plan}\n`}`);
     return 0;
   }
-  if (state.mode === "worktree") copyWorktreeIncludes(context.mainRoot, state.workDir, out);
+  if (state.mode === "worktree") {
+    copyWorktreeIncludes(context.mainRoot, state.workDir, out);
+    await runSetup(stepPlaceOf(state), null);
+  }
   return openSession(state);
 }
 

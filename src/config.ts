@@ -3,12 +3,11 @@
  * or with a key missing, the default applies. An unknown key or a value of the wrong kind
  * is an error that names the key, so a typo never silently falls back to the default.
  */
-import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-
-/** Where the config lives, relative to the repo root. */
-export const CONFIG_PATH = ".agents/flow.json";
+import { locateRepo } from "./git.js";
+import { CONFIG_PATH, ConfigError, isObject, onlyKeys, text } from "./config-base.js";
+import { type WorktreesConfig, worktreesSection } from "./worktree-config.js";
 
 /** Who proposes a branch name when the issue has none: Claude, or the title's slug. */
 export type Namer = "claude" | "title";
@@ -29,7 +28,7 @@ export interface FlowConfig {
     claudeModel: string;
     types: TypeRules;
   };
-  worktrees: { dir: string };
+  worktrees: WorktreesConfig;
   start: {
     commitMessage: string;
     prBody: string;
@@ -42,9 +41,6 @@ export interface FlowConfig {
   plans: { dirs: string[] };
   colors: Record<string, string>;
 }
-
-/** Error in the config: exits 2 with the message. */
-export class ConfigError extends Error {}
 
 /** The defaults, the same rules Abastio uses. */
 export const DEFAULT_CONFIG: FlowConfig = {
@@ -69,7 +65,7 @@ export const DEFAULT_CONFIG: FlowConfig = {
       },
     },
   },
-  worktrees: { dir: ".claude/worktrees" },
+  worktrees: { dir: ".claude/worktrees", setup: [], teardown: [], ports: null, dockerProjects: [] },
   start: {
     commitMessage: "chore: empieza el trabajo en la issue #{number} [skip ci]",
     prBody: "{keyword} #{number}\n\nEn progreso.",
@@ -104,55 +100,6 @@ const REPO = /^[^/\s]+\/[^/\s]+$/;
 
 /** A branch type: lowercase, as it goes in the branch name. */
 const TYPE = /^[a-z0-9][a-z0-9._-]*$/;
-
-/**
- * Whether a value is a plain object (not null nor an array).
- * @param value - The value.
- * @returns True if it is an object.
- */
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/**
- * Checks that an object only has known keys.
- * @param value - The object.
- * @param known - The keys it may have.
- * @param where - Its path in the config, for the error (`branch`).
- * @throws ConfigError if a key is unknown.
- */
-function onlyKeys(
-  value: Record<string, unknown>,
-  known: string[],
-  where: string,
-): void {
-  for (const key of Object.keys(value)) {
-    if (key === "$schema" && where === "") continue;
-    if (!known.includes(key))
-      throw new ConfigError(
-        `${CONFIG_PATH}: unknown key "${where === "" ? key : `${where}.${key}`}". Known: ${known.join(", ")}.`,
-      );
-  }
-}
-
-/**
- * An optional string of the config.
- * @param value - The value, or undefined.
- * @param where - Its path, for the error.
- * @param fallback - The default.
- * @returns The value or the default.
- * @throws ConfigError if it is not a non-empty string.
- */
-function text<T extends string | null>(
-  value: unknown,
-  where: string,
-  fallback: T,
-): string | T {
-  if (value === undefined) return fallback;
-  if (typeof value !== "string" || value.trim() === "")
-    throw new ConfigError(`${CONFIG_PATH}: "${where}" must be a non-empty string.`);
-  return value;
-}
 
 /**
  * A map of name to branch type (`{"bug": "fix"}`), merged over nothing: when the repo
@@ -221,7 +168,7 @@ function branchSection(value: unknown): FlowConfig["branch"] {
 }
 
 /**
- * A section made only of optional strings (`worktrees`, `start`).
+ * A section made only of optional strings (`start`).
  * @param value - The section, or undefined.
  * @param name - Its key.
  * @param fallback - Its defaults.
@@ -298,7 +245,7 @@ export function parseConfig(raw: unknown): FlowConfig {
     repo,
     baseBranch: text(raw.baseBranch, "baseBranch", null),
     branch: branchSection(raw.branch),
-    worktrees: textSection(raw.worktrees, "worktrees", DEFAULT_CONFIG.worktrees),
+    worktrees: worktreesSection(raw.worktrees, DEFAULT_CONFIG.worktrees),
     start: textSection(raw.start, "start", DEFAULT_CONFIG.start),
     plans: plansSection(raw.plans),
     colors: colorsSection(raw.colors),
@@ -306,25 +253,20 @@ export function parseConfig(raw: unknown): FlowConfig {
 }
 
 /**
- * The root of the checkout that holds a directory, or null outside git.
+ * The main checkout of the repo that holds a directory, or null outside git. The config
+ * is always the main checkout's, also from a worktree: a branch cannot change the steps
+ * its own worktree runs.
  * @param cwd - The directory.
  * @returns The root.
+ * @example repoRoot("/repo/.claude/worktrees/feat+42-x") // "/repo"
  */
 export function repoRoot(cwd: string): string | null {
-  try {
-    return execFileSync("git", ["rev-parse", "--show-toplevel"], {
-      cwd,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
-  } catch {
-    return null;
-  }
+  return locateRepo(cwd)?.mainRoot ?? null;
 }
 
 /**
- * Reads the config of the checkout that holds `cwd`. Outside git, or without the file,
- * every default applies.
+ * Reads the config of the main checkout of the repo that holds `cwd`. Outside git, or
+ * without the file, every default applies.
  * @param cwd - A directory inside the checkout.
  * @returns The config.
  * @throws ConfigError if the file is not valid JSON or something in it is invalid.

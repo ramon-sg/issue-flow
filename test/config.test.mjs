@@ -1,7 +1,8 @@
 // Tests of .agents/flow.json: defaults, partial sections and errors that name the key.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ConfigError, DEFAULT_CONFIG, loadConfig, parseConfig, SESSION_COLORS } from "../dist/config.js";
+import { ConfigError } from "../dist/config-base.js";
+import { DEFAULT_CONFIG, loadConfig, parseConfig, SESSION_COLORS } from "../dist/config.js";
 import { sandbox } from "./helpers.mjs";
 
 test("without the file, every default applies", () => {
@@ -36,6 +37,28 @@ test("plans and colors: a given value replaces the default, and dirs lose a trai
   assert.deepEqual(parseConfig({}).colors, DEFAULT_CONFIG.colors);
 });
 
+test("worktrees: steps with their flags, ports on with true or a range, and the defaults off", () => {
+  const config = parseConfig({
+    worktrees: {
+      setup: [{ name: "deps", run: "npm ci", trusted: true, once: true }, { name: "env", run: "./env.sh" }],
+      teardown: [{ name: "docker", run: "docker compose down" }],
+      ports: true,
+      dockerProjects: ["acme-dev"],
+    },
+  });
+
+  assert.deepEqual(config.worktrees.setup, [
+    { name: "deps", run: "npm ci", trusted: true, once: true },
+    { name: "env", run: "./env.sh", trusted: false, once: false },
+  ]);
+  assert.deepEqual(config.worktrees.teardown, [{ name: "docker", run: "docker compose down", trusted: false, once: false }]);
+  assert.deepEqual(config.worktrees.ports, { start: 20000, blockSize: 10, blocks: 1000 });
+  assert.equal(config.worktrees.dir, ".claude/worktrees");
+  assert.deepEqual(parseConfig({ worktrees: { ports: { start: 30000 } } }).worktrees.ports, { start: 30000, blockSize: 10, blocks: 1000 });
+  assert.equal(parseConfig({ worktrees: { ports: false } }).worktrees.ports, null);
+  assert.deepEqual(parseConfig({}).worktrees, { dir: ".claude/worktrees", setup: [], teardown: [], ports: null, dockerProjects: [] });
+});
+
 test("each invalid value is an error that names its key", () => {
   for (const [raw, message] of [
     [{ branchTemplate: "x" }, /unknown key "branchTemplate"/],
@@ -45,6 +68,18 @@ test("each invalid value is an error that names its key", () => {
     [{ branch: { types: { labels: { bug: "Fix" } } } }, /"branch.types.labels.bug" must be a lowercase/],
     [{ repo: "widgets" }, /"repo" must be owner\/repo/],
     [{ worktrees: { dir: "" } }, /"worktrees.dir" must be a non-empty string/],
+    [{ worktrees: { setup: {} } }, /"worktrees.setup" must be a list of steps/],
+    [{ worktrees: { setup: [{ name: "Deps", run: "x" }] } }, /"worktrees.setup\[0\].name" must be lowercase/],
+    [{ worktrees: { setup: [{ name: "deps" }] } }, /"worktrees.setup\[0\].run" must be a non-empty string/],
+    [{ worktrees: { setup: [{ name: "a", run: "x" }, { name: "a", run: "y" }] } }, /has two steps named "a"/],
+    [{ worktrees: { setup: [{ name: "a", run: "x", trusted: "yes" }] } }, /"worktrees.setup\[0\].trusted" must be true or false/],
+    [{ worktrees: { teardown: [{ name: "a", run: "x", once: true }] } }, /unknown key "worktrees.teardown\[0\].once"/],
+    [{ worktrees: { ports: { blocks: 3 } } }, /"worktrees.ports.blocks" must be even/],
+    [{ worktrees: { ports: { start: 80 } } }, /"worktrees.ports" must stay between 1024/],
+    [{ worktrees: { ports: { start: 65000, blockSize: 10, blocks: 100 } } }, /must stay between/],
+    [{ worktrees: { ports: { blockSize: 1.5 } } }, /"worktrees.ports.blockSize" must be a positive whole number/],
+    [{ worktrees: { ports: "yes" } }, /"worktrees.ports" must be true, false or an object/],
+    [{ worktrees: { dockerProjects: ["Acme"] } }, /"worktrees.dockerProjects" must be a list/],
     [{ start: { prompt: "" } }, /"start.prompt" must be a non-empty string/],
     [{ plans: { dirs: [] } }, /"plans.dirs" must be a non-empty list/],
     [{ plans: { dirs: ["/abs"] } }, /"plans.dirs" must be a non-empty list of folders relative/],

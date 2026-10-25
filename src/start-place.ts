@@ -9,13 +9,14 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync } from "node:f
 import { dirname, join, relative } from "node:path";
 import { assign, createPr, findPr, getPr, updatePr } from "@ramon-sg/github-rest";
 import { confirm } from "./ask.js";
-import { checkedOutAt, currentBranch, git, gitLines, hasLocal, isClean, onOrigin } from "./git.js";
+import { checkedOutAt, currentBranch, git, gitLines, hasLocal, isClean, onOrigin, safeToDelete } from "./git.js";
 import { bodyToPartOf, dirName, fill, prBody, type StartMode } from "./issue-text.js";
 import { forgetSession } from "./launch.js";
 import { type Output, warn } from "./output.js";
 import type { Lock } from "./session-lock.js";
 import { again, StartError, type StartState } from "./start-state.js";
-import { needsStartCommit } from "./start-summary.js";
+import { needsStartCommit, stepPlaceOf } from "./start-summary.js";
+import { teardownWorktree } from "./worktree-steps.js";
 import { openPrsElsewhere } from "./work-state.js";
 
 /** The file listing what a new worktree copies from the main checkout. */
@@ -243,20 +244,6 @@ function ignoredFiles(workDir: string): string[] {
 }
 
 /**
- * Whether deleting the branch loses no work: all its commits are in some branch of
- * origin, or it does not go past the PR's head (the branch already deleted on GitHub, or
- * a squash merge).
- * @param cwd - The checkout.
- * @param branch - The branch.
- * @param head - The merged PR's head.
- * @returns True if it is safe.
- */
-function safeToDelete(cwd: string, branch: string, head: string): boolean {
-  if (git(cwd, ["rev-list", "--count", branch, "--not", "--remotes=origin"]).out === "0") return true;
-  return head !== "" && git(cwd, ["merge-base", "--is-ancestor", branch, head]).ok;
-}
-
-/**
  * The reason not to clean up after a merged PR, or null if it can be.
  * @param state - The start.
  * @param lock - The worktree lock.
@@ -298,7 +285,8 @@ export async function afterSession(state: StartState, lock: Lock): Promise<void>
     const lost = ignoredFiles(state.workDir);
     const also = lost.length === 0 ? "" : ` Its ignored files go too: ${lost.slice(0, MAX_LISTED).join(", ")}${lost.length > MAX_LISTED ? ", …" : ""}.`;
     if (!(await confirm(out, `The PR was merged. Delete the worktree ${where} and the local branch ${branch}?${also}`))) return;
-    mustGit(mainRoot, ["worktree", "remove", state.workDir], `could not delete ${where}`);
+    teardownWorktree(stepPlaceOf(state));
+    mustGit(mainRoot, ["worktree", "remove", state.workDir], `could not delete ${where} (its teardown already ran)`);
   } else {
     if (!(await confirm(out, `The PR was merged. Go back to ${base} and delete the local branch ${branch}?`))) return;
     mustGit(mainRoot, ["checkout", "-q", base], `could not check out ${base}`);
