@@ -1,6 +1,6 @@
 // Fake gh for the tests: answers `gh api --method M <path> [--input -]` with the routes in
 // FAKE_GH_ROUTES ({"GET repos/...": {status, body}}) and logs every call to FAKE_GH_LOG.
-// No route: 404 like gh.
+// No route: 404 like gh. With FAKE_GH_WORLD, fake-github.mjs answers instead.
 import { appendFileSync, readFileSync } from "node:fs";
 
 const args = process.argv.slice(2);
@@ -8,6 +8,10 @@ const method = args[2];
 const path = args[3];
 const body = args.includes("--input") ? JSON.parse(readFileSync(0, "utf8")) : undefined;
 appendFileSync(process.env.FAKE_GH_LOG, `${JSON.stringify({ method, path, body })}\n`);
+if (process.env.FAKE_GH_WORLD) {
+  const { handle } = await import("./fake-github.mjs");
+  handle(method, path, body);
+}
 const routes = JSON.parse(readFileSync(process.env.FAKE_GH_ROUTES, "utf8"));
 const route = routes[`${method} ${path}`];
 if (route === undefined) {

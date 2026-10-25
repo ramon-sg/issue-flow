@@ -2,7 +2,7 @@
 
 Flujo de trabajo de issue a PR para cualquier repo, en local y en las sesiones de Claude en la nube: nombra la rama de cada issue, crea su worktree con puertos y Docker propios, abre el PR en draft y limpia cuando se mergea. Trae las skills que usan ese flujo.
 
-> **Estado:** en construcción, sin versión en npm. Ya funciona `issue-flow issue branch`; el resto llega por etapas. El paquete será `@ramon-sg/issue-flow` y el comando, `issue-flow`.
+> **Estado:** en construcción, sin versión en npm. Ya funcionan `issue-flow issue branch` e `issue-flow issue start` en local; el resto llega por etapas. El paquete será `@ramon-sg/issue-flow` y el comando, `issue-flow`.
 
 ## Qué va a tener
 
@@ -39,6 +39,38 @@ La rama se arma con la plantilla del repo y el slug sale, en este orden:
 
 `--missing` agrega el bloque "Slug de rama" después del primer párrafo de cada issue abierta sin bloque (ni nuevo ni antiguo), solo con `--yes` o si respondes que sí en la terminal; `--dry-run` nunca escribe. Como solo guarda el slug, no usa el tipo que elegiría Claude: muestra la rama que dará la issue y avisa de las que no tienen label de tipo.
 
+## Empezar una issue
+
+```sh
+issue-flow issue start 42              # worktree en .claude/worktrees/, PR en draft y Claude
+issue-flow issue start 42 --dry-run    # el resumen, sin cambiar nada (solo hace git fetch)
+issue-flow issue start 42 --yes --no-launch   # lo que corre la skill después de tu OK
+issue-flow issue start 42 --plan       # una línea JSON con la rama y el pedido, sin efectos
+```
+
+Qué hace, en orden:
+
+1. **Lee la issue y su trabajo:** se detiene si la issue está cerrada; hace `git fetch` y lee con [`github-rest`](https://github.com/ramon-sg/github-rest) sus PRs y ramas, en GitHub y en esta máquina.
+2. **Elige la rama:**
+   - **Sin ramas vivas:** crea una nueva, con el nombre de `issue branch`. Si ese nombre ya se usó en una tanda mergeada, le suma `-2`, `-3`…
+   - **Con una:** la retoma.
+   - **Con varias:** en la terminal te pregunta cuál seguir. Con `--yes` hay que elegir con `--resume <rama>` o `--new`.
+3. **Muestra un resumen y pregunta `[y/N]`.** Una respuesta vacía es no.
+4. **Crea lo que falta:**
+   - el worktree, o con `--branch` la rama en este checkout;
+   - el commit vacío con `[skip ci]`, el push y el PR en draft;
+   - reabre el PR cerrado de una rama que se retoma, y te asigna la issue.
+
+   El PR dice `Closes #n`, o `Part of #n` si la issue tiene otra rama viva; en ese caso los otros PRs abiertos que la cerraban también pasan a `Part of`. El worktree recibe los archivos ignorados que lista `.worktreeinclude` (credenciales, por ejemplo), como `claude --worktree`.
+5. **Abre Claude en la misma terminal** con un pedido y el color de la prioridad.
+   - Cada rama guarda su sesión, así que empezar otra vez la retoma.
+   - Mientras Claude corre, el worktree queda bloqueado (`git worktree lock`). Si el bloqueo es de un `issue-flow` que ya no corre, lo toma.
+6. **Al salir de Claude:**
+   - Si el PR se mergeó y no queda trabajo sin pushear, ofrece borrar el worktree y la rama.
+   - Si no, dice cómo retomar.
+
+**Permisos:** si el repo tiene [`claude-repo-guard`](https://github.com/ramon-sg/claude-repo-guard), Claude se abre en modo auto con su contexto (lo mismo que `claude:auto`). Con `--ask-permissions` se abre con tus settings, y con `--free` sin sandbox ni preguntas (como `claude:free`). Sin `claude-repo-guard`, se abre con tus settings. `--plan` devuelve esos mismos argumentos en `claudeArgs`.
+
 ## Config: `.agents/flow.json`
 
 Todo es opcional; sin el archivo valen los valores por defecto. Una clave desconocida es un error, así un error de tipeo no pasa en silencio. `schema.json` da autocompletado en el editor:
@@ -66,8 +98,12 @@ Todo es opcional; sin el archivo valen los valores por defecto. Una clave descon
 | `branch.claudeModel` | `haiku` | Modelo de `claude -p` |
 | `branch.types` | Los de arriba | Tipo por label y por prefijo; cada mapa reemplaza al de por defecto |
 | `worktrees.dir` | `.claude/worktrees` | Dónde van los worktrees |
-| `start.commitMessage` | `chore: empieza el trabajo en la issue #{number}` | Commit vacío inicial |
+| `start.commitMessage` | `chore: empieza el trabajo en la issue #{number} [skip ci]` | Commit vacío inicial |
 | `start.prBody` | `{keyword} #{number}` y "En progreso." | Cuerpo del PR en draft |
+| `start.prompt`, `start.resumePrompt` | Resumir la issue y seguir `start-issue`, o retomar desde `{plan}` | Pedido con que se abre Claude |
+| `start.summaryPrompt`, `start.summaryPlanPrompt` | Resumir y esperar | Pedido de `--plan` |
+| `plans.dirs` | `docs/plans`, `docs/specs` | Dónde buscar el plan de la issue: lo que tocó la rama, o el documento cuyo `prs:` nombra su PR |
+| `colors` | `critical-path` y `P1:` rojo, `P2:` naranjo, `P3:` amarillo, `P4:` cian | Color de la sesión por prefijo de label; gana el primero que calce |
 
 ## Desarrollo
 
