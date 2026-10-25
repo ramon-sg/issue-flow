@@ -399,7 +399,7 @@ test("--branch: a dirty main checkout stops it; a clean one goes on the branch, 
   assert.equal(r.status, 0, r.err);
   assert.equal(s.git(s.main, "rev-parse", "--abbrev-ref", "HEAD"), BRANCH);
   assert.match(r.out, /Mode: {9}branch in the main checkout/);
-  assert.deepEqual(s.claudeCalls().map((call) => call.args.slice(3, 5)), [[BRANCH, "Issue #214. Lee la issue con `npx github-rest issue view 214`, resúmela en lenguaje llano y sigue la skill start-issue para elegir el flujo."]]);
+  assert.deepEqual(s.claudeCalls().map((call) => call.args.slice(3, 5)), [[BRANCH, "Issue #214. Lee la issue con `npx @ramon-sg/github-rest issue view 214`, resúmela en lenguaje llano y sigue la skill start-issue para elegir el flujo."]]);
   assert.equal(s.claudeCalls()[0].cwd, s.main);
   assert.equal(existsSync(join(s.main, ".claude", "worktrees")), false);
 });
@@ -450,7 +450,7 @@ test("--plan: one line of JSON with the branch and the prompt, and nothing writt
   assert.deepEqual(JSON.parse(r.out), {
     action: "new",
     branch: BRANCH,
-    prompt: "Issue #214. Lee la issue con `npx github-rest issue view 214` y resúmela en lenguaje llano. No empieces a trabajar ni a planificar: espera mi pedido.",
+    prompt: "Issue #214. Lee la issue con `npx @ramon-sg/github-rest issue view 214` y resúmela en lenguaje llano. No empieces a trabajar ni a planificar: espera mi pedido.",
     url: "https://github.com/acme/widgets/issues/214",
     title: "Avisar devoluciones a Odoo",
     warnings: [],

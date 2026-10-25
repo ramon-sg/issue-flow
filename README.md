@@ -2,7 +2,7 @@
 
 Flujo de trabajo de issue a PR para cualquier repo, en local y en las sesiones de Claude en la nube: nombra la rama de cada issue, crea su worktree con puertos y Docker propios, abre el PR en draft y limpia cuando se mergea. Trae las skills que usan ese flujo.
 
-> **Estado:** en construcción, sin versión en npm. Ya funcionan `issue-flow issue branch`, `issue-flow issue start` (en local y en la nube), `issue-flow worktree`, `issue-flow pr worktree`, `issue-flow adapter`, `issue-flow session` e `issue-flow hook`; el resto llega por etapas. El paquete será `@ramon-sg/issue-flow` y el comando, `issue-flow`.
+> **Estado:** en construcción, sin versión en npm. Ya funcionan `issue-flow issue branch`, `issue-flow issue start` (en local y en la nube), `issue-flow worktree`, `issue-flow pr worktree`, `issue-flow adapter`, `issue-flow session` e `issue-flow hook`, y las skills del flujo; el resto llega por etapas. El paquete será `@ramon-sg/issue-flow` y el comando, `issue-flow`.
 
 ## Qué va a tener
 
@@ -149,12 +149,12 @@ issue-flow pr worktree 42 --no-setup    # sin los pasos de setup
 # orca.yaml
 setupAgentStartupPolicy: wait-for-setup
 scripts:
-  setup: npx issue-flow adapter setup
-  archive: npx issue-flow adapter archive
+  setup: npx @ramon-sg/issue-flow adapter setup
+  archive: npx @ramon-sg/issue-flow adapter archive
 ```
 
 ```json
-{ "worktree": { "setup": ["npx issue-flow adapter setup"], "teardown": "npx issue-flow adapter archive" } }
+{ "worktree": { "setup": ["npx @ramon-sg/issue-flow adapter setup"], "teardown": "npx @ramon-sg/issue-flow adapter archive" } }
 ```
 
 - **`setup [--only <paso>]`:** copia `.worktreeinclude` (Paseo no lo copia), corre los pasos de `setup` y, sin `--only`, empieza la issue de la que salió el worktree como `issue start <n> --adopt`. Con Paseo la issue sale de la rama (`feat/42-x`, `42-x`); con Orca, de su CLI (`orca worktree current --json`). Siempre sale con 0: si algo falla, dice qué correr.
@@ -177,6 +177,28 @@ Es el hook `SessionStart` de Claude Code. Lo que imprime le llega a Claude como 
 3. Si un worktree local está en la rama de una issue que no está en origin, avisa que la issue no quedó empezada.
 4. Borra el Docker de los worktrees que ya no existen: Claude Code no llama al hook `WorktreeRemove` de los worktrees que no hizo un hook `WorktreeCreate`.
 5. Si hay `.envrc` y `direnv`, agrega su entorno a `CLAUDE_ENV_FILE`, para que los comandos de la sesión lo tengan.
+
+## Skills del flujo
+
+Viven en `skills/` y `skills-catalog.json` las lista. Se instalan con [`skills-manager`](https://github.com/ramon-sg/skills-manager), que las copia a `.agents/skills/` del repo para que lleguen también a la nube. Están en español y llaman a `npx @ramon-sg/issue-flow` y `npx @ramon-sg/github-rest`, que el repo tiene como dependencias de desarrollo. Van siempre con el scope: `issue-flow`, `github-rest` y `skills-manager` sin scope son paquetes de otras personas en npm, y `npx` los bajaría y correría si el repo no tiene los suyos instalados.
+
+| Skill | Categoría | Para qué sirve | Trae también |
+|---|---|---|---|
+| `github-issues` | Issues | Una issue corta con cabecera de tres líneas, criterios comprobables y el slug de su rama; comprueba duplicados y el tope de palabras | — |
+| `start-issue` | Issues | Empieza una issue desde una sesión con `issue-flow issue start`, en local, en un worktree o en la nube | — |
+| `close-pr` | PRs | Auditoría, documentos al día, ready, revisión y CI, y merge con merge commit solo con un review aprobado | `pr-review-comments` |
+| `pr-review-comments` | PRs | Verifica cada comentario y check contra el código, propone un plan, aplica lo aprobado y responde los hilos | `github-issues` |
+| `pr-worktree` | PRs | Revisa un PR en su worktree con `issue-flow pr worktree`, sin tocar el checkout principal | `close-pr` |
+
+```sh
+npx @ramon-sg/skills-manager@1 add --catalog ramon-sg/issue-flow
+```
+
+En un repo sin `.agents/skills.json`, `init` en vez de `add`. `close-pr` y `pr-worktree` usan `code-audit`, del catálogo [`agent-skills`](https://github.com/ramon-sg/agent-skills): instala los dos.
+
+**Lo propio de cada repo va en `project.md`**, que cada skill (salvo `pr-worktree`) crea desde su plantilla al instalarse: los labels y el assignee, qué flujo sigue cada issue, qué corre sin preguntar al cerrar, qué bots revisan y qué cuenta como review aprobado. Ese archivo es del repo: `check` no lo marca y las actualizaciones lo conservan.
+
+**En la nube** las skills no usan `gh pr` ni `gh issue`, que van por GraphQL. Sacar un PR de draft y resolver un hilo solo existen en GraphQL, y el merge va con `gh pr merge`, que el modo auto de Claude Code revisa. En local las tres van con `gh`; en la nube las skills se detienen y lo dicen. Si el sandbox bloquea algo, no lo reintentan de otra forma: muestran qué correr en una terminal.
 
 ## Config: `.agents/flow.json`
 
@@ -222,7 +244,7 @@ Todo es opcional; sin el archivo valen los valores por defecto. Una clave descon
 npm install && npm test
 ```
 
-Usa [`github-rest`](https://github.com/ramon-sg/github-rest) para hablar con GitHub solo por REST (en la nube GraphQL está bloqueado) y [`skills-manager`](https://github.com/ramon-sg/skills-manager) para instalar las skills. Las skills generales (`planning`, `code-audit`, …) están en [`agent-skills`](https://github.com/ramon-sg/agent-skills).
+Usa [`github-rest`](https://github.com/ramon-sg/github-rest) para hablar con GitHub solo por REST (en la nube GraphQL está bloqueado) y [`skills-manager`](https://github.com/ramon-sg/skills-manager) para instalar las skills. Los tests de las skills comprueban que el catálogo y las carpetas coincidan, que ninguna nombre el proyecto del que salió, que cada comando de `issue-flow` que nombran exista, el script de `github-issues` y una instalación completa con `skills-manager`. Las skills generales (`planning`, `code-audit`, …) están en [`agent-skills`](https://github.com/ramon-sg/agent-skills).
 
 ## Licencia
 

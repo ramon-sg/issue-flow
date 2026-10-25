@@ -197,25 +197,25 @@
           "description": "Prompt Claude opens with on a new branch; {number}, {title} (text anyone can write in the issue: better left out).",
           "type": "string",
           "minLength": 1,
-          "default": "Issue #{number}. Lee la issue con `npx github-rest issue view {number}`, resúmela en lenguaje llano y sigue la skill start-issue para elegir el flujo."
+          "default": "Issue #{number}. Lee la issue con `npx @ramon-sg/github-rest issue view {number}`, resúmela en lenguaje llano y sigue la skill start-issue para elegir el flujo."
         },
         "resumePrompt": {
           "description": "Prompt Claude opens with on a branch that has a plan; {number}, {title} (text anyone can write in the issue: better left out), {plan}.",
           "type": "string",
           "minLength": 1,
-          "default": "Issue #{number}. Lee la issue con `npx github-rest issue view {number}`, resúmela en lenguaje llano y retoma el trabajo según {plan}: revisa qué tareas quedan."
+          "default": "Issue #{number}. Lee la issue con `npx @ramon-sg/github-rest issue view {number}`, resúmela en lenguaje llano y retoma el trabajo según {plan}: revisa qué tareas quedan."
         },
         "summaryPrompt": {
           "description": "Prompt of --plan: only summarize and wait; {number}, {title} (text anyone can write in the issue: better left out).",
           "type": "string",
           "minLength": 1,
-          "default": "Issue #{number}. Lee la issue con `npx github-rest issue view {number}` y resúmela en lenguaje llano. No empieces a trabajar ni a planificar: espera mi pedido."
+          "default": "Issue #{number}. Lee la issue con `npx @ramon-sg/github-rest issue view {number}` y resúmela en lenguaje llano. No empieces a trabajar ni a planificar: espera mi pedido."
         },
         "summaryPlanPrompt": {
           "description": "Prompt of --plan when the issue has an open plan; {number}, {title} (text anyone can write in the issue: better left out), {plan}.",
           "type": "string",
           "minLength": 1,
-          "default": "Issue #{number}. Lee la issue con `npx github-rest issue view {number}` y resúmela en lenguaje llano. Tiene un plan abierto en {plan}: di en una línea qué tareas quedan. No empieces a trabajar ni a planificar: espera mi pedido."
+          "default": "Issue #{number}. Lee la issue con `npx @ramon-sg/github-rest issue view {number}` y resúmela en lenguaje llano. Tiene un plan abierto en {plan}: di en una línea qué tareas quedan. No empieces a trabajar ni a planificar: espera mi pedido."
         },
         "cloudPrompt": {
           "description": "What --cloud asks the cloud session: the skill that starts the issue there with --here; {number}, and {flags} (' --new' or ' --resume <branch>' when the branch was chosen here).",

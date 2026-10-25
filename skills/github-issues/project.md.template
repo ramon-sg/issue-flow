@@ -1,0 +1,52 @@
+# github-issues en este repo
+
+Lo propio de este repo para la skill `github-issues`. Este archivo es del
+repo: edítalo; las actualizaciones de la skill no lo tocan. Lo que dejes como
+está usa lo que dice la skill.
+
+## Assignee
+
+Quien pide la issue (`@me`). Pregunta solo si el repo tiene más
+colaboradores.
+
+## Labels
+
+Los del repo (`npx @ramon-sg/github-rest label list`). Uno de tipo siempre: `bug`,
+`enhancement`, `spike` o `documentation`.
+
+<!-- Si el repo tiene su taxonomía, va acá, por ejemplo:
+| Dimensión | Valores | Cantidad |
+|---|---|---|
+| Área | `area:server`, `area:web` | 1 o más |
+| Prioridad | `P1: urgent`, `P2: important`, `P3: minor` (ante duda), `P4: low` | 1 |
+| Tamaño | `size:XS` (<2 h), `size:S` (<1 día), `size:M` (1–3 días), `size:L` (3–5 días) | 0 o 1 |
+
+Y los comandos para crearlos en un repo nuevo, que se corren solo con OK:
+npx @ramon-sg/github-rest label create "P1: urgent" --color B60205 --description "Rompe algo en uso"
+-->
+
+## Lista para un agente
+
+Ningún label la marca: toda issue la empieza una persona.
+
+<!-- Si el repo tiene un label para que un agente la tome sin supervisión
+(por ejemplo `auto`), sus condiciones van acá: criterios comprobables con
+comandos o tests, alcance cerrado, no toca secretos ni producción, tamaño
+chico y sin decisiones de diseño pendientes. -->
+
+## Topes
+
+`check-issue.sh` lee esta tabla. Cambia un número solo si el repo lo decidió;
+un tipo que borres usa el de la skill.
+
+| Tipo | Palabras |
+|---|---|
+| bug | 150 |
+| feature | 250 |
+
+## Dónde mirar
+
+Nada propio: las rutas salen del código.
+
+<!-- Documentos que una issue puede enlazar en vez de copiar (el roadmap, la
+guía de un área), o reglas de este repo para el bloque "Dónde mirar". -->

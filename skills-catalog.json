@@ -1,0 +1,10 @@
+{
+  "catalogVersion": 1,
+  "skills": [
+    { "name": "github-issues", "path": "skills/github-issues", "category": "Issues", "editable": ["project.md"] },
+    { "name": "start-issue", "path": "skills/start-issue", "category": "Issues", "editable": ["project.md"] },
+    { "name": "close-pr", "path": "skills/close-pr", "category": "PRs", "requires": ["pr-review-comments"], "editable": ["project.md"] },
+    { "name": "pr-review-comments", "path": "skills/pr-review-comments", "category": "PRs", "requires": ["github-issues"], "editable": ["project.md"] },
+    { "name": "pr-worktree", "path": "skills/pr-worktree", "category": "PRs", "requires": ["close-pr"] }
+  ]
+}
