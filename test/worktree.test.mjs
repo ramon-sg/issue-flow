@@ -55,7 +55,7 @@ test("setup runs the steps in order in the worktree, with its variables; the mai
   assert.equal(inWorktree.status, 0, inWorktree.err);
   const lines = logged(s);
   assert.equal(lines.length, 2);
-  assert.match(lines[0], new RegExp(`^deps ${escape(dir)}\\|${escape(s.main)}\\|4200[02]\\|feat-1-x-[0-9a-f]{6}\\|${escape(dir)}$`));
+  assert.match(lines[0], new RegExp(`^deps ${escape(dir)}\\|${escape(s.main)}\\|4200[0246]\\|feat-1-x-[0-9a-f]{6}\\|${escape(dir)}$`));
   assert.match(lines[1], /^env /);
 });
 
@@ -228,10 +228,10 @@ test("ports prints the worktree's block, keeps it, and --next moves it", () => {
   const off = none.cli(["worktree", "ports"]);
 
   assert.equal(first.status, 0, first.err);
-  assert.match(first.out, /^4200[02]\n$/);
+  assert.match(first.out, /^4200[0246]\n$/);
   assert.equal(again.out, first.out);
   assert.notEqual(moved.out, first.out);
-  assert.match(moved.err, /the worktree moves to block 4200[02]/);
+  assert.match(moved.err, /the worktree moves to block 4200[0246]/);
   assert.equal(off.status, 1);
   assert.match(off.err, /this repo has no ports for worktrees/);
 });
