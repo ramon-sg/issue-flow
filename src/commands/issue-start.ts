@@ -4,22 +4,36 @@
  * it has, or a new one named like `issue branch`), shows a summary and asks, then creates
  * what is missing (worktree or branch, start commit, push, draft PR, assignment) and opens
  * Claude with the repo's permission mode. With `--plan` it only prints the branch and the
- * prompt as one line of JSON. Ported from Abastio's `scripts/start-issue.sh`, without
- * `--cloud`, `--here`, `--teleport` nor `--adopt`.
+ * prompt as one line of JSON. `--adopt`, `--here`, `--cloud` and `--teleport` are in
+ * `start-modes.ts`. Ported from Abastio's `scripts/start-issue.sh`.
  */
 import { existsSync } from "node:fs";
 import { readWork, resolveRepo, viewIssue } from "@ramon-sg/github-rest";
 import { ask, confirm, forgetTypedAhead } from "../ask.js";
 import { branchType } from "../branch-name.js";
-import { checkedOutAt, git, gitLines, locateRepo, onOrigin, ownCommits } from "../git.js";
+import { checkedOutAt, checkoutRoot, git, gitLines, locateRepo, onOrigin, ownCommits } from "../git.js";
 import { fill, issueColor, nextBranch } from "../issue-text.js";
-import { inPath, launchSession, permissionArgs } from "../launch.js";
+import { inPath, launchSession, permissionArgs, teleportSession } from "../launch.js";
 import { emitJson, type Output, warn } from "../output.js";
 import { findOpenPlan, findPlan, type PlanQuery } from "../plan-doc.js";
 import { proposeBranches } from "../propose.js";
 import { lockWorktree, unlockWorktree } from "../session-lock.js";
 import { afterSession, choosePlace, copyWorktreeIncludes, prepareBranch, publish } from "../start-place.js";
-import { again, StartError, type StartOptions, type StartState } from "../start-state.js";
+import {
+  chooseAdopted,
+  fetchOrigin,
+  finishHere,
+  launchCloud,
+  placeAdopted,
+  placeCloud,
+  placeHere,
+  prCloudSession,
+  prepareHere,
+  readAdopted,
+  renameAdopted,
+  withoutFresh,
+} from "../start-modes.js";
+import { type Adopted, again, StartError, type StartOptions, type StartState } from "../start-state.js";
 import { describeBranch, summary } from "../start-summary.js";
 import { branchPr, type WorkState, workState } from "../work-state.js";
 
@@ -29,11 +43,13 @@ interface Context {
   out: Output;
   commonDir: string;
   mainRoot: string;
+  startRoot: string;
   base: string;
   issue: StartState["issue"];
   labels: string[];
   work: WorkState;
   warnings: string[];
+  adopted: Adopted | null;
 }
 
 /**
@@ -52,7 +68,8 @@ function note(context: Pick<Context, "out" | "warnings">, text: string): void {
  * closed; fetches origin
  * (stops if it fails, because the new branch comes from it) and reads the PRs and branches
  * with github-rest. A branch of `claude --worktree` stops it too: that session has its
- * own flow.
+ * own flow. With `--adopt` it reads the worktree's branch, and a fresh one is not counted
+ * as the issue's work.
  * @param options - The options.
  * @param out - Where to write.
  * @returns What was read.
@@ -60,7 +77,8 @@ function note(context: Pick<Context, "out" | "warnings">, text: string): void {
  */
 async function readContext(options: StartOptions, out: Output): Promise<Context> {
   const located = locateRepo(options.cwd);
-  if (located === null) throw new StartError("run this inside a checkout of the repo.");
+  const startRoot = checkoutRoot(options.cwd);
+  if (located === null || startRoot === null) throw new StartError("run this inside a checkout of the repo.");
   const { number, repo, config } = options;
   const origin = resolveRepo(undefined, located.mainRoot, {});
   if (origin === null || origin.toLowerCase() !== repo.toLowerCase())
@@ -72,7 +90,7 @@ async function readContext(options: StartOptions, out: Output): Promise<Context>
   const labels = issue.labels.map(({ name }) => name);
   if (branchType(config.branch.types, labels, issue.title) === null)
     note({ out, warnings }, `issue #${number} has no type label.`);
-  if (!git(located.mainRoot, ["fetch", "-q", "--prune", "origin"]).ok) throw new StartError("could not fetch origin.");
+  if (!fetchOrigin(located.mainRoot, options.here)) throw new StartError("could not fetch origin.");
   const read = await readWork(repo, [number], { cwd: located.mainRoot });
   for (const text of read.warnings) note({ out, warnings }, text);
   const entry = read.output.issues[0];
@@ -81,11 +99,12 @@ async function readContext(options: StartOptions, out: Output): Promise<Context>
     .filter((name) => new RegExp(`^worktree-[a-z]+\\+${number}-`).test(name));
   if (claudeBranches.length > 0)
     throw new StartError(`the issue has a 'claude --worktree' branch (${claudeBranches.join(", ")}): open that session instead.`);
-  const work = workState(entry);
+  const base = config.baseBranch ?? read.output.defaultBranch ?? "main";
+  const adopted = options.adopt ? readAdopted(startRoot, located.mainRoot, base) : null;
+  const work = adopted === null ? workState(entry) : withoutFresh(workState(entry), adopted);
   if (work.forks.length > 0)
     note({ out, warnings }, `the issue has PRs from a fork (${work.forks.map((pr) => `#${pr}`).join(", ")}): they are not resumed from here.`);
-  const base = config.baseBranch ?? read.output.defaultBranch ?? "main";
-  return { options, out, ...located, base, issue, labels, work, warnings };
+  return { options, out, ...located, startRoot, base, issue, labels, work, warnings, adopted };
 }
 
 /**
@@ -152,7 +171,7 @@ async function chooseExisting(context: Context, proposed: () => string): Promise
     return null;
   }
   if (options.yes) throw new StartError(`the issue has ${count} branches (${list}): choose with --resume <branch> or --new.`);
-  const partial = { ...context, found: null, branch: "", pr: null, kind: "closes", mode: "worktree", workDir: "", plan: null } as const;
+  const partial = { ...context, found: null, branch: "", pr: null, kind: "closes", mode: "worktree", workDir: "", plan: null, cloudSession: null } as const;
   return pickBranch(context, (branch) => describeBranch(partial, branch, true), proposed());
 }
 
@@ -265,7 +284,11 @@ async function openSession(state: StartState): Promise<number> {
   const release = (): void => unlockWorktree(state.mainRoot, state.workDir, lock);
   process.once("exit", release);
   forgetTypedAhead();
-  launchSession(
+  const permissions = permissionArgs(options.permissions, state.workDir, state.mainRoot).args;
+  if (options.teleport) {
+    out.stdout(`Bringing the cloud session${state.cloudSession === null ? "" : ` (${state.cloudSession})`}. To resume it later: claude --resume\n`);
+    teleportSession(state.workDir, permissions, state.cloudSession);
+  } else launchSession(
     {
       workDir: state.workDir,
       commonDir: state.commonDir,
@@ -273,7 +296,7 @@ async function openSession(state: StartState): Promise<number> {
       mode: state.mode,
       prompt: promptFor(state, state.plan, false),
       color: issueColor(state.labels, options.config.colors)?.color ?? null,
-      permissions: permissionArgs(options.permissions, state.workDir, state.mainRoot).args,
+      permissions,
     },
     (text) => warn(out, text),
   );
@@ -295,22 +318,55 @@ export async function issueStart(options: StartOptions, out: Output): Promise<nu
   const context = await readContext(options, out);
   let proposed: string | null = null;
   const propose = (): string => (proposed ??= proposeNew(context));
-  const found = await chooseExisting(context, propose);
-  const branch = found ?? propose();
+  const chosen = context.adopted === null
+    ? { found: await chooseExisting(context, propose), named: null }
+    : chooseAdopted(context.mainRoot, context.work, context.adopted, options.number);
+  const { found } = chosen;
+  const branch = found ?? chosen.named ?? propose();
   const pr = found === null ? null : resumedPr(context, branch);
   const kind = context.work.candidates.some((other) => other !== branch) ? "part" : "closes";
   if (options.plan) return printPlan(context, found, branch, pr);
-  const place = choosePlace(context.mainRoot, branch, options.branchMode, options.config.worktrees.dir);
+  if (options.teleport && found === null)
+    throw new StartError(`issue #${options.number} has no branch: start it with '${again(options.number, "--cloud")}' (or without flags).`);
   const plan = found !== null
     ? findPlan(planQuery(context), branch, pr?.number ?? null)
     : findOpenPlan(planQuery(context), context.work.mergedPrs);
-  const state: StartState = { ...context, found, branch, pr, kind, ...place, plan };
-  out.stdout(summary(state, permissionArgs(options.permissions, existsSync(place.workDir) ? place.workDir : null, context.mainRoot)));
+  const cloudSession = await prCloudSession(options.repo, pr?.number ?? null);
+  const state: StartState = { ...context, found, branch, pr, kind, ...placeOf(context, branch, found), plan, cloudSession };
+  out.stdout(summary(state, permissionArgs(options.permissions, existsSync(state.workDir) ? state.workDir : null, context.mainRoot)));
   if (options.dryRun) return 0;
   const asked = question(state);
-  if (!options.yes && !(await confirm(out, asked.text))) throw new StartError(asked.declined);
-  prepareBranch(state);
-  await publish(state);
+  if (!options.yes && state.adopted === null && !(await confirm(out, asked.text))) throw new StartError(asked.declined);
+  if (state.mode === "cloud") return launchCloud(state, out);
+  if (state.adopted !== null) renameAdopted(state);
+  else if (state.mode === "here") prepareHere(state);
+  else prepareBranch(state);
+  const prNumber = await publish(state);
+  if (state.mode === "here") {
+    await finishHere(state, prNumber, promptFor(state, plan, false));
+    return 0;
+  }
+  if (state.adopted !== null) {
+    out.stdout(`Ready: issue #${options.number} is on branch ${branch}, with its draft PR.\n${plan === null ? "" : `Open plan of this issue, to resume: ${plan}\n`}`);
+    return 0;
+  }
   if (state.mode === "worktree") copyWorktreeIncludes(context.mainRoot, state.workDir, out);
   return openSession(state);
+}
+
+/**
+ * Where the work goes, by the flags: the adopted worktree, this checkout (`--here`), the
+ * cloud (`--cloud`), or a worktree or the main checkout.
+ * @param context - The start.
+ * @param branch - The branch.
+ * @param found - The branch being resumed, or null.
+ * @returns The mode and the folder.
+ * @throws StartError if the place is taken.
+ */
+function placeOf(context: Context, branch: string, found: string | null): Pick<StartState, "mode" | "workDir"> {
+  const { options, mainRoot, adopted } = context;
+  if (adopted !== null) return placeAdopted({ branch, startRoot: context.startRoot, adopted });
+  if (options.here) return placeHere(mainRoot, context.startRoot, branch, options.number);
+  if (options.cloud) return placeCloud(mainRoot, branch, found, options.number);
+  return choosePlace(mainRoot, branch, options.branchMode, options.config.worktrees.dir);
 }

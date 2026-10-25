@@ -7,9 +7,9 @@
 import { existsSync } from "node:fs";
 import { relative } from "node:path";
 import { currentBranch, git, hasLocal, onOrigin, ownCommits } from "./git.js";
-import { issueColor, issueHeader, prBody, sessionName } from "./issue-text.js";
+import { cloudSessionUrl, issueColor, issueHeader, prBody, sameCloudSession, sessionName } from "./issue-text.js";
 import { type PermissionArgs, savedSession } from "./launch.js";
-import type { StartState } from "./start-state.js";
+import { again, type StartState } from "./start-state.js";
 import { branchPr, openPrsElsewhere } from "./work-state.js";
 
 /** Width of the summary's labels. */
@@ -61,12 +61,10 @@ export function describeBranch(state: StartState, branch: string, withPr: boolea
  * @example plannedActions(state) // "create the branch from origin/main + empty commit + push -u + …"
  */
 export function plannedActions(state: StartState): string {
-  const actions: string[] = [];
+  if (state.mode === "cloud") return "open the cloud session, which makes the branch, the commit, the PR and the assignment";
+  const actions = placeActions(state);
   const { mainRoot, branch } = state;
-  const { number } = state.options;
-  if (state.found === null) actions.push(`create the branch from origin/${state.base}`);
-  else if (state.mode === "worktree" && !existsSync(state.workDir)) actions.push("create the worktree on the branch");
-  else if (state.mode === "branch" && currentBranch(mainRoot) !== branch) actions.push("check out the branch");
+  const { number, remoteSession } = state.options;
   const commit = needsStartCommit(state);
   if (commit) actions.push("empty commit");
   if (commit || !onOrigin(mainRoot, branch)) actions.push("push -u");
@@ -79,7 +77,25 @@ export function plannedActions(state: StartState): string {
   }
   if (state.pr?.state === "CLOSED") actions.push(`reopen PR #${state.pr.number}`);
   if (state.issue.assignees.length === 0) actions.push(`assign #${number} to @me`);
-  return actions.length > 0 ? actions.join(" + ") : "none: only open the session";
+  if (state.mode === "here" && remoteSession !== null && !sameCloudSession(state.cloudSession, remoteSession))
+    actions.push("note the session in the PR");
+  if (actions.length > 0) return actions.join(" + ");
+  return state.adopted === null ? "none: only open the session" : "none: everything was already done";
+}
+
+/**
+ * The first action, about the branch: rename the adopted one, create it, make the
+ * worktree on it or check it out.
+ * @param state - The start.
+ * @returns None or one action.
+ */
+function placeActions(state: StartState): string[] {
+  const { adopted, branch } = state;
+  if (adopted !== null) return adopted.current === branch ? [] : [`rename the branch ${adopted.current} to ${branch}`];
+  if (state.found === null) return [`create the branch from origin/${state.base}`];
+  if (state.mode === "worktree" && !existsSync(state.workDir)) return ["create the worktree on the branch"];
+  if (state.mode !== "worktree" && currentBranch(state.workDir) !== branch) return ["check out the branch"];
+  return [];
 }
 
 /**
@@ -144,19 +160,44 @@ export function summary(state: StartState, permissions: PermissionArgs): string 
   const { issue, options } = state;
   const header = issueHeader(issue.body);
   const color = issueColor(state.labels, options.config.colors);
-  const saved = savedSession(state.commonDir, state.branch) !== null;
+  const opensHere = state.adopted === null && (state.mode === "worktree" || state.mode === "branch");
   return [
     line("Issue:", `#${issue.number} — ${issue.title}`),
     ...(header.length > 0 ? [line("Summary:", header.join("\n"))] : []),
     line("Labels:", state.labels.join(" · ")),
     line("Color:", color === null ? "none" : `${color.color} (${color.label})`),
     ...branchLines(state),
-    line(
-      "Mode:",
-      state.mode === "worktree" ? `worktree at ${relative(state.mainRoot, state.workDir)}` : "branch in the main checkout",
-    ),
-    line("Session:", `${sessionName(state.branch, state.mode)}${saved ? " (exists, resumed)" : ""}`),
-    line("Permissions:", permissions.label),
+    line("Mode:", modeText(state)),
+    ...(opensHere ? [...sessionLines(state), line("Permissions:", permissions.label)] : []),
     line("Actions:", plannedActions(state)),
   ].join("");
+}
+
+/**
+ * Where the work goes, for the summary.
+ * @param state - The start.
+ * @returns The text.
+ */
+function modeText(state: StartState): string {
+  if (state.adopted !== null) return `adopted worktree at ${state.workDir}`;
+  if (state.mode === "here") return "this session (--here)";
+  if (state.mode === "cloud") return "cloud (the session makes the branch and the PR)";
+  return state.mode === "worktree" ? `worktree at ${relative(state.mainRoot, state.workDir)}` : "branch in the main checkout";
+}
+
+/**
+ * The session lines: the branch's local session or, with `--teleport`, the cloud one it
+ * brings. Without `--teleport`, a cloud session noted in the PR adds how to bring it.
+ * @param state - The start.
+ * @returns The lines.
+ */
+function sessionLines(state: StartState): string[] {
+  const { cloudSession, options } = state;
+  if (options.teleport)
+    return [line("Session:", cloudSession === null ? "cloud (chosen from teleport's list)" : `cloud ${cloudSession} (brought with teleport)`)];
+  const saved = savedSession(state.commonDir, state.branch) !== null;
+  const lines = [line("Session:", `${sessionName(state.branch, state.mode)}${saved ? " (exists, resumed)" : ""}`)];
+  if (cloudSession !== null)
+    lines.push(line("Cloud:", `the issue has a cloud session (${cloudSessionUrl(cloudSession)}). To bring it: ${again(options.number, "--teleport")}`));
+  return lines;
 }

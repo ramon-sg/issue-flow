@@ -1,7 +1,20 @@
 // Tests of the pure text of starting an issue, with Abastio's cases from scripts/issue.test.sh.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { bodyToPartOf, dirName, fill, issueColor, issueHeader, nextBranch, prBody, sessionName } from "../dist/issue-text.js";
+import {
+  bodyToPartOf,
+  cloudSessionOf,
+  dirName,
+  fill,
+  issueColor,
+  issueHeader,
+  issueOfBranch,
+  nextBranch,
+  prBody,
+  sameCloudSession,
+  sessionName,
+  withCloudSession,
+} from "../dist/issue-text.js";
 import { DEFAULT_CONFIG } from "../dist/config.js";
 import { isStale, LOCK_REASON } from "../dist/session-lock.js";
 import { branchPr, workState } from "../dist/work-state.js";
@@ -91,4 +104,34 @@ test("isStale: only a lock of issue-flow whose process is gone", () => {
   assert.equal(isStale(`${LOCK_REASON} ${process.pid}`), false);
   assert.equal(isStale("claude session 99999999"), false);
   assert.equal(isStale(`${LOCK_REASON} abc`), false);
+});
+
+test("cloudSessionOf: the id on the session line, with the old Spanish label too, or null", () => {
+  assert.equal(cloudSessionOf("Closes #4\n\nCloud session: https://claude.ai/code/session_01A"), "session_01A");
+  assert.equal(cloudSessionOf("Closes #4\nSesión en la nube: https://claude.ai/code/cse_02B"), "cse_02B");
+  assert.equal(cloudSessionOf("Closes #4\n\nsee session_03C somewhere"), null);
+  assert.equal(cloudSessionOf("Cloud session: none yet"), null);
+});
+
+test("withCloudSession: appends the line, or replaces the earlier ones with a single one", () => {
+  assert.equal(withCloudSession("Closes #4\n\n", "cse_01A"), "Closes #4\n\nCloud session: https://claude.ai/code/session_01A");
+  assert.equal(withCloudSession("", "session_01A"), "Cloud session: https://claude.ai/code/session_01A");
+  assert.equal(
+    withCloudSession("Closes #4\nSesión en la nube: https://claude.ai/code/session_0\nmid\nCloud session: https://claude.ai/code/session_1\nend", "cse_2"),
+    "Closes #4\nCloud session: https://claude.ai/code/session_2\nmid\nend",
+  );
+});
+
+test("sameCloudSession: cse_ and session_ are one session; null is none", () => {
+  assert.equal(sameCloudSession("cse_01A", "session_01A"), true);
+  assert.equal(sameCloudSession("session_01A", "session_01B"), false);
+  assert.equal(sameCloudSession(null, "session_01A"), false);
+});
+
+test("issueOfBranch: <n>- at the start or after a /, and nothing else", () => {
+  assert.equal(issueOfBranch("feat/214-x"), 214);
+  assert.equal(issueOfBranch("214-x"), 214);
+  assert.equal(issueOfBranch("ramon/sub/214-x"), 214);
+  assert.equal(issueOfBranch("feat/x-214-y"), null);
+  assert.equal(issueOfBranch("feat/214"), null);
 });
