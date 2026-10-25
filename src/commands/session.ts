@@ -77,7 +77,7 @@ function direnvExport(root: string, say: (text: string) => void): void {
 
 /**
  * `issue-flow session`.
- * @param options - The config and where it runs (`CLAUDE_PROJECT_DIR` if set).
+ * @param options - The config and the session's folder.
  * @param out - Where to write; stdout reaches Claude.
  * @returns Always 0.
  * @example await session({ config, cwd }, out)
@@ -87,7 +87,7 @@ export async function session(options: { config: FlowConfig; cwd: string }, out:
   const toClaude: Output = { ...out, stderr: (text) => out.stdout(text) };
   let place;
   try {
-    place = stepPlace({ config: options.config, cwd: process.env.CLAUDE_PROJECT_DIR ?? options.cwd }, toClaude);
+    place = stepPlace({ config: options.config, cwd: options.cwd }, toClaude);
   } catch {
     return 0;
   }

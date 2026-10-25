@@ -21,6 +21,11 @@ function which(command) {
   return execFileSync("sh", ["-c", `command -v ${command}`], { encoding: "utf8" }).trim();
 }
 
+// Whether a program is installed; lsof and ps go in the PATH only if they are.
+export function installed(command) {
+  return spawnSync("sh", ["-c", `command -v ${command}`]).status === 0;
+}
+
 function wrapper(dir, name, script) {
   writeFileSync(join(dir, name), `#!/bin/sh\nexec node "${join(HERE, script)}" "$@"\n`);
   chmodSync(join(dir, name), 0o755);
@@ -64,6 +69,7 @@ export function startSandbox() {
     symlinkSync(process.execPath, join(dir, "node"));
     symlinkSync(which("git"), join(dir, "git"));
     symlinkSync(which("sh"), join(dir, "sh"));
+    for (const tool of ["lsof", "ps"]) if (installed(tool)) symlinkSync(which(tool), join(dir, tool));
     wrapper(dir, "gh", "fake-gh.mjs");
     wrapper(dir, "docker", "fake-docker.mjs");
   }

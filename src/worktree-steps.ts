@@ -17,6 +17,7 @@ import { dockerCleanup, sanitizeLabel } from "./docker.js";
 import { git, isClean } from "./git.js";
 import { type Output, warn } from "./output.js";
 import { claimPortBase, portBase, releasePortClaims, sha256 } from "./ports.js";
+import { stopApps } from "./stop-apps.js";
 import type { Step } from "./worktree-config.js";
 
 /** Folder, in the worktree's git dir, with a mark per `once` step that worked. */
@@ -195,19 +196,22 @@ function setupStep(place: StepPlace, step: Step, env: Record<string, string>): b
 }
 
 /**
- * Cleans a worktree before it is deleted: its teardown steps (if the folder still exists),
- * its block of ports, and its Docker. Never stops: a step or a Docker that fails gets a
- * warning, because a cleanup cannot block the deletion.
+ * Cleans a worktree before it is deleted: its apps and then its teardown steps (if the
+ * folder still exists), so a step that drops a database finds nobody connected; then its
+ * block of ports and its Docker. Never stops: a step or a Docker that
+ * fails gets a warning, because a cleanup cannot block the deletion.
  * @param place - Where; the folder may be gone already.
  * @returns True if nothing failed.
- * @example teardownWorktree(place)
+ * @example await teardownWorktree(place)
  */
-export function teardownWorktree(place: StepPlace): boolean {
+export async function teardownWorktree(place: StepPlace): Promise<boolean> {
   const { root, config, out } = place;
   const ports = config.worktrees.ports;
   let ok = true;
   if (existsSync(root)) {
-    const env = stepEnv(place, ports === null ? null : portBase(ports, root));
+    const base = ports === null ? null : portBase(ports, root);
+    if (ports !== null && base !== null) await stopApps(ports, base, root, out);
+    const env = stepEnv(place, base);
     for (const step of config.worktrees.teardown) ok = runStep(place, step, env) && ok;
   }
   releasePortClaims(root, null);

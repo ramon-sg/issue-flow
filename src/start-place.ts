@@ -285,7 +285,7 @@ export async function afterSession(state: StartState, lock: Lock): Promise<void>
     const lost = ignoredFiles(state.workDir);
     const also = lost.length === 0 ? "" : ` Its ignored files go too: ${lost.slice(0, MAX_LISTED).join(", ")}${lost.length > MAX_LISTED ? ", …" : ""}.`;
     if (!(await confirm(out, `The PR was merged. Delete the worktree ${where} and the local branch ${branch}?${also}`))) return;
-    teardownWorktree(stepPlaceOf(state));
+    await teardownWorktree(stepPlaceOf(state));
     mustGit(mainRoot, ["worktree", "remove", state.workDir], `could not delete ${where} (its teardown already ran)`);
   } else {
     if (!(await confirm(out, `The PR was merged. Go back to ${base} and delete the local branch ${branch}?`))) return;
