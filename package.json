@@ -18,5 +18,5 @@
     "prepublishOnly": "npm test"
   },
   "dependencies": { "@ramon-sg/github-rest": "0.2.1" },
-  "devDependencies": { "@types/node": "^24.0.0", "typescript": "^5.9.3" }
+  "devDependencies": { "@ramon-sg/skills-manager": "1.1.0", "@types/node": "^24.0.0", "typescript": "^5.9.3" }
 }

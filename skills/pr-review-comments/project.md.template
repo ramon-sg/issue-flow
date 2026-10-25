@@ -1,0 +1,38 @@
+# pr-review-comments en este repo
+
+Lo propio de este repo para la skill `pr-review-comments`. Este archivo es
+del repo: edítalo; las actualizaciones de la skill no lo tocan. Lo que dejes
+como está usa lo que dice la skill.
+
+## Bots de review
+
+Ninguno anotado: solo personas.
+
+<!-- Cada bot con lo que hace falta para leerlo, por ejemplo:
+- **Nombre** (`login-del-bot[bot]` en REST): un review `COMMENTED` con el
+  resumen y un comentario por hallazgo con severidad `P1` a `P3`. Salta los
+  drafts. Su check sale `pass` aunque haya hallazgos: el resultado está en
+  el summary del check run. Si agotó su cupo, cómo se corre en local.
+-->
+
+## CI y sus logs
+
+Los checks del PR. Con GitHub Actions, `gh run view <id> --log-failed`.
+
+<!-- Qué CI corre (jobs, cuáles tardan), y la skill o el comando que lee
+sus logs. -->
+
+## Falsos positivos propios
+
+Ninguno anotado.
+
+<!-- Patrones que el bot sugiere y este repo resuelve de otra forma, con
+dónde se comprueba (la documentación de un framework, una regla del
+linter). -->
+
+## Archivos gemelos
+
+Ninguno anotado.
+
+<!-- Archivos que suelen tener el mismo error que el que señaló el bot
+(dos scripts que se copiaron, las rutas de dos roles del mismo recurso). -->
