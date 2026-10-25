@@ -8,7 +8,8 @@ import { parseArgs } from "node:util";
 import { GitHubError, InvalidRepoEnvError, resolveRepo } from "@ramon-sg/github-rest";
 import { branchMissing, branchOf } from "./commands/issue-branch.js";
 import { issueStart } from "./commands/issue-start.js";
-import { runSession, runWorktree, WORKTREE_COMMANDS } from "./cli-worktree.js";
+import { ADAPTER_COMMANDS, HOOK_COMMANDS, runAdapter, runHook, runSession, runWorktree, WORKTREE_COMMANDS } from "./cli-worktree.js";
+import { prWorktree } from "./commands/pr-worktree.js";
 import { ConfigError } from "./config-base.js";
 import { type FlowConfig, loadConfig, type Namer } from "./config.js";
 import type { Permissions } from "./launch.js";
@@ -27,7 +28,10 @@ const USAGE = `Usage:
   issue-flow worktree ports [--next]
   issue-flow worktree cleanup [--path <dir>]
   issue-flow worktree prune [--only <dir>] [--yes] [-R owner/repo]
+  issue-flow pr worktree <n> [--no-setup] [-R owner/repo] [-- [<command>...]]
+  issue-flow adapter setup [--only <step>] | issue [<url>] | archive [-R owner/repo]
   issue-flow session
+  issue-flow hook worktree-create | worktree-remove
 
 The slug comes from the issue's "Slug de rama" block, then from Claude, then from the title,
 and the branch from the repo's template (an older "Rama sugerida" block is used if it fits).
@@ -47,7 +51,13 @@ worktree another tool (Orca, Paseo) just made, without asking nor opening Claude
 worktree runs the steps of "worktrees" in .agents/flow.json: setup prepares this worktree,
 teardown cleans it before it goes (steps, ports, Docker), ports prints or moves its block
 of ports, cleanup deletes the Docker of deleted worktrees, and prune deletes the worktrees
-whose PR was merged or closed. session is the SessionStart hook of Claude Code.`;
+whose PR was merged or closed. session is the SessionStart hook of Claude Code.
+
+pr worktree makes (or reuses) a worktree on a PR's own branch, to review and fix it; with
+--, it runs the command there (Claude if none). adapter is what Orca and Paseo run: setup
+when they make a worktree (its steps and, if it came from an issue, issue start --adopt),
+issue to start one by hand, and archive before they delete it. hook implements Claude
+Code's WorktreeCreate and WorktreeRemove for claude --worktree.`;
 
 /** Options of the CLI. */
 const OPTIONS = {
@@ -73,6 +83,7 @@ const OPTIONS = {
   only: { type: "string" },
   path: { type: "string" },
   next: { type: "boolean" },
+  "no-setup": { type: "boolean" },
 } as const;
 
 /** The parsed flags. */
@@ -102,6 +113,12 @@ const COMMAND_FLAGS: Record<string, (keyof Flags)[]> = {
   "worktree cleanup": ["path"],
   "worktree prune": ["only", "yes"],
   session: [],
+  "pr worktree": ["no-setup"],
+  "adapter setup": ["only"],
+  "adapter issue": [],
+  "adapter archive": [],
+  "hook worktree-create": [],
+  "hook worktree-remove": [],
 };
 
 /** An issue number: digits only. */
@@ -228,9 +245,11 @@ function cloudArgs(flags: Flags): void {
  * @throws UsageError, ConfigError or GitHubError, which the entry point handles.
  */
 export async function main(argv: string[], out: Output, cwd: string): Promise<number> {
+  const dashes = argv.indexOf("--");
+  const command = dashes === -1 ? null : argv.slice(dashes + 1);
   let parsed;
   try {
-    parsed = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, strict: true });
+    parsed = parseArgs({ args: dashes === -1 ? argv : argv.slice(0, dashes), options: OPTIONS, allowPositionals: true, strict: true });
   } catch (error) {
     throw new UsageError(error instanceof Error ? error.message : String(error));
   }
@@ -239,7 +258,56 @@ export async function main(argv: string[], out: Output, cwd: string): Promise<nu
     out.stdout(`${USAGE}\n`);
     return 0;
   }
-  const [group, command, ...rest] = positionals;
+  const [group, sub, ...rest] = positionals;
+  if (command !== null && (group !== "pr" || sub !== "worktree")) throw new UsageError("-- only goes with pr worktree.");
+  if (group === "pr") return runPr(sub, rest, flags, { out, cwd, command });
+  if (group === "adapter" || group === "hook") {
+    const commands = group === "adapter" ? ADAPTER_COMMANDS : HOOK_COMMANDS;
+    if (sub === undefined || !commands.includes(sub)) throw new UsageError(`${group} expects ${commands.join(", ")}.`);
+    ownFlags(`${group} ${sub}`, flags);
+    if (group === "hook") {
+      if (rest.length > 0) throw new UsageError(`hook ${sub} takes no arguments.`);
+      return runHook(sub, { out, cwd });
+    }
+    return runAdapter(sub, flags, rest, { out, cwd, repo: () => repoOf(flags.repo, loadConfig(cwd), cwd) });
+  }
+  return runIssue(group, sub, rest, flags, { out, cwd });
+}
+
+/**
+ * Runs `issue-flow pr worktree <n>`.
+ * @param sub - The word after `pr`.
+ * @param rest - The positionals after it.
+ * @param flags - The flags.
+ * @param run - Where it writes and runs, and the command after `--` (null without `--`).
+ * @returns The exit code.
+ * @throws UsageError if the arguments do not fit.
+ */
+async function runPr(sub: string | undefined, rest: string[], flags: Flags, run: { out: Output; cwd: string; command: string[] | null }): Promise<number> {
+  if (sub !== "worktree") throw new UsageError("pr expects worktree.");
+  ownFlags("pr worktree", flags);
+  const [text, ...extra] = rest;
+  if (text === undefined || extra.length > 0 || !NUMBER.test(text)) throw new UsageError("pr worktree needs one PR number.");
+  const config = loadConfig(run.cwd);
+  return prWorktree(
+    { repo: repoOf(flags.repo, config, run.cwd), config, cwd: run.cwd, number: Number(text), setup: !(flags["no-setup"] ?? false), command: run.command },
+    run.out,
+  );
+}
+
+/**
+ * Runs the `issue`, `worktree` and `session` commands.
+ * @param group - The first word.
+ * @param command - The second word.
+ * @param rest - The positionals after them.
+ * @param flags - The flags.
+ * @param run - Where it writes and runs.
+ * @returns The exit code.
+ * @throws UsageError, ConfigError or GitHubError.
+ */
+async function runIssue(group: string | undefined, command: string | undefined, rest: string[], flags: Flags, run: { out: Output; cwd: string }): Promise<number> {
+  const { out, cwd } = run;
+  const positionals = [group, command, ...rest].filter((item) => item !== undefined);
   if (group === "session") {
     ownFlags("session", flags);
     if (positionals.length > 1) throw new UsageError("session takes no arguments.");

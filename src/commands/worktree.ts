@@ -85,15 +85,15 @@ export async function worktreeSetup(options: WorktreeOptions, out: Output): Prom
  * @param out - Where to write.
  * @returns 0, or 1 if something could not be cleaned.
  * @throws StartError for the main checkout or a folder that is not a worktree.
- * @example worktreeTeardown(options, out)
+ * @example await worktreeTeardown(options, out)
  */
-export function worktreeTeardown(options: WorktreeOptions, out: Output): number {
+export async function worktreeTeardown(options: WorktreeOptions, out: Output): Promise<number> {
   const place = stepPlace(options, out);
   const root = options.path === null ? place.root : canonicalPath(resolve(options.cwd, options.path));
   if (root === place.mainRoot) throw new StartError("teardown is for worktrees, not the main checkout.");
   if (existsSync(root) && !worktrees(place.mainRoot).some((entry) => entry.path === root))
     throw new StartError(`${root} is not a worktree of this repo.`);
-  return teardownWorktree({ ...place, root }) ? 0 : 1;
+  return (await teardownWorktree({ ...place, root })) ? 0 : 1;
 }
 
 /**
@@ -245,7 +245,7 @@ export async function worktreePrune(options: WorktreeOptions, out: Output): Prom
       out.stdout(`changed since the check, not deleted: ${item.path}\n`);
       continue;
     }
-    teardownWorktree({ ...place, root: item.path });
+    await teardownWorktree({ ...place, root: item.path });
     if (!git(mainRoot, ["worktree", "remove", item.path]).ok) {
       warn(out, `could not delete ${item.path} (its teardown already ran: its Docker and ports are gone); see 'git -C ${item.path} status'.`);
       continue;
