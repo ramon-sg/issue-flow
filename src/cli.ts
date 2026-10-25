@@ -1,22 +1,34 @@
 #!/usr/bin/env node
 /**
- * @file `issue-flow` CLI. Warnings on stderr; exits 0 on success, 1 if GitHub or an edit
- * failed and 2 on bad usage or a bad `.agents/flow.json`.
+ * @file `issue-flow` CLI. Warnings on stderr; exits 0 on success, 1 if GitHub, an edit or
+ * the start of an issue failed (or was declined) and 2 on bad usage or a bad
+ * `.agents/flow.json`.
  */
 import { parseArgs } from "node:util";
 import { GitHubError, InvalidRepoEnvError, resolveRepo } from "@ramon-sg/github-rest";
 import { branchMissing, branchOf } from "./commands/issue-branch.js";
+import { issueStart } from "./commands/issue-start.js";
 import { ConfigError, type FlowConfig, loadConfig, type Namer } from "./config.js";
+import type { Permissions } from "./launch.js";
 import { type Output, processOutput, UsageError } from "./output.js";
 
 /** Usage text. */
 const USAGE = `Usage:
   issue-flow issue branch <n>... [--namer claude|title] [--json] [-R owner/repo]
   issue-flow issue branch --missing [--limit <n>] [--namer claude|title] [--dry-run | --yes] [--json] [-R owner/repo]
+  issue-flow issue start <n> [--branch] [--dry-run | --yes] [--resume <branch> | --new] [--no-launch]
+                             [--ask-permissions | --free] [--namer claude|title] [-R owner/repo]
+  issue-flow issue start <n> --plan [--ask-permissions | --free] [--namer claude|title] [-R owner/repo]
 
 The slug comes from the issue's "Slug de rama" block, then from Claude, then from the title,
 and the branch from the repo's template (an older "Rama sugerida" block is used if it fits).
---missing adds the slug block to every open issue without a block, after confirming.`;
+--missing adds the slug block to every open issue without a block, after confirming.
+
+issue start makes the branch in a worktree (or, with --branch, in this checkout), the
+start commit, the push, the draft PR and the assignment, after confirming, and opens
+Claude: in auto mode if the repo has claude-repo-guard, with your settings with
+--ask-permissions, and with no sandbox nor questions with --free. --plan prints the branch
+and the prompt as JSON and changes nothing.`;
 
 /** Options of the CLI. */
 const OPTIONS = {
@@ -28,7 +40,23 @@ const OPTIONS = {
   namer: { type: "string" },
   yes: { type: "boolean", short: "y" },
   "dry-run": { type: "boolean" },
+  branch: { type: "boolean" },
+  resume: { type: "string" },
+  new: { type: "boolean" },
+  "no-launch": { type: "boolean" },
+  "ask-permissions": { type: "boolean" },
+  free: { type: "boolean" },
+  plan: { type: "boolean" },
 } as const;
+
+/** The parsed flags. */
+type Flags = ReturnType<typeof parseArgs<{ options: typeof OPTIONS; allowPositionals: true; strict: true }>>["values"];
+
+/** Flags each command takes, besides `--repo`, `--help` and `--namer`. */
+const COMMAND_FLAGS: Record<string, (keyof Flags)[]> = {
+  branch: ["json", "missing", "limit", "yes", "dry-run"],
+  start: ["yes", "dry-run", "branch", "resume", "new", "no-launch", "ask-permissions", "free", "plan"],
+};
 
 /** An issue number: digits only. */
 const NUMBER = /^\d+$/;
@@ -77,6 +105,48 @@ function namerOf(value: string | undefined): Namer | undefined {
 }
 
 /**
+ * Checks that only the command's own flags were given.
+ * @param command - The command.
+ * @param flags - The flags.
+ * @throws UsageError if one belongs to another command.
+ */
+function ownFlags(command: string, flags: Flags): void {
+  const allowed = new Set<string>(["repo", "help", "namer", ...(COMMAND_FLAGS[command] ?? [])]);
+  const other = Object.keys(flags).find((flag) => !allowed.has(flag));
+  if (other !== undefined) throw new UsageError(`--${other} does not go with issue ${command}.`);
+}
+
+/**
+ * The permission mode of `issue start`.
+ * @param flags - The flags.
+ * @returns The mode.
+ * @throws UsageError if both were given.
+ */
+function permissionsOf(flags: Flags): Permissions {
+  if (flags["ask-permissions"] && flags.free) throw new UsageError("use --ask-permissions or --free, not both.");
+  if (flags.free) return "free";
+  return flags["ask-permissions"] ? "ask" : "default";
+}
+
+/**
+ * Checks the flags of `issue start`.
+ * @param flags - The flags.
+ * @param rest - The positionals after the command.
+ * @returns The issue number.
+ * @throws UsageError if they do not fit.
+ */
+function startArgs(flags: Flags, rest: string[]): number {
+  const [text, ...extra] = rest;
+  if (text === undefined || extra.length > 0 || !NUMBER.test(text))
+    throw new UsageError("issue start needs one issue number.");
+  if (flags.resume !== undefined && flags.new) throw new UsageError("--resume does not go with --new.");
+  const conflicting = flags.branch || flags["dry-run"] || flags.yes || flags.resume !== undefined || flags.new;
+  if (flags.plan && conflicting)
+    throw new UsageError("--plan does not go with --branch, --dry-run, --yes, --resume nor --new.");
+  return Number(text);
+}
+
+/**
  * Runs the CLI.
  * @param argv - Arguments without `node` or the script.
  * @param out - Where to write.
@@ -97,18 +167,42 @@ export async function main(argv: string[], out: Output, cwd: string): Promise<nu
     return 0;
   }
   const [group, command, ...rest] = positionals;
-  if (group !== "issue" || command !== "branch")
+  if (group !== "issue" || (command !== "branch" && command !== "start"))
     throw new UsageError(group === undefined ? "missing the command." : `unknown command: ${positionals.join(" ")}`);
+  ownFlags(command, flags);
+  if (flags.yes && flags["dry-run"]) throw new UsageError("use --yes or --dry-run, not both.");
+  const namer = namerOf(flags.namer);
+  if (command === "start") {
+    const number = startArgs(flags, rest);
+    const permissions = permissionsOf(flags);
+    const config = loadConfig(cwd);
+    return issueStart(
+      {
+        repo: repoOf(flags.repo, config, cwd),
+        config,
+        cwd,
+        number,
+        ...(namer === undefined ? {} : { namer }),
+        dryRun: flags["dry-run"] ?? false,
+        yes: flags.yes ?? false,
+        resume: flags.resume ?? null,
+        forceNew: flags.new ?? false,
+        branchMode: flags.branch ?? false,
+        launch: !(flags["no-launch"] ?? false),
+        permissions,
+        plan: flags.plan ?? false,
+      },
+      out,
+    );
+  }
   if (flags.limit !== undefined && !POSITIVE.test(flags.limit))
     throw new UsageError(`--limit expects a positive number: ${flags.limit}`);
-  if (flags.yes && flags["dry-run"]) throw new UsageError("use --yes or --dry-run, not both.");
   if (flags.missing && rest.length > 0) throw new UsageError("--missing takes no issue numbers.");
   if (!flags.missing && (rest.length === 0 || !rest.every((text) => NUMBER.test(text))))
     throw new UsageError("issue branch needs issue numbers, or --missing.");
   if (!flags.missing && (flags.yes || flags["dry-run"] || flags.limit !== undefined))
     throw new UsageError("--yes, --dry-run and --limit go with --missing.");
   const config = loadConfig(cwd);
-  const namer = namerOf(flags.namer);
   const options = {
     repo: repoOf(flags.repo, config, cwd),
     config,

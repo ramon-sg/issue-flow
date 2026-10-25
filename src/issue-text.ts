@@ -1,0 +1,156 @@
+/**
+ * @file Text about an issue for starting it, with no git, GitHub nor Claude: its header for
+ * the summary, the session's color and name, the next free branch, the PR body and the
+ * prompt Claude opens with. Ported from Abastio's `scripts/lib/issue.sh`.
+ */
+import { BRANCH_HEADING, SLUG_HEADING } from "./branch-name.js";
+
+/** Lines of the issue's header shown before confirming. */
+export const HEADER_MAX_LINES = 6;
+
+/** Width the header is wrapped to. */
+export const HEADER_WIDTH = 80;
+
+/** Prefix of the session's name when it works in a worktree. */
+export const WORKTREE_SESSION_PREFIX = "w-";
+
+/** Where the work happens: a worktree of its own, or the main checkout. */
+export type StartMode = "worktree" | "branch";
+
+/** Whether the PR closes the issue, or is only part of it (the issue has another branch). */
+export type PrKind = "closes" | "part";
+
+/**
+ * Wraps a line at spaces, like `fold -s`.
+ * @param line - The line.
+ * @param width - The width.
+ * @returns The wrapped lines.
+ */
+function wrap(line: string, width: number): string[] {
+  const out: string[] = [];
+  let current = "";
+  for (const word of line.split(" ")) {
+    const next = current === "" ? word : `${current} ${word}`;
+    if (next.length > width && current !== "") {
+      out.push(current);
+      current = word;
+      continue;
+    }
+    current = next;
+  }
+  out.push(current);
+  return out;
+}
+
+/**
+ * The issue's header for the summary: its first paragraph, before any branch block,
+ * wrapped and cut to `HEADER_MAX_LINES` lines.
+ * @param body - The issue body.
+ * @returns The lines, maybe none.
+ * @example issueHeader("Qué se pide.\n\nDetalle.") // ["Qué se pide."]
+ */
+export function issueHeader(body: string): string[] {
+  const lines: string[] = [];
+  for (const line of body.replace(/\r/g, "").split("\n")) {
+    if (line.startsWith(SLUG_HEADING) || line.startsWith(BRANCH_HEADING)) break;
+    if (line.trim() === "" && lines.length > 0) break;
+    if (line.trim() !== "") lines.push(...wrap(line.trimEnd(), HEADER_WIDTH));
+  }
+  return lines.slice(0, HEADER_MAX_LINES);
+}
+
+/**
+ * The session's color and the label that gives it: the first entry of the config's map
+ * whose key starts some label, in the map's order (so `critical-path` can win over `P3:`).
+ * @param labels - The issue's labels.
+ * @param colors - Label prefix to color.
+ * @returns The label and color, or null if no label matches.
+ * @example issueColor(["P1: urgent"], { "P1:": "red" }) // { label: "P1: urgent", color: "red" }
+ */
+export function issueColor(
+  labels: string[],
+  colors: Record<string, string>,
+): { label: string; color: string } | null {
+  for (const [prefix, color] of Object.entries(colors)) {
+    const label = labels.find((name) => name.startsWith(prefix));
+    if (label !== undefined) return { label, color };
+  }
+  return null;
+}
+
+/**
+ * The Claude session's name: the branch, with `w-` in front in a worktree.
+ * @param branch - The branch.
+ * @param mode - Where the work happens.
+ * @returns The name.
+ * @example sessionName("feat/42-x", "worktree") // "w-feat/42-x"
+ */
+export function sessionName(branch: string, mode: StartMode): string {
+  return mode === "worktree" ? `${WORKTREE_SESSION_PREFIX}${branch}` : branch;
+}
+
+/**
+ * The folder name of a branch's worktree and session file: the branch with every `/` as
+ * `+`, like `claude --worktree`, so it is one folder.
+ * @param branch - The branch.
+ * @returns The name.
+ * @example dirName("feat/42-x") // "feat+42-x"
+ */
+export function dirName(branch: string): string {
+  return branch.replaceAll("/", "+");
+}
+
+/**
+ * The branch for a new round of the issue: the proposed one if the issue never used it,
+ * or with `-2`, `-3`… until one is free.
+ * @param proposed - The proposed branch.
+ * @param used - Every branch the issue already used.
+ * @returns The branch.
+ * @example nextBranch("feat/42-x", ["feat/42-x"]) // "feat/42-x-2"
+ */
+export function nextBranch(proposed: string, used: string[]): string {
+  let candidate = proposed;
+  for (let round = 2; used.includes(candidate); round += 1) candidate = `${proposed}-${round}`;
+  return candidate;
+}
+
+/**
+ * Fills `{name}` placeholders in one pass, so a value that holds `{plan}` is not filled
+ * again. Unknown placeholders are left as they are.
+ * @param template - The text.
+ * @param values - The values.
+ * @returns The text.
+ * @example fill("#{number}", { number: "4" }) // "#4"
+ */
+export function fill(template: string, values: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (whole, name: string) => values[name] ?? whole);
+}
+
+/**
+ * The draft PR's body from the config's template.
+ * @param template - The template, with `{keyword}` and `{number}`.
+ * @param number - The issue.
+ * @param kind - Whether the PR closes the issue or is part of it.
+ * @returns The body.
+ * @example prBody("{keyword} #{number}", 4, "part") // "Part of #4"
+ */
+export function prBody(template: string, number: number, kind: PrKind): string {
+  return fill(template, { keyword: kind === "part" ? "Part of" : "Closes", number: String(number) });
+}
+
+/**
+ * The body of a PR with the words that close the issue (`Closes`, `Fixes`, `Resolves` and
+ * their forms, with or without `:`) changed to `Part of`, because the issue now has more
+ * than one branch. Other numbers that start the same (`#2140`) are left alone.
+ * @param body - The PR body.
+ * @param number - The issue.
+ * @returns The new body.
+ * @example bodyToPartOf("Closes #4\n\nx", 4) // "Part of #4\n\nx"
+ */
+export function bodyToPartOf(body: string, number: number): string {
+  const closing = new RegExp(
+    `(^|[^\\w])(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?\\s+#${number}(?!\\d)`,
+    "gi",
+  );
+  return body.replace(closing, `$1Part of #${number}`);
+}

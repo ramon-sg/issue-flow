@@ -1,7 +1,7 @@
 // Tests of .agents/flow.json: defaults, partial sections and errors that name the key.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ConfigError, DEFAULT_CONFIG, loadConfig, parseConfig } from "../dist/config.js";
+import { ConfigError, DEFAULT_CONFIG, loadConfig, parseConfig, SESSION_COLORS } from "../dist/config.js";
 import { sandbox } from "./helpers.mjs";
 
 test("without the file, every default applies", () => {
@@ -28,6 +28,14 @@ test("a partial section keeps the other defaults, and a type map replaces the de
   assert.equal(config.start.prBody, DEFAULT_CONFIG.start.prBody);
 });
 
+test("plans and colors: a given value replaces the default, and dirs lose a trailing slash", () => {
+  const config = parseConfig({ plans: { dirs: ["notes/plans/"] }, colors: { "prio:high": "pink" } });
+
+  assert.deepEqual(config.plans.dirs, ["notes/plans"]);
+  assert.deepEqual(config.colors, { "prio:high": "pink" });
+  assert.deepEqual(parseConfig({}).colors, DEFAULT_CONFIG.colors);
+});
+
 test("each invalid value is an error that names its key", () => {
   for (const [raw, message] of [
     [{ branchTemplate: "x" }, /unknown key "branchTemplate"/],
@@ -37,6 +45,11 @@ test("each invalid value is an error that names its key", () => {
     [{ branch: { types: { labels: { bug: "Fix" } } } }, /"branch.types.labels.bug" must be a lowercase/],
     [{ repo: "widgets" }, /"repo" must be owner\/repo/],
     [{ worktrees: { dir: "" } }, /"worktrees.dir" must be a non-empty string/],
+    [{ start: { prompt: "" } }, /"start.prompt" must be a non-empty string/],
+    [{ plans: { dirs: [] } }, /"plans.dirs" must be a non-empty list/],
+    [{ plans: { dirs: ["/abs"] } }, /"plans.dirs" must be a non-empty list of folders relative/],
+    [{ plans: { folders: ["x"] } }, /unknown key "plans.folders"/],
+    [{ colors: { "P1:": "crimson" } }, /"colors.P1:" must be one of red, blue/],
     [[], /must be a JSON object/],
   ]) {
     assert.throws(() => parseConfig(raw), (error) => error instanceof ConfigError && message.test(error.message), JSON.stringify(raw));
@@ -63,4 +76,7 @@ test("schema.json has the same keys and defaults as the code", async () => {
     }
   }
   assert.deepEqual(props.branch.properties.namer.enum, ["claude", "title"]);
+  assert.deepEqual(props.plans.properties.dirs.default, DEFAULT_CONFIG.plans.dirs);
+  assert.deepEqual(props.colors.default, DEFAULT_CONFIG.colors);
+  assert.deepEqual(props.colors.additionalProperties.enum, SESSION_COLORS);
 });

@@ -6,7 +6,9 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "$schema": { "type": "string" },
+    "$schema": {
+      "type": "string"
+    },
     "repo": {
       "description": "owner/repo. By default, -R, then GH_REPO, then the checkout's origin.",
       "type": "string",
@@ -25,11 +27,21 @@
           "description": "Name of an issue's branch. Needs {number} and {slug}; {type} is optional.",
           "type": "string",
           "default": "{type}/{number}-{slug}",
-          "allOf": [{ "pattern": "\\{number\\}" }, { "pattern": "\\{slug\\}" }]
+          "allOf": [
+            {
+              "pattern": "\\{number\\}"
+            },
+            {
+              "pattern": "\\{slug\\}"
+            }
+          ]
         },
         "namer": {
           "description": "Who names a branch when the issue has no usable \"Slug de rama\" block: Claude (falls back to the title) or the title.",
-          "enum": ["claude", "title"],
+          "enum": [
+            "claude",
+            "title"
+          ],
           "default": "claude"
         },
         "claudeModel": {
@@ -43,8 +55,12 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "labels": { "$ref": "#/$defs/typeMap" },
-            "titlePrefixes": { "$ref": "#/$defs/typeMap" }
+            "labels": {
+              "$ref": "#/$defs/typeMap"
+            },
+            "titlePrefixes": {
+              "$ref": "#/$defs/typeMap"
+            }
           }
         }
       }
@@ -66,24 +82,94 @@
       "additionalProperties": false,
       "properties": {
         "commitMessage": {
-          "description": "Message of the empty commit that starts an issue; {number} is the issue.",
+          "description": "Message of the empty commit that starts an issue; {number} is the issue. [skip ci] keeps CI from running on a commit with no changes.",
           "type": "string",
           "minLength": 1,
-          "default": "chore: empieza el trabajo en la issue #{number}"
+          "default": "chore: empieza el trabajo en la issue #{number} [skip ci]"
         },
         "prBody": {
           "description": "Body of the draft PR; {keyword} is Closes, or Part of when the issue has another live branch.",
           "type": "string",
           "minLength": 1,
           "default": "{keyword} #{number}\n\nEn progreso."
+        },
+        "prompt": {
+          "description": "Prompt Claude opens with on a new branch; {number}, {title} (text anyone can write in the issue: better left out).",
+          "type": "string",
+          "minLength": 1,
+          "default": "Issue #{number}. Lee la issue con `npx github-rest issue view {number}`, resúmela en lenguaje llano y sigue la skill start-issue para elegir el flujo."
+        },
+        "resumePrompt": {
+          "description": "Prompt Claude opens with on a branch that has a plan; {number}, {title} (text anyone can write in the issue: better left out), {plan}.",
+          "type": "string",
+          "minLength": 1,
+          "default": "Issue #{number}. Lee la issue con `npx github-rest issue view {number}`, resúmela en lenguaje llano y retoma el trabajo según {plan}: revisa qué tareas quedan."
+        },
+        "summaryPrompt": {
+          "description": "Prompt of --plan: only summarize and wait; {number}, {title} (text anyone can write in the issue: better left out).",
+          "type": "string",
+          "minLength": 1,
+          "default": "Issue #{number}. Lee la issue con `npx github-rest issue view {number}` y resúmela en lenguaje llano. No empieces a trabajar ni a planificar: espera mi pedido."
+        },
+        "summaryPlanPrompt": {
+          "description": "Prompt of --plan when the issue has an open plan; {number}, {title} (text anyone can write in the issue: better left out), {plan}.",
+          "type": "string",
+          "minLength": 1,
+          "default": "Issue #{number}. Lee la issue con `npx github-rest issue view {number}` y resúmela en lenguaje llano. Tiene un plan abierto en {plan}: di en una línea qué tareas quedan. No empieces a trabajar ni a planificar: espera mi pedido."
         }
+      }
+    },
+    "plans": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dirs": {
+          "description": "Folders where an issue's plan is looked for, relative to the repo, in order of preference.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^/]"
+          },
+          "default": [
+            "docs/plans",
+            "docs/specs"
+          ]
+        }
+      }
+    },
+    "colors": {
+      "description": "Session color by label prefix; the first entry that starts a label wins. Replaces the default whole.",
+      "type": "object",
+      "additionalProperties": {
+        "enum": [
+          "red",
+          "blue",
+          "green",
+          "yellow",
+          "purple",
+          "orange",
+          "pink",
+          "cyan"
+        ]
+      },
+      "default": {
+        "critical-path": "red",
+        "P1:": "red",
+        "P2:": "orange",
+        "P3:": "yellow",
+        "P4:": "cyan"
       }
     }
   },
   "$defs": {
     "typeMap": {
       "type": "object",
-      "additionalProperties": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$" }
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9._-]*$"
+      }
     }
   }
 }
