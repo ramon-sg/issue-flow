@@ -116,6 +116,12 @@
           "type": "string",
           "minLength": 1,
           "default": "Issue #{number}. Lee la issue con `npx github-rest issue view {number}` y resúmela en lenguaje llano. Tiene un plan abierto en {plan}: di en una línea qué tareas quedan. No empieces a trabajar ni a planificar: espera mi pedido."
+        },
+        "cloudPrompt": {
+          "description": "What --cloud asks the cloud session: the skill that starts the issue there with --here; {number}, and {flags} (' --new' or ' --resume <branch>' when the branch was chosen here).",
+          "type": "string",
+          "minLength": 1,
+          "default": "/start-issue {number} --yes{flags}"
         }
       }
     },

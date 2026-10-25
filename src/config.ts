@@ -37,6 +37,7 @@ export interface FlowConfig {
     resumePrompt: string;
     summaryPrompt: string;
     summaryPlanPrompt: string;
+    cloudPrompt: string;
   };
   plans: { dirs: string[] };
   colors: Record<string, string>;
@@ -80,6 +81,7 @@ export const DEFAULT_CONFIG: FlowConfig = {
       "Issue #{number}. Lee la issue con `npx github-rest issue view {number}` y resúmela en lenguaje llano. No empieces a trabajar ni a planificar: espera mi pedido.",
     summaryPlanPrompt:
       "Issue #{number}. Lee la issue con `npx github-rest issue view {number}` y resúmela en lenguaje llano. Tiene un plan abierto en {plan}: di en una línea qué tareas quedan. No empieces a trabajar ni a planificar: espera mi pedido.",
+    cloudPrompt: "/start-issue {number} --yes{flags}",
   },
   plans: { dirs: ["docs/plans", "docs/specs"] },
   colors: {

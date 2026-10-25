@@ -19,6 +19,7 @@ const USAGE = `Usage:
   issue-flow issue start <n> [--branch] [--dry-run | --yes] [--resume <branch> | --new] [--no-launch]
                              [--ask-permissions | --free] [--namer claude|title] [-R owner/repo]
   issue-flow issue start <n> --plan [--ask-permissions | --free] [--namer claude|title] [-R owner/repo]
+  issue-flow issue start <n> --cloud | --here | --teleport | --adopt [...]
 
 The slug comes from the issue's "Slug de rama" block, then from Claude, then from the title,
 and the branch from the repo's template (an older "Rama sugerida" block is used if it fits).
@@ -28,7 +29,12 @@ issue start makes the branch in a worktree (or, with --branch, in this checkout)
 start commit, the push, the draft PR and the assignment, after confirming, and opens
 Claude: in auto mode if the repo has claude-repo-guard, with your settings with
 --ask-permissions, and with no sandbox nor questions with --free. --plan prints the branch
-and the prompt as JSON and changes nothing.`;
+and the prompt as JSON and changes nothing.
+
+--cloud confirms here and opens a Claude cloud session that starts the issue there.
+--here, inside a cloud session, starts it in this checkout and opens nothing. --teleport
+brings the cloud session noted in the PR to the worktree. --adopt starts it in the
+worktree another tool (Orca, Paseo) just made, without asking nor opening Claude.`;
 
 /** Options of the CLI. */
 const OPTIONS = {
@@ -47,6 +53,10 @@ const OPTIONS = {
   "ask-permissions": { type: "boolean" },
   free: { type: "boolean" },
   plan: { type: "boolean" },
+  cloud: { type: "boolean" },
+  here: { type: "boolean" },
+  teleport: { type: "boolean" },
+  adopt: { type: "boolean" },
 } as const;
 
 /** The parsed flags. */
@@ -55,7 +65,21 @@ type Flags = ReturnType<typeof parseArgs<{ options: typeof OPTIONS; allowPositio
 /** Flags each command takes, besides `--repo`, `--help` and `--namer`. */
 const COMMAND_FLAGS: Record<string, (keyof Flags)[]> = {
   branch: ["json", "missing", "limit", "yes", "dry-run"],
-  start: ["yes", "dry-run", "branch", "resume", "new", "no-launch", "ask-permissions", "free", "plan"],
+  start: [
+    "yes",
+    "dry-run",
+    "branch",
+    "resume",
+    "new",
+    "no-launch",
+    "ask-permissions",
+    "free",
+    "plan",
+    "cloud",
+    "here",
+    "teleport",
+    "adopt",
+  ],
 };
 
 /** An issue number: digits only. */
@@ -143,7 +167,31 @@ function startArgs(flags: Flags, rest: string[]): number {
   const conflicting = flags.branch || flags["dry-run"] || flags.yes || flags.resume !== undefined || flags.new;
   if (flags.plan && conflicting)
     throw new UsageError("--plan does not go with --branch, --dry-run, --yes, --resume nor --new.");
+  cloudArgs(flags);
   return Number(text);
+}
+
+/** The flags that do not go together with each way of starting, besides each other. */
+const EXCLUSIVE: Record<"cloud" | "here" | "teleport" | "adopt", (keyof Flags)[]> = {
+  cloud: ["branch", "plan", "ask-permissions", "free"],
+  here: ["branch", "plan", "ask-permissions", "free"],
+  teleport: ["plan", "new", "no-launch"],
+  adopt: ["branch", "plan", "resume", "new", "ask-permissions", "free"],
+};
+
+/**
+ * Checks `--cloud`, `--here`, `--teleport` and `--adopt`: at most one, and none with the
+ * flags it has no use for (only `--teleport` opens Claude here, and it needs a branch).
+ * @param flags - The flags.
+ * @throws UsageError if they do not fit.
+ */
+function cloudArgs(flags: Flags): void {
+  const ways = (Object.keys(EXCLUSIVE) as (keyof typeof EXCLUSIVE)[]).filter((way) => flags[way] === true);
+  if (ways.length > 1) throw new UsageError(`use one of --${ways.join(", --")}, not several.`);
+  const [way] = ways;
+  if (way === undefined) return;
+  const other = EXCLUSIVE[way].find((flag) => flags[flag] !== undefined && flags[flag] !== false);
+  if (other !== undefined) throw new UsageError(`--${way} does not go with --${other}.`);
 }
 
 /**
@@ -191,6 +239,11 @@ export async function main(argv: string[], out: Output, cwd: string): Promise<nu
         launch: !(flags["no-launch"] ?? false),
         permissions,
         plan: flags.plan ?? false,
+        cloud: flags.cloud ?? false,
+        here: flags.here ?? false,
+        teleport: flags.teleport ?? false,
+        adopt: flags.adopt ?? false,
+        remoteSession: process.env.CLAUDE_CODE_REMOTE_SESSION_ID || null,
       },
       out,
     );

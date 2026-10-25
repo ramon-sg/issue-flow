@@ -25,6 +25,17 @@ export interface StartOptions {
   launch: boolean;
   permissions: Permissions;
   plan: boolean;
+  cloud: boolean;
+  here: boolean;
+  teleport: boolean;
+  adopt: boolean;
+  remoteSession: string | null;
+}
+
+/** The branch of the worktree `--adopt` runs in, and whether another tool just made it. */
+export interface Adopted {
+  current: string;
+  fresh: boolean;
 }
 
 /** Error that stops `issue start`: exits 1 with the message. */
@@ -36,6 +47,7 @@ export interface StartState {
   out: Output;
   commonDir: string;
   mainRoot: string;
+  startRoot: string;
   base: string;
   issue: IssueView;
   labels: string[];
@@ -47,6 +59,8 @@ export interface StartState {
   mode: StartMode;
   workDir: string;
   plan: string | null;
+  adopted: Adopted | null;
+  cloudSession: string | null;
 }
 
 /**

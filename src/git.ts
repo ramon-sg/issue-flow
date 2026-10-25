@@ -184,3 +184,15 @@ export function locateRepo(cwd: string): { commonDir: string; mainRoot: string }
   const commonDir = real(result.out);
   return { commonDir, mainRoot: dirname(commonDir) };
 }
+
+/**
+ * The root of the checkout a directory is in (the main one or a worktree), with its
+ * symlinks resolved like the other paths here.
+ * @param cwd - A directory inside the checkout.
+ * @returns The root, or null outside git.
+ * @example checkoutRoot("/repo/.claude/worktrees/feat+42-x/src") // "/repo/.claude/worktrees/feat+42-x"
+ */
+export function checkoutRoot(cwd: string): string | null {
+  const result = git(cwd, ["rev-parse", "--show-toplevel"]);
+  return result.ok ? real(result.out) : null;
+}

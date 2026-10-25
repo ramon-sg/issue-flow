@@ -71,6 +71,20 @@ Qué hace, en orden:
 
 **Permisos:** si el repo tiene [`claude-repo-guard`](https://github.com/ramon-sg/claude-repo-guard), Claude se abre en modo auto con su contexto (lo mismo que `claude:auto`). Con `--ask-permissions` se abre con tus settings, y con `--free` sin sandbox ni preguntas (como `claude:free`). Sin `claude-repo-guard`, se abre con tus settings. `--plan` devuelve esos mismos argumentos en `claudeArgs`.
 
+### Con la nube y con otras herramientas
+
+```sh
+issue-flow issue start 42 --cloud      # confirma acá y abre una sesión de Claude en la nube
+issue-flow issue start 42 --here       # dentro de esa sesión: empieza la issue en este checkout
+issue-flow issue start 42 --teleport   # trae al worktree la sesión de la nube anotada en el PR
+issue-flow issue start 42 --adopt      # dentro de un worktree que creó Orca o Paseo
+```
+
+- **`--cloud`** lee la issue, muestra el resumen y pregunta, igual que en local. Después corre `claude --cloud "/start-issue 42 --yes"` desde el checkout principal, sin crear rama ni PR acá: los crea la sesión con `--here`. Si la issue tiene varias ramas, le pasa la elegida con `--resume <rama>` o `--new`. Se detiene si la rama ya está abierta en un checkout o existe solo en local, porque la nube no la vería.
+- **`--here`** es para la skill dentro de una sesión en la nube. Deja este checkout en la rama (desde `origin/<base>`, o desde `origin/<rama>` si ya existe), hace el commit vacío, el push, el PR en draft y la asignación, y no abre Claude. Si corre en una sesión (`CLAUDE_CODE_REMOTE_SESSION_ID`), anota su link en el cuerpo del PR (`Cloud session: …`); queda una sola línea, la de la última sesión. Termina con una línea `Prompt: …` que la skill sigue. Se detiene si hay cambios sin commitear: no hace stash.
+- **`--teleport`** retoma como siempre (worktree, PR) y abre `claude --teleport` con la sesión anotada en el PR, o con la lista de sesiones si no hay ninguna. Sin `--teleport`, retomar abre la sesión local y el resumen avisa si hay una en la nube.
+- **`--adopt`** usa el worktree donde se corre, que creó otra herramienta. No pregunta ni abre Claude. Renombra su rama a la de la issue y publica; si la rama ya lleva el número de la issue (`fix/42-mi-nombre`), la deja como está. Si el worktree ya está en una rama viva de la issue, la retoma. Si no, solo adopta un worktree recién creado: se detiene si su rama está en origin, tiene commits propios o hay cambios sin commitear, o si la issue ya tiene su rama en otro lado.
+
 ## Config: `.agents/flow.json`
 
 Todo es opcional; sin el archivo valen los valores por defecto. Una clave desconocida es un error, así un error de tipeo no pasa en silencio. `schema.json` da autocompletado en el editor:
@@ -102,6 +116,7 @@ Todo es opcional; sin el archivo valen los valores por defecto. Una clave descon
 | `start.prBody` | `{keyword} #{number}` y "En progreso." | Cuerpo del PR en draft |
 | `start.prompt`, `start.resumePrompt` | Resumir la issue y seguir `start-issue`, o retomar desde `{plan}` | Pedido con que se abre Claude |
 | `start.summaryPrompt`, `start.summaryPlanPrompt` | Resumir y esperar | Pedido de `--plan` |
+| `start.cloudPrompt` | `/start-issue {number} --yes{flags}` | Lo que `--cloud` le pide a la sesión; `{flags}` es `--new` o `--resume <rama>` |
 | `plans.dirs` | `docs/plans`, `docs/specs` | Dónde buscar el plan de la issue: lo que tocó la rama, o el documento cuyo `prs:` nombra su PR |
 | `colors` | `critical-path` y `P1:` rojo, `P2:` naranjo, `P3:` amarillo, `P4:` cian | Color de la sesión por prefijo de label; gana el primero que calce |
 

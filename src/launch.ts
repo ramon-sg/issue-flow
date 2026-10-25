@@ -172,3 +172,16 @@ export function launchSession(plan: LaunchPlan, warn: (text: string) => void): v
   if (sessionExists(id)) runClaude(plan.workDir, [...plan.permissions, "--resume", id, plan.prompt]);
   else runClaude(plan.workDir, [...plan.permissions, "--session-id", id, "-n", name, plan.prompt]);
 }
+
+/**
+ * Brings a cloud session to the folder with `claude --teleport`: the one noted in the PR,
+ * or the list of sessions to choose from if there is none. It keeps no session id: once
+ * brought, `claude --resume` finds it.
+ * @param workDir - Where.
+ * @param permissions - The arguments of the permission mode.
+ * @param id - The cloud session, or null for the list.
+ * @example teleportSession(wt, [], "session_01A")
+ */
+export function teleportSession(workDir: string, permissions: string[], id: string | null): void {
+  runClaude(workDir, [...permissions, "--teleport", ...(id === null ? [] : [id])]);
+}

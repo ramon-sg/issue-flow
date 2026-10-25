@@ -14,8 +14,23 @@ export const HEADER_WIDTH = 80;
 /** Prefix of the session's name when it works in a worktree. */
 export const WORKTREE_SESSION_PREFIX = "w-";
 
-/** Where the work happens: a worktree of its own, or the main checkout. */
-export type StartMode = "worktree" | "branch";
+/**
+ * Where the work happens: a worktree of its own, the main checkout, the checkout where it
+ * runs inside a cloud session (`--here`), or a cloud session it opens (`--cloud`).
+ */
+export type StartMode = "worktree" | "branch" | "here" | "cloud";
+
+/** Label of the PR body's line with the link of its cloud session. */
+export const CLOUD_SESSION_LABEL = "Cloud session:";
+
+/** Labels of that line that are still read (Abastio's), never written. */
+const LEGACY_CLOUD_SESSION_LABELS = ["Sesión en la nube:"];
+
+/** A cloud session id: `session_…`, or `cse_…` as the session sees itself. */
+const CLOUD_SESSION_ID = /\b(?:session|cse)_[A-Za-z0-9]+/;
+
+/** The issue number in a branch: `<n>-` at the start or after a `/`. */
+const BRANCH_NUMBER = /(?:^|\/)(\d+)-/;
 
 /** Whether the PR closes the issue, or is only part of it (the issue has another branch). */
 export type PrKind = "closes" | "part";
@@ -153,4 +168,74 @@ export function bodyToPartOf(body: string, number: number): string {
     "gi",
   );
   return body.replace(closing, `$1Part of #${number}`);
+}
+
+/**
+ * The claude.ai link of a cloud session. The link uses `session_` even when the id comes
+ * as `cse_`.
+ * @param id - The id.
+ * @returns The link.
+ * @example cloudSessionUrl("cse_01A") // "https://claude.ai/code/session_01A"
+ */
+export function cloudSessionUrl(id: string): string {
+  return `https://claude.ai/code/${id.replace(/^cse_/, "session_")}`;
+}
+
+/**
+ * Whether two ids are the same cloud session (`cse_…` and `session_…` lead to one link).
+ * @param one - An id, or null.
+ * @param other - The other id.
+ * @returns True if they are.
+ * @example sameCloudSession("cse_01A", "session_01A") // true
+ */
+export function sameCloudSession(one: string | null, other: string): boolean {
+  return one !== null && cloudSessionUrl(one) === cloudSessionUrl(other);
+}
+
+/**
+ * Whether a line of a PR body is the one with the cloud session.
+ * @param text - The line.
+ * @returns True if it is.
+ */
+function isSessionLine(text: string): boolean {
+  return [CLOUD_SESSION_LABEL, ...LEGACY_CLOUD_SESSION_LABELS].some((label) => text.includes(label));
+}
+
+/**
+ * The cloud session noted in a PR body, so `--teleport` finds it from any machine.
+ * @param body - The PR body.
+ * @returns The id, or null.
+ * @example cloudSessionOf("Closes #4\n\nCloud session: https://claude.ai/code/session_01A") // "session_01A"
+ */
+export function cloudSessionOf(body: string): string | null {
+  const found = body.split("\n").find(isSessionLine);
+  return found === undefined ? null : (CLOUD_SESSION_ID.exec(found)?.[0] ?? null);
+}
+
+/**
+ * The PR body with the line of a cloud session: it replaces the line of an earlier
+ * session (one line stays, the last session that took the issue) or goes at the end.
+ * @param body - The PR body.
+ * @param id - The session.
+ * @returns The new body.
+ * @example withCloudSession("Closes #4", "cse_01A") // "Closes #4\n\nCloud session: https://claude.ai/code/session_01A"
+ */
+export function withCloudSession(body: string, id: string): string {
+  const note = `${CLOUD_SESSION_LABEL} ${cloudSessionUrl(id)}`;
+  const lines = body.split("\n");
+  const first = lines.findIndex(isSessionLine);
+  if (first === -1) return body === "" ? note : `${body.replace(/\n+$/, "")}\n\n${note}`;
+  return lines.flatMap((text, index) => (index === first ? [note] : isSessionLine(text) ? [] : [text])).join("\n");
+}
+
+/**
+ * The issue a branch belongs to, by its `<n>-` at the start or after a `/` (`feat/214-x`,
+ * `214-x`, `ramon/sub/214-x`).
+ * @param branch - The branch.
+ * @returns The number, or null.
+ * @example issueOfBranch("feat/214-x") // 214
+ */
+export function issueOfBranch(branch: string): number | null {
+  const found = BRANCH_NUMBER.exec(branch);
+  return found?.[1] === undefined ? null : Number(found[1]);
 }
