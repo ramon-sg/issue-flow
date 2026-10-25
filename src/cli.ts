@@ -9,55 +9,13 @@ import { GitHubError, InvalidRepoEnvError, resolveRepo } from "@ramon-sg/github-
 import { branchMissing, branchOf } from "./commands/issue-branch.js";
 import { issueStart } from "./commands/issue-start.js";
 import { ADAPTER_COMMANDS, HOOK_COMMANDS, runAdapter, runHook, runSession, runWorktree, WORKTREE_COMMANDS } from "./cli-worktree.js";
+import { runSetupCommand, SETUP_COMMANDS } from "./cli-setup.js";
 import { prWorktree } from "./commands/pr-worktree.js";
 import { ConfigError } from "./config-base.js";
 import { type FlowConfig, loadConfig, type Namer } from "./config.js";
 import type { Permissions } from "./launch.js";
 import { type Output, processOutput, UsageError } from "./output.js";
-
-/** Usage text. */
-const USAGE = `Usage:
-  issue-flow issue branch <n>... [--namer claude|title] [--json] [-R owner/repo]
-  issue-flow issue branch --missing [--limit <n>] [--namer claude|title] [--dry-run | --yes] [--json] [-R owner/repo]
-  issue-flow issue start <n> [--branch] [--dry-run | --yes] [--resume <branch> | --new] [--no-launch]
-                             [--ask-permissions | --free] [--namer claude|title] [-R owner/repo]
-  issue-flow issue start <n> --plan [--ask-permissions | --free] [--namer claude|title] [-R owner/repo]
-  issue-flow issue start <n> --cloud | --here | --teleport | --adopt [...]
-  issue-flow worktree setup [--only <step>]
-  issue-flow worktree teardown [--path <dir>]
-  issue-flow worktree ports [--next]
-  issue-flow worktree cleanup [--path <dir>]
-  issue-flow worktree prune [--only <dir>] [--yes] [-R owner/repo]
-  issue-flow pr worktree <n> [--no-setup] [-R owner/repo] [-- [<command>...]]
-  issue-flow adapter setup [--only <step>] | issue [<url>] | archive [-R owner/repo]
-  issue-flow session
-  issue-flow hook worktree-create | worktree-remove
-
-The slug comes from the issue's "Slug de rama" block, then from Claude, then from the title,
-and the branch from the repo's template (an older "Rama sugerida" block is used if it fits).
---missing adds the slug block to every open issue without a block, after confirming.
-
-issue start makes the branch in a worktree (or, with --branch, in this checkout), the
-start commit, the push, the draft PR and the assignment, after confirming, and opens
-Claude: in auto mode if the repo has claude-repo-guard, with your settings with
---ask-permissions, and with no sandbox nor questions with --free. --plan prints the branch
-and the prompt as JSON and changes nothing.
-
---cloud confirms here and opens a Claude cloud session that starts the issue there.
---here, inside a cloud session, starts it in this checkout and opens nothing. --teleport
-brings the cloud session noted in the PR to the worktree. --adopt starts it in the
-worktree another tool (Orca, Paseo) just made, without asking nor opening Claude.
-
-worktree runs the steps of "worktrees" in .agents/flow.json: setup prepares this worktree,
-teardown cleans it before it goes (steps, ports, Docker), ports prints or moves its block
-of ports, cleanup deletes the Docker of deleted worktrees, and prune deletes the worktrees
-whose PR was merged or closed. session is the SessionStart hook of Claude Code.
-
-pr worktree makes (or reuses) a worktree on a PR's own branch, to review and fix it; with
---, it runs the command there (Claude if none). adapter is what Orca and Paseo run: setup
-when they make a worktree (its steps and, if it came from an issue, issue start --adopt),
-issue to start one by hand, and archive before they delete it. hook implements Claude
-Code's WorktreeCreate and WorktreeRemove for claude --worktree.`;
+import { USAGE } from "./usage.js";
 
 /** Options of the CLI. */
 const OPTIONS = {
@@ -84,6 +42,11 @@ const OPTIONS = {
   path: { type: "string" },
   next: { type: "boolean" },
   "no-setup": { type: "boolean" },
+  recipe: { type: "string" },
+  "no-cloud": { type: "boolean" },
+  "no-guard": { type: "boolean" },
+  "no-skills": { type: "boolean" },
+  to: { type: "string" },
 } as const;
 
 /** The parsed flags. */
@@ -119,6 +82,9 @@ const COMMAND_FLAGS: Record<string, (keyof Flags)[]> = {
   "adapter archive": [],
   "hook worktree-create": [],
   "hook worktree-remove": [],
+  init: ["yes", "recipe", "no-cloud", "no-guard", "no-skills"],
+  doctor: [],
+  upgrade: ["to", "dry-run"],
 };
 
 /** An issue number: digits only. */
@@ -261,6 +227,10 @@ export async function main(argv: string[], out: Output, cwd: string): Promise<nu
   const [group, sub, ...rest] = positionals;
   if (command !== null && (group !== "pr" || sub !== "worktree")) throw new UsageError("-- only goes with pr worktree.");
   if (group === "pr") return runPr(sub, rest, flags, { out, cwd, command });
+  if (group !== undefined && SETUP_COMMANDS.includes(group)) {
+    ownFlags(group, flags);
+    return runSetupCommand(group, flags, [sub, ...rest].filter((item) => item !== undefined), { out, cwd });
+  }
   if (group === "adapter" || group === "hook") {
     const commands = group === "adapter" ? ADAPTER_COMMANDS : HOOK_COMMANDS;
     if (sub === undefined || !commands.includes(sub)) throw new UsageError(`${group} expects ${commands.join(", ")}.`);

@@ -1,0 +1,5 @@
+{
+  "description": "Installs the dependencies with pnpm in each worktree, only when its code is in the base branch.",
+  "detect": ["pnpm-lock.yaml"],
+  "config": { "worktrees": { "setup": [{ "name": "deps", "run": "pnpm install --frozen-lockfile", "trusted": true }] } }
+}
