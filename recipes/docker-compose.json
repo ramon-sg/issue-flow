@@ -1,0 +1,30 @@
+{
+  "description": "Gives each worktree its own Docker Compose project and block of ports: up on setup (only when its code is in the base branch), down with its volumes on teardown. The compose file takes its ports from ISSUE_FLOW_PORT_BASE.",
+  "detect": [
+    "compose.yaml",
+    "compose.yml",
+    "docker-compose.yml",
+    "docker-compose.yaml"
+  ],
+  "config": {
+    "worktrees": {
+      "setup": [
+        {
+          "name": "docker",
+          "run": "docker compose -p {project}-$ISSUE_FLOW_DOCKER_SUFFIX up -d",
+          "trusted": true
+        }
+      ],
+      "teardown": [
+        {
+          "name": "docker",
+          "run": "docker compose -p {project}-$ISSUE_FLOW_DOCKER_SUFFIX down -v"
+        }
+      ],
+      "ports": true,
+      "dockerProjects": [
+        "{project}"
+      ]
+    }
+  }
+}

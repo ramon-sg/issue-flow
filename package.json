@@ -6,7 +6,7 @@
   "license": "MIT",
   "type": "module",
   "bin": { "issue-flow": "dist/cli.js" },
-  "files": ["dist", "schema.json"],
+  "files": ["dist", "schema.json", "recipes"],
   "engines": { "node": ">=20" },
   "repository": {
     "type": "git",

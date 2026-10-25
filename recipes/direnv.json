@@ -1,0 +1,17 @@
+{
+  "description": "Allows the .envrc of each worktree whose code is in the base branch, so direnv (and the secrets it loads, Infisical for example) works there.",
+  "detect": [
+    ".envrc"
+  ],
+  "config": {
+    "worktrees": {
+      "setup": [
+        {
+          "name": "direnv",
+          "run": "command -v direnv >/dev/null || { echo 'direnv is not installed: .envrc not allowed'; exit 0; }; direnv allow",
+          "trusted": true
+        }
+      ]
+    }
+  }
+}

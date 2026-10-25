@@ -1,0 +1,5 @@
+{
+  "description": "Installs the dependencies with npm ci in each worktree, only when its code is in the base branch.",
+  "detect": ["package-lock.json"],
+  "config": { "worktrees": { "setup": [{ "name": "deps", "run": "npm ci", "trusted": true }] } }
+}
