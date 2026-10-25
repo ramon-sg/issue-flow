@@ -2,14 +2,14 @@
 
 Flujo de trabajo de issue a PR para cualquier repo, en local y en las sesiones de Claude en la nube: nombra la rama de cada issue, crea su worktree con puertos y Docker propios, abre el PR en draft y limpia cuando se mergea. Trae las skills que usan ese flujo.
 
-> **Estado:** en construcción, sin versión en npm. Ya funcionan `issue-flow issue branch` e `issue-flow issue start` en local; el resto llega por etapas. El paquete será `@ramon-sg/issue-flow` y el comando, `issue-flow`.
+> **Estado:** en construcción, sin versión en npm. Ya funcionan `issue-flow issue branch`, `issue-flow issue start` (en local y en la nube), `issue-flow worktree` e `issue-flow session`; el resto llega por etapas. El paquete será `@ramon-sg/issue-flow` y el comando, `issue-flow`.
 
 ## Qué va a tener
 
 - **`issue-flow init`:** pregunta cómo es el repo (rama base, gestor de paquetes, Docker, secretos), ofrece recetas, escribe `.agents/flow.json` y abre el menú de skills.
 - **`issue-flow issue branch <n>`:** propone la rama de una issue (con Claude por defecto, o desde el título). Con `--missing`, agrega el slug de rama a todas las issues abiertas que no lo tienen.
 - **`issue-flow issue start <n>`:** crea la rama y el worktree, hace el commit inicial, abre el PR en draft, asigna la issue y abre Claude. Con `--cloud`, lo hace en una sesión en la nube.
-- **`issue-flow worktree status|ports|prune|cleanup`:** puertos por worktree y limpieza de worktrees con el PR cerrado.
+- **`issue-flow worktree setup|teardown|ports|cleanup|prune`:** prepara y limpia cada worktree con los pasos del repo, le da un bloque de puertos y borra los worktrees con el PR cerrado.
 - **`issue-flow session`:** el hook `SessionStart`; en la nube llama a [`claude-cloud`](https://github.com/ramon-sg/claude-cloud).
 - **Skills:** `github-issues`, `start-issue`, `close-pr`, `pr-review-comments` y `pr-worktree`.
 
@@ -85,9 +85,58 @@ issue-flow issue start 42 --adopt      # dentro de un worktree que creó Orca o 
 - **`--teleport`** retoma como siempre (worktree, PR) y abre `claude --teleport` con la sesión anotada en el PR, o con la lista de sesiones si no hay ninguna. Sin `--teleport`, retomar abre la sesión local y el resumen avisa si hay una en la nube.
 - **`--adopt`** usa el worktree donde se corre, que creó otra herramienta. No pregunta ni abre Claude. Renombra su rama a la de la issue y publica; si la rama ya lleva el número de la issue (`fix/42-mi-nombre`), la deja como está. Si el worktree ya está en una rama viva de la issue, la retoma. Si no, solo adopta un worktree recién creado: se detiene si su rama está en origin, tiene commits propios o hay cambios sin commitear, o si la issue ya tiene su rama en otro lado.
 
+## Worktrees: preparar, limpiar y borrar
+
+```sh
+issue-flow worktree setup              # corre los pasos de preparación en este worktree
+issue-flow worktree setup --only deps  # uno solo
+issue-flow worktree teardown           # sus pasos de limpieza, sus puertos y su Docker
+issue-flow worktree ports [--next]     # el primer puerto de su bloque, o lo pasa al siguiente
+issue-flow worktree cleanup            # el Docker de los worktrees que ya no existen
+issue-flow worktree prune              # borra los worktrees cuyo PR se mergeó o se cerró
+```
+
+Lo propio de cada repo (instalar, armar la base, levantar Docker) son **pasos** en `worktrees` de `.agents/flow.json`; `issue-flow` solo los corre:
+
+```json
+{
+  "worktrees": {
+    "setup": [
+      { "name": "deps", "run": "npm ci", "trusted": true, "once": true },
+      { "name": "env", "run": "cp -n .env.example .env" }
+    ],
+    "teardown": [{ "name": "docker", "run": "docker compose -p acme-dev-$ISSUE_FLOW_DOCKER_SUFFIX down -v" }],
+    "ports": true,
+    "dockerProjects": ["acme-dev"]
+  }
+}
+```
+
+- **Cuándo corren:** `issue start` corre el `setup` en cada worktree nuevo, después de copiar `.worktreeinclude`. El hook `session` lo corre al abrir Claude en un worktree. El `teardown` corre antes de borrar un worktree, con `prune` o al limpiar después del merge.
+- **De dónde salen:** siempre de la config del checkout principal, nunca de la del worktree. Así una rama no puede sumar comandos a su propio setup. En la nube no hay otro checkout: ahí la config es la de la rama de la sesión.
+- **Pueden correr más de una vez:** `issue start` y el hook `session` corren el `setup` del mismo worktree, así que un paso sin `once` tiene que poder repetirse.
+- **`trusted`:** el paso corre solo si el código del worktree está en `origin/<base>` y no tiene cambios. Es para un install, que corre los scripts de `package.json` de esa rama. En la nube corre siempre, porque la máquina es descartable.
+- **`once`:** el paso no se repite una vez que funcionó (deja una marca en el git dir del worktree).
+- **Variables de cada paso:** `ISSUE_FLOW_WORKTREE`, `ISSUE_FLOW_MAIN_ROOT`, `ISSUE_FLOW_DOCKER_SUFFIX` y, con `ports`, `ISSUE_FLOW_PORT_BASE`.
+- **Puertos:** cada worktree recibe un bloque fijo. Sale de un hash de la máquina y la carpeta, salta los bloques donde algo escucha o que otro worktree de la máquina registró, y queda guardado. macOS usa la primera mitad del rango y el resto la segunda, así un worktree de la laptop no choca con uno del servidor que Orca reenvía.
+- **Docker:** el proyecto de Compose de cada worktree es `<prefijo>-$ISSUE_FLOW_DOCKER_SUFFIX`. `cleanup` borra contenedores, volúmenes y redes de los proyectos con un prefijo de `dockerProjects` cuya carpeta ya no es un checkout. Nunca toca uno sin sufijo, el del checkout principal.
+- **`prune`** pregunta antes de borrar. Nunca toca un worktree con cambios, con commits sin pushear o bloqueado por una sesión de Claude, y revisa cada uno otra vez justo antes de borrarlo.
+
+Los nombres de Docker y los bloques de puertos salen iguales que los de Abastio.
+
+## Hook de sesión: `issue-flow session`
+
+Es el hook `SessionStart` de Claude Code. Lo que imprime le llega a Claude como contexto, así que ahí van los avisos. Nunca hace fallar la sesión.
+
+1. En una sesión en la nube (`CLAUDE_CODE_REMOTE=true`), corre `claude-cloud session`. Si no está, dice qué setup script poner en claude.ai.
+2. En un worktree (o en el checkout de la nube), corre los pasos de `setup`.
+3. Si un worktree local está en la rama de una issue que no está en origin, avisa que la issue no quedó empezada.
+4. Borra el Docker de los worktrees que ya no existen: Claude Code no llama al hook `WorktreeRemove` de los worktrees creados con git.
+5. Si hay `.envrc` y `direnv`, agrega su entorno a `CLAUDE_ENV_FILE`, para que los comandos de la sesión lo tengan.
+
 ## Config: `.agents/flow.json`
 
-Todo es opcional; sin el archivo valen los valores por defecto. Una clave desconocida es un error, así un error de tipeo no pasa en silencio. `schema.json` da autocompletado en el editor:
+Todo es opcional; sin el archivo valen los valores por defecto. Una clave desconocida es un error, así un error de tipeo no pasa en silencio. Se lee siempre del checkout principal, también desde un worktree. `schema.json` da autocompletado en el editor:
 
 ```json
 {
@@ -112,6 +161,9 @@ Todo es opcional; sin el archivo valen los valores por defecto. Una clave descon
 | `branch.claudeModel` | `haiku` | Modelo de `claude -p` |
 | `branch.types` | Los de arriba | Tipo por label y por prefijo; cada mapa reemplaza al de por defecto |
 | `worktrees.dir` | `.claude/worktrees` | Dónde van los worktrees |
+| `worktrees.setup`, `worktrees.teardown` | Ninguno | Pasos para preparar y limpiar un worktree (ver arriba) |
+| `worktrees.ports` | Apagado | `true` para bloques de 10 desde 20000, o `{ start, blockSize, blocks }` |
+| `worktrees.dockerProjects` | Ninguno | Prefijos de los proyectos de Compose de los worktrees |
 | `start.commitMessage` | `chore: empieza el trabajo en la issue #{number} [skip ci]` | Commit vacío inicial |
 | `start.prBody` | `{keyword} #{number}` y "En progreso." | Cuerpo del PR en draft |
 | `start.prompt`, `start.resumePrompt` | Resumir la issue y seguir `start-issue`, o retomar desde `{plan}` | Pedido con que se abre Claude |

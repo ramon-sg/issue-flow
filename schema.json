@@ -74,6 +74,106 @@
           "type": "string",
           "minLength": 1,
           "default": ".claude/worktrees"
+        },
+        "setup": {
+          "description": "Steps that prepare a worktree, in order. They come from the main checkout's config, never the worktree's.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "run"
+            ],
+            "properties": {
+              "name": {
+                "description": "Lowercase letters, digits and dashes; what --only takes.",
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]*$"
+              },
+              "run": {
+                "description": "The command, run with sh -c in the worktree. It gets ISSUE_FLOW_WORKTREE, ISSUE_FLOW_MAIN_ROOT, ISSUE_FLOW_DOCKER_SUFFIX and, with ports, ISSUE_FLOW_PORT_BASE.",
+                "type": "string",
+                "minLength": 1
+              },
+              "trusted": {
+                "description": "Run only if the worktree's code is in origin/<base> and has no changes (an install runs the scripts of package.json).",
+                "type": "boolean",
+                "default": false
+              },
+              "once": {
+                "description": "Run once: a mark in the worktree's git dir skips it after it works.",
+                "type": "boolean",
+                "default": false
+              }
+            }
+          },
+          "default": []
+        },
+        "teardown": {
+          "description": "Steps that clean a worktree before it is deleted (bring its Docker down, for example).",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "run"
+            ],
+            "properties": {
+              "name": {
+                "description": "Lowercase letters, digits and dashes; what --only takes.",
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]*$"
+              },
+              "run": {
+                "description": "The command, run with sh -c in the worktree. It gets ISSUE_FLOW_WORKTREE, ISSUE_FLOW_MAIN_ROOT, ISSUE_FLOW_DOCKER_SUFFIX and, with ports, ISSUE_FLOW_PORT_BASE.",
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "default": []
+        },
+        "ports": {
+          "description": "A block of ports per worktree: true for 1000 blocks of 10 from 20000, or a range. Steps get the block's first port in ISSUE_FLOW_PORT_BASE.",
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "start": {
+                  "type": "integer",
+                  "minimum": 1024,
+                  "default": 20000
+                },
+                "blockSize": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 10
+                },
+                "blocks": {
+                  "type": "integer",
+                  "minimum": 2,
+                  "multipleOf": 2,
+                  "default": 1000
+                }
+              }
+            }
+          ],
+          "default": false
+        },
+        "dockerProjects": {
+          "description": "Prefixes of the worktrees' Docker Compose projects (<prefix>-$ISSUE_FLOW_DOCKER_SUFFIX). The cleanup only deletes projects with one of these and a suffix.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]*$"
+          },
+          "default": []
         }
       }
     },
