@@ -2,7 +2,7 @@
 
 Flujo de trabajo de issue a PR para cualquier repo, en local y en las sesiones de Claude en la nube: nombra la rama de cada issue, crea su worktree con puertos y Docker propios, abre el PR en draft y limpia cuando se mergea. Trae las skills que usan ese flujo.
 
-> **Estado:** en construcción, sin versión en npm. Ya funcionan `issue-flow issue branch`, `issue-flow issue start` (en local y en la nube), `issue-flow worktree`, `issue-flow pr worktree`, `issue-flow adapter`, `issue-flow session`, `issue-flow hook`, `issue-flow init`, `doctor` y `upgrade`, y las skills del flujo; falta publicar la primera versión. El paquete será `@ramon-sg/issue-flow` y el comando, `issue-flow`.
+> **Instalar en un repo:** `npx @ramon-sg/issue-flow init` (ver [Instalar en un repo](#instalar-en-un-repo-issue-flow-init)). El paquete es `@ramon-sg/issue-flow` y el comando, `issue-flow`; sin el scope, `issue-flow` en npm es otro paquete.
 
 ## Qué va a tener
 
@@ -282,6 +282,23 @@ npm install && npm test
 ```
 
 Usa [`github-rest`](https://github.com/ramon-sg/github-rest) para hablar con GitHub solo por REST (en la nube GraphQL está bloqueado) y [`skills-manager`](https://github.com/ramon-sg/skills-manager) para instalar las skills. Los tests de las skills comprueban que el catálogo y las carpetas coincidan, que ninguna nombre el proyecto del que salió, que cada comando de `issue-flow` que nombran exista, el script de `github-issues` y una instalación completa con `skills-manager`. Las skills generales (`planning`, `code-audit`, …) están en [`agent-skills`](https://github.com/ramon-sg/agent-skills).
+
+## Publicar una versión
+
+Una versión es una release `vX.Y.Z` en GitHub, con el mismo número que `package.json`. Al publicarla, GitHub Actions corre los tests y publica en npm con procedencia (`.github/workflows/publish.yml`). La tag es también la versión de las skills del flujo: `init` instala el catálogo en la tag de su propia versión, así que la CLI y sus skills van siempre juntas.
+
+1. Un PR que sube `version` en `package.json`.
+2. Después del merge, una release `v<versión>` sobre ese commit de `main`.
+
+El workflow se detiene si la tag no coincide con `package.json`.
+
+**La primera versión (0.1.0) va a mano**, porque npm solo deja configurar la publicación desde GitHub en un paquete que ya existe:
+
+1. Desde `main`, con sesión en npm (`npm login`): `npm publish --provenance=false`. La procedencia solo se genera dentro de un CI.
+2. En npmjs.com, configurar la publicación desde GitHub (trusted publishing) para `publish.yml`.
+3. Pushear la tag `v0.1.0` sin crear una release: la necesitan `init` y el `$schema`, y una release volvería a publicar la misma versión y fallaría.
+
+Desde 0.2.0, cada versión es una release y la publica el workflow.
 
 ## Licencia
 
