@@ -34,7 +34,7 @@ test("the packed CLI runs init outside this repo, with its own version and recip
   execFileSync("git", ["init", "-q"], { cwd: repo });
   writeFileSync(join(repo, "pnpm-lock.yaml"), "");
 
-  const r = spawnSync(process.execPath, [join(unpacked, "package", "dist", "cli.js"), "init", "--yes", "--no-cloud", "--no-guard", "--no-skills"], { cwd: repo, encoding: "utf8" });
+  const r = spawnSync(process.execPath, [join(unpacked, "package", "dist", "cli.js"), "init", "--yes"], { cwd: repo, encoding: "utf8" });
 
   assert.equal(r.status, 0, r.stderr);
   const version = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).version;

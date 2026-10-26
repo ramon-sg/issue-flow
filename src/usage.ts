@@ -19,9 +19,9 @@ export const USAGE = `Usage:
   issue-flow adapter setup [--only <step>] | issue [<url>] | archive [-R owner/repo]
   issue-flow session
   issue-flow hook worktree-create | worktree-remove
-  issue-flow init [--yes] [--recipe <name>,...] [--no-cloud] [--no-guard] [--no-skills]
-  issue-flow doctor
-  issue-flow upgrade [--to <version>] [--dry-run]
+  issue-flow init [--yes] [--recipe <name>,...]
+  issue-flow doctor [--json]
+  issue-flow upgrade [--dry-run]
 
 The slug comes from the issue's "Slug de rama" block, then from Claude, then from the title,
 and the branch from the repo's template (an older "Rama sugerida" block is used if it fits).
@@ -49,7 +49,7 @@ when they make a worktree (its steps and, if it came from an issue, issue start 
 issue to start one by hand, and archive before they delete it. hook implements Claude
 Code's WorktreeCreate and WorktreeRemove for claude --worktree.
 
-init sets the repo up: .agents/flow.json (with the recipes its files suggest), the dev
-dependencies and scripts, and the hooks; then, after asking, claude-cloud init,
-claude-repo-guard and the skills menu. doctor checks it is set up at this version, and
-upgrade moves the CLI, the hooks and the flow's skills to the latest version (or --to).`;
+init sets the flow up in the repo: .agents/flow.json (with the recipes its files suggest),
+the dev dependencies and scripts, and the hooks. doctor checks them at this version, and
+upgrade moves them to this version. npx @ramon-sg/agent-kit runs the three, along with the
+skills, claude-cloud and claude-repo-guard.`;
