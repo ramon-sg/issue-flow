@@ -49,7 +49,7 @@ test("init twice changes nothing", () => {
 test("every setup step of a recipe is trusted: they run the worktree's code, which pr worktree must not", () => {
   const s = withNpx(startSandbox());
 
-  const r = s.cli(["init", "--yes", "--recipe", "npm,pnpm,bun,docker-compose,direnv",], { env: npxEnv(s) });
+  const r = s.cli(["init", "--yes", "--recipe", "npm,pnpm,bun,docker-compose,direnv"], { env: npxEnv(s) });
 
   assert.equal(r.status, 0, r.err);
   const { setup } = readRepoJson(s, ".agents/flow.json").worktrees;
@@ -66,7 +66,7 @@ test("init keeps the repo's own hooks and dependencies, and drops claude-cloud's
   writeFileSync(join(s.main, ".claude", "settings.json"), JSON.stringify({ model: "opus", hooks: { SessionStart: [{ hooks: [own] }, { hooks: [cloud] }] } }));
   writeFileSync(join(s.main, "package.json"), JSON.stringify({ name: "shop", devDependencies: { "@ramon-sg/github-rest": "0.1.0" }, scripts: { "issue:start": "bash scripts/start-issue.sh" } }));
 
-  const r = s.cli(["init", "--yes",], { env: npxEnv(s) });
+  const r = s.cli(["init", "--yes"], { env: npxEnv(s) });
 
   assert.equal(r.status, 0, r.err);
   const settings = readRepoJson(s, ".claude/settings.json");
@@ -88,7 +88,7 @@ test("init applies the recipes the repo's files suggest, after asking, and keeps
   mkdirSync(join(s.main, ".agents"));
   writeFileSync(join(s.main, ".agents", "flow.json"), JSON.stringify({ worktrees: { setup: [{ name: "deps", run: "pnpm i" }], ports: { start: 30000, blockSize: 10, blocks: 10 } } }));
 
-  const r = s.cli(["init",], { env: npxEnv(s), input: "n\ny\ny\ny\n" });
+  const r = s.cli(["init"], { env: npxEnv(s), input: "n\ny\ny\ny\n" });
 
   assert.equal(r.status, 0, r.err);
   assert.match(r.err, /Recipe direnv: .* Add it\?.*Recipe docker-compose:.*Recipe pnpm:/s);
@@ -106,8 +106,8 @@ test("init --recipe staging-main sets the base branch; a base branch already set
   mkdirSync(join(other.main, ".agents"));
   writeFileSync(join(other.main, ".agents", "flow.json"), JSON.stringify({ baseBranch: "develop" }));
 
-  const r = s.cli(["init", "--yes", "--recipe", "staging-main",], { env: npxEnv(s) });
-  const kept = other.cli(["init", "--yes", "--recipe", "staging-main",], { env: npxEnv(other) });
+  const r = s.cli(["init", "--yes", "--recipe", "staging-main"], { env: npxEnv(s) });
+  const kept = other.cli(["init", "--yes", "--recipe", "staging-main"], { env: npxEnv(other) });
   const unknown = s.cli(["init", "--yes", "--recipe", "turbo"], { env: npxEnv(s) });
 
   assert.equal(r.status, 0, r.err);
@@ -124,7 +124,7 @@ test("init takes the branch rules of paseo.json into a new config", () => {
   const types = { labels: { bug: "fix" }, titlePrefixes: { "bug:": "fix" } };
   writeFileSync(join(s.main, "paseo.json"), JSON.stringify({ project: { v: 1, issues: { branchTemplate: "{type}/{number}-{slug}", types } } }));
 
-  const r = s.cli(["init", "--yes",], { env: npxEnv(s) });
+  const r = s.cli(["init", "--yes"], { env: npxEnv(s) });
 
   assert.equal(r.status, 0, r.err);
   assert.deepEqual(readRepoJson(s, ".agents/flow.json").branch, { template: "{type}/{number}-{slug}", types });

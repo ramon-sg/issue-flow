@@ -59,7 +59,28 @@ test("doctor names each problem and what fixes it", () => {
   assert.match(r.out, /✓ SessionStart hook/);
 });
 
-test("doctor --json prints the checks, for agent-kit", () => {
+test("doctor --json prints passing checks with their detail, and exits 0", () => {
+  const s = setUp();
+
+  const r = s.cli(["doctor", "--json"], { env: npxEnv(s) });
+
+  assert.equal(r.status, 0, r.err);
+  const checks = JSON.parse(r.out);
+  assert.equal(checks.length, 6);
+  assert.ok(checks.every((check) => check.ok === true && typeof check.detail === "string" && check.detail !== ""), r.out);
+});
+
+test("doctor --json turns a broken file into a failed check, so agent-kit can show it", () => {
+  const s = setUp();
+  writeFileSync(join(s.main, "package.json"), "{ not json");
+
+  const r = s.cli(["doctor", "--json"], { env: npxEnv(s) });
+
+  assert.equal(r.status, 1);
+  assert.match(JSON.parse(r.out).find((check) => !check.ok).detail, /package\.json is not valid JSON/);
+});
+
+test("doctor --json prints the failing checks, for agent-kit", () => {
   const s = setUp();
   atOldVersion(s);
 
@@ -76,8 +97,10 @@ test("upgrade moves the dependencies, hooks and schema to the version that runs,
   atOldVersion(s);
 
   const r = s.cli(["upgrade"], { env: npxEnv(s) });
+  const calls = { npx: npxCalls(s), npm: npxCalls(s, "npm") };
 
   assert.equal(r.status, 0, r.err);
+  assert.deepEqual(calls, { npx: [], npm: [] });
   assert.deepEqual(readRepoJson(s, "package.json").devDependencies, {
     "@ramon-sg/issue-flow": VERSION,
     "@ramon-sg/github-rest": OWN.dependencies["@ramon-sg/github-rest"],
@@ -88,8 +111,26 @@ test("upgrade moves the dependencies, hooks and schema to the version that runs,
   assert.equal(settings.hooks.SessionStart.length, 1);
   assert.equal(readRepoJson(s, ".agents/flow.json").$schema, `https://raw.githubusercontent.com/ramon-sg/issue-flow/v${VERSION}/schema.json`);
   assert.equal(s.cli(["doctor"], { env: npxEnv(s) }).status, 0);
-  assert.deepEqual(npxCalls(s), []);
-  assert.deepEqual(npxCalls(s, "npm"), []);
+});
+
+test("upgrade never moves the repo back: a newer version in package.json or a hook stops it", () => {
+  const s = setUp();
+  const pkg = readRepoJson(s, "package.json");
+  pkg.devDependencies["@ramon-sg/issue-flow"] = "^99.0.0";
+  writeFileSync(join(s.main, "package.json"), JSON.stringify(pkg));
+  const before = readFileSync(join(s.main, "package.json"), "utf8");
+  const other = setUp();
+  const settings = readFileSync(join(other.main, ".claude", "settings.json"), "utf8").replace(`@ramon-sg/issue-flow@${VERSION} hook worktree-create`, "@ramon-sg/issue-flow@99.1.0 hook worktree-create");
+  writeFileSync(join(other.main, ".claude", "settings.json"), settings);
+
+  const r = s.cli(["upgrade"], { env: npxEnv(s) });
+  const hooked = other.cli(["upgrade", "--dry-run"], { env: npxEnv(other) });
+
+  assert.equal(r.status, 1);
+  assert.match(r.err, /the repo is at issue-flow \^99\.0\.0, newer than this .*; run 'npx @ramon-sg\/issue-flow@99\.0\.0 upgrade'/);
+  assert.equal(readFileSync(join(s.main, "package.json"), "utf8"), before);
+  assert.equal(hooked.status, 1);
+  assert.match(hooked.err, /at issue-flow 99\.1\.0/);
 });
 
 test("upgrade --dry-run only says what would change", () => {

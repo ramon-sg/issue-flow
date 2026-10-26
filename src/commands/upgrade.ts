@@ -7,9 +7,9 @@
 import { CONFIG_PATH } from "../config-base.js";
 import { checkoutRoot, locateRepo } from "../git.js";
 import type { Output } from "../output.js";
-import { withFlowPackages } from "../package-edits.js";
-import { registerHooks } from "../settings-hooks.js";
-import { FLOW_REPO, ownVersions, packageManager, readJson, SETTINGS_FILE, SetupError, writeJson } from "../setup-files.js";
+import { dependencyVersion, withFlowPackages } from "../package-edits.js";
+import { hookVersions, registerHooks } from "../settings-hooks.js";
+import { FLOW_REPO, ownVersions, PACKAGE, packageManager, readJson, SETTINGS_FILE, SetupError, writeJson } from "../setup-files.js";
 import { schemaUrl } from "./init.js";
 
 /** Options of `issue-flow upgrade`. */
@@ -21,12 +21,42 @@ export interface UpgradeOptions {
 /** The start of the schema URL `init` writes, at any version. */
 const SCHEMA_PREFIX = `https://raw.githubusercontent.com/${FLOW_REPO}/`;
 
+/** A release version, after an optional range sign. */
+const RELEASE = /^[\^~=]?(\d+)\.(\d+)\.(\d+)$/;
+
+/**
+ * Whether a version is newer than another; false if either is not a release.
+ * @param version - The version, maybe with a range sign.
+ * @param than - The other.
+ * @returns True if it is newer.
+ */
+function isNewer(version: string, than: string): boolean {
+  const [left, right] = [RELEASE.exec(version), RELEASE.exec(than)];
+  if (left === null || right === null) return false;
+  for (let index = 1; index <= 3; index += 1) {
+    const diff = Number(left[index]) - Number(right[index]);
+    if (diff !== 0) return diff > 0;
+  }
+  return false;
+}
+
+/**
+ * The newest version of the flow the repo already has, in package.json or a hook.
+ * @param root - The repo.
+ * @returns The version, or null if it has none.
+ */
+function repoVersion(root: string): string | null {
+  const found = [dependencyVersion(readJson(root, "package.json"), PACKAGE), ...Object.values(hookVersions(readJson(root, SETTINGS_FILE)))];
+  return found.filter((version): version is string => version !== null).reduce<string | null>((newest, version) => (newest === null || isNewer(version, newest) ? version : newest), null);
+}
+
 /**
  * Moves the repo's flow files to this version; see the file's header.
  * @param options - The options.
  * @param out - Where to write.
  * @returns 0.
- * @throws SetupError outside the main checkout or if a file is broken.
+ * @throws SetupError outside the main checkout, if a file is broken, or if the repo is
+ * already at a newer version (a stale local copy must not move it back).
  * @example upgrade({ cwd, dryRun: false }, out)
  */
 export function upgrade(options: UpgradeOptions, out: Output): number {
@@ -35,6 +65,9 @@ export function upgrade(options: UpgradeOptions, out: Output): number {
   const root = located.mainRoot;
   if (checkoutRoot(options.cwd) !== root) throw new SetupError(`run upgrade in the main checkout, ${root}, not in a worktree.`);
   const versions = ownVersions();
+  const current = repoVersion(root);
+  if (current !== null && isNewer(current, versions.issueFlow))
+    throw new SetupError(`the repo is at issue-flow ${current}, newer than this ${versions.issueFlow}; run 'npx ${PACKAGE}@${current.replace(/^[\^~=]/, "")} upgrade' or 'npx @ramon-sg/agent-kit'.`);
   const writes: { path: string; value: Record<string, unknown> }[] = [];
   const lines: string[] = [];
   const pkg = withFlowPackages(readJson(root, "package.json"), versions, true);

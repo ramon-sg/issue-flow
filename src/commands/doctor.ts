@@ -74,7 +74,7 @@ function hookChecks(root: string, version: string): Check[] {
  * @param json - Whether to print the checks as JSON.
  * @param out - Where to write.
  * @returns 0 if everything passes, 1 if not.
- * @throws SetupError outside a checkout.
+ * @throws SetupError outside a checkout; a broken file is a failed check.
  * @example doctor(process.cwd(), false, out)
  */
 export function doctor(cwd: string, json: boolean, out: Output): number {
@@ -82,7 +82,13 @@ export function doctor(cwd: string, json: boolean, out: Output): number {
   if (located === null) throw new SetupError("run doctor inside a checkout of the repo.");
   const root = located.mainRoot;
   const { issueFlow } = ownVersions();
-  const checks = [configCheck(root), ...packageChecks(root, issueFlow), ...hookChecks(root, issueFlow)];
+  let checks: Check[];
+  try {
+    checks = [configCheck(root), ...packageChecks(root, issueFlow), ...hookChecks(root, issueFlow)];
+  } catch (error) {
+    if (!(error instanceof SetupError)) throw error;
+    checks = [{ name: "files", ok: false, detail: error.message }];
+  }
   if (json) out.stdout(`${JSON.stringify(checks)}\n`);
   else for (const check of checks) out.stdout(`${check.ok ? "✓" : "✗"} ${check.name}: ${check.detail}\n`);
   return checks.every((check) => check.ok) ? 0 : 1;

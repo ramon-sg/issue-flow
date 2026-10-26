@@ -186,7 +186,7 @@ Es el hook `SessionStart` de Claude Code. Lo que imprime le llega a Claude como 
 npx @ramon-sg/issue-flow init           # pregunta cada receta y pide el OK
 npx @ramon-sg/issue-flow init --yes     # sin preguntas, con las recetas que sugiere el repo
 npx @ramon-sg/issue-flow doctor         # revisa que el repo esté como lo deja init (--json para agent-kit)
-npx @ramon-sg/issue-flow@0.3.0 upgrade  # mueve el repo a la versión que corre (--dry-run)
+npx @ramon-sg/issue-flow@<versión> upgrade  # mueve el repo a esa versión (--dry-run)
 ```
 
 `init` muestra lo que va a escribir y pide el OK; correrlo otra vez solo completa lo que falta.
@@ -197,7 +197,7 @@ npx @ramon-sg/issue-flow@0.3.0 upgrade  # mueve el repo a la versión que corre 
 
 **`doctor`** no cambia nada. Revisa la config, las dependencias y que los hooks estén en esta versión. Cada problema dice qué lo arregla.
 
-**`upgrade`** mueve el repo a la versión que corre: las dependencias a las que fija, los hooks y el `$schema`. No consulta npm, así que se corre con la versión: `npx @ramon-sg/issue-flow@<versión> upgrade`. Las skills del flujo llaman a la CLI, así que tienen que ir a la misma tag: `agent-kit` las mueve después. `--dry-run` solo dice qué cambiaría.
+**`upgrade`** mueve el repo a la versión que corre: las dependencias a las que fija, los hooks y el `$schema`. No consulta npm, así que se corre con la versión: `npx @ramon-sg/issue-flow@<versión> upgrade`. Nunca baja de versión: si el repo ya tiene una más nueva (por ejemplo, una copia local vieja en `node_modules`), se detiene y dice qué correr. Las skills del flujo llaman a la CLI, así que tienen que ir a la misma tag: `agent-kit` las mueve después. `--dry-run` solo dice qué cambiaría.
 
 ### Recetas
 
