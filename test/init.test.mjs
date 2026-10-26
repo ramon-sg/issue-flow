@@ -1,6 +1,6 @@
 // Tests of `issue-flow init`: the files it writes in a real checkout, that it runs twice
 // without duplicating anything, and its recipes. The fake npx of fake-npx.mjs logs any call,
-// so the tests can tell init runs no other tool: agent-kit does.
+// so the tests can tell init runs no other tool: agent-kitchen does.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";

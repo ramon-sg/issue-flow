@@ -1,7 +1,7 @@
 /**
  * @file `issue-flow upgrade [--dry-run]`: moves the repo's flow files to the version that
  * runs: the dev dependencies to the ones it pins, and the hooks and the config's schema to
- * it. `agent-kit` runs it as `npx @ramon-sg/issue-flow@<version> upgrade` and then
+ * it. `agent-kitchen` runs it as `npx @ramon-sg/issue-flow@<version> upgrade` and then
  * moves the flow's skills to the same tag, because the skills call this CLI.
  */
 import { CONFIG_PATH } from "../config-base.js";
@@ -67,7 +67,7 @@ export function upgrade(options: UpgradeOptions, out: Output): number {
   const versions = ownVersions();
   const current = repoVersion(root);
   if (current !== null && isNewer(current, versions.issueFlow))
-    throw new SetupError(`the repo is at issue-flow ${current}, newer than this ${versions.issueFlow}; run 'npx ${PACKAGE}@${current.replace(/^[\^~=]/, "")} upgrade' or 'npx agent-kit'.`);
+    throw new SetupError(`the repo is at issue-flow ${current}, newer than this ${versions.issueFlow}; run 'npx ${PACKAGE}@${current.replace(/^[\^~=]/, "")} upgrade' or 'npx agent-kitchen'.`);
   const writes: { path: string; value: Record<string, unknown> }[] = [];
   const lines: string[] = [];
   const pkg = withFlowPackages(readJson(root, "package.json"), versions, true);

@@ -1,7 +1,7 @@
 /**
  * @file `issue-flow doctor [--json]`: whether the repo's flow files are as `init` leaves
  * them, at this version: the config, the dev dependencies and the hooks. It changes nothing;
- * each problem says what fixes it. `--json` prints the checks for `agent-kit`,
+ * each problem says what fixes it. `--json` prints the checks for `agent-kitchen`,
  * which adds those of the skills and the other tools.
  */
 import { ConfigError } from "../config-base.js";
@@ -20,7 +20,7 @@ interface Check {
 }
 
 /** What fixes every problem: it runs init or upgrade at the right version. */
-const RUN_AGENT_KIT = "run npx agent-kit";
+const RUN_AGENT_KITCHEN = "run npx agent-kitchen";
 
 /**
  * Checks the config.
@@ -49,8 +49,8 @@ function packageChecks(root: string, version: string): Check[] {
   const flow = dependencyVersion(pkg, PACKAGE);
   const rest = dependencyVersion(pkg, "@ramon-sg/github-rest");
   return [
-    { name: PACKAGE, ok: flow === version, detail: flow === null ? `not in package.json: ${RUN_AGENT_KIT}` : flow === version ? version : `package.json has ${flow}, this is ${version}: ${RUN_AGENT_KIT}` },
-    { name: "@ramon-sg/github-rest", ok: rest !== null, detail: rest ?? `not in package.json, and the skills call it: ${RUN_AGENT_KIT}` },
+    { name: PACKAGE, ok: flow === version, detail: flow === null ? `not in package.json: ${RUN_AGENT_KITCHEN}` : flow === version ? version : `package.json has ${flow}, this is ${version}: ${RUN_AGENT_KITCHEN}` },
+    { name: "@ramon-sg/github-rest", ok: rest !== null, detail: rest ?? `not in package.json, and the skills call it: ${RUN_AGENT_KITCHEN}` },
   ];
 }
 
@@ -64,7 +64,7 @@ function hookChecks(root: string, version: string): Check[] {
   return Object.entries(hookVersions(readJson(root, SETTINGS_FILE))).map(([event, found]) => ({
     name: `${event} hook`,
     ok: found === version,
-    detail: found === null ? `not in ${SETTINGS_FILE}: ${RUN_AGENT_KIT}` : found === version ? version : `at ${found}, this is ${version}: ${RUN_AGENT_KIT}`,
+    detail: found === null ? `not in ${SETTINGS_FILE}: ${RUN_AGENT_KITCHEN}` : found === version ? version : `at ${found}, this is ${version}: ${RUN_AGENT_KITCHEN}`,
   }));
 }
 
