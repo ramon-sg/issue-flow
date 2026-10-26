@@ -1,7 +1,7 @@
 /**
  * @file `issue-flow doctor [--json]`: whether the repo's flow files are as `init` leaves
  * them, at this version: the config, the dev dependencies and the hooks. It changes nothing;
- * each problem says what fixes it. `--json` prints the checks for `@ramon-sg/agent-kit`,
+ * each problem says what fixes it. `--json` prints the checks for `agent-kit`,
  * which adds those of the skills and the other tools.
  */
 import { ConfigError } from "../config-base.js";
@@ -20,7 +20,7 @@ interface Check {
 }
 
 /** What fixes every problem: it runs init or upgrade at the right version. */
-const RUN_AGENT_KIT = "run npx @ramon-sg/agent-kit";
+const RUN_AGENT_KIT = "run npx agent-kit";
 
 /**
  * Checks the config.

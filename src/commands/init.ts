@@ -3,7 +3,7 @@
  * is missing. It writes `.agents/flow.json` (from `paseo.json` if the repo has one, plus the
  * recipes it picks), the flow's dev dependencies and scripts in `package.json`, and the
  * `SessionStart`, `WorktreeCreate` and `WorktreeRemove` hooks. Only the flow's own files:
- * the skills, `claude-cloud` and `claude-repo-guard` are installed by `@ramon-sg/agent-kit`,
+ * the skills, `claude-cloud` and `claude-repo-guard` are installed by `agent-kit`,
  * which runs this command.
  */
 import { confirm } from "../ask.js";
