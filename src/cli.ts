@@ -43,10 +43,6 @@ const OPTIONS = {
   next: { type: "boolean" },
   "no-setup": { type: "boolean" },
   recipe: { type: "string" },
-  "no-cloud": { type: "boolean" },
-  "no-guard": { type: "boolean" },
-  "no-skills": { type: "boolean" },
-  to: { type: "string" },
 } as const;
 
 /** The parsed flags. */
@@ -82,9 +78,9 @@ const COMMAND_FLAGS: Record<string, (keyof Flags)[]> = {
   "adapter archive": [],
   "hook worktree-create": [],
   "hook worktree-remove": [],
-  init: ["yes", "recipe", "no-cloud", "no-guard", "no-skills"],
-  doctor: [],
-  upgrade: ["to", "dry-run"],
+  init: ["yes", "recipe"],
+  doctor: ["json"],
+  upgrade: ["dry-run"],
 };
 
 /** An issue number: digits only. */

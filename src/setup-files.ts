@@ -1,10 +1,9 @@
 /**
  * @file What `init`, `doctor` and `upgrade` share: this package's own versions, the JSON
- * files of the repo they read and write, its package manager, and running another tool
- * with `npx`. Every package goes by its scoped name: the unscoped `issue-flow`,
- * `github-rest` and `skills-manager` on npm belong to other people.
+ * files of the repo they read and write, and its package manager. Every package goes by its
+ * scoped name: the unscoped `issue-flow`, `github-rest` and `skills-manager` on npm belong
+ * to other people.
  */
-import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,29 +12,11 @@ import { isObject } from "./config-base.js";
 /** This package's name on npm. */
 export const PACKAGE = "@ramon-sg/issue-flow";
 
-/** The GitHub repo of this package, which is also the catalog of the flow skills. */
-export const FLOW_CATALOG = "ramon-sg/issue-flow";
-
-/** The catalog of the general skills. */
-export const GENERAL_CATALOG = "ramon-sg/agent-skills";
-
-/** Where `skills-manager` keeps the repo's skills manifest. */
-export const SKILLS_MANIFEST = ".agents/skills.json";
-
-/** Where `skills-manager` keeps the repo's skills lock. */
-export const SKILLS_LOCK = ".agents/skills.lock.json";
+/** The GitHub repo of this package, whose tags hold the config's schema of each version. */
+export const FLOW_REPO = "ramon-sg/issue-flow";
 
 /** Claude Code's settings of the repo. */
 export const SETTINGS_FILE = ".claude/settings.json";
-
-/** The options of `claude-repo-guard` in the repo. */
-export const GUARD_CONFIG = ".claude/repo-guard.config.json";
-
-/** How `claude-repo-guard` runs: it is not on npm. */
-export const GUARD_SPEC = "github:ramon-sg/claude-repo-guard";
-
-/** How `claude-cloud` runs. */
-export const CLOUD_SPEC = "@ramon-sg/claude-cloud@1";
 
 /** Error of `init`, `doctor` or `upgrade`: exits 1 with the message. */
 export class SetupError extends Error {}
@@ -118,41 +99,4 @@ export function packageManager(root: string, pkg: Record<string, unknown> | null
   const field = typeof pkg?.packageManager === "string" ? pkg.packageManager.split("@")[0] : undefined;
   if (field !== undefined && field !== "") return field;
   return LOCKFILES.find(([file]) => existsSync(join(root, file)))?.[1] ?? "npm";
-}
-
-/**
- * Runs `npx <args>` in the repo, its output on this terminal.
- * @param root - The repo.
- * @param args - The package and its arguments.
- * @returns Whether it exited 0.
- * @example runNpx(root, ["@ramon-sg/claude-cloud@1", "init"])
- */
-export function runNpx(root: string, args: string[]): boolean {
-  const result = spawnSync("npx", ["--yes", ...args], { cwd: root, stdio: "inherit" });
-  return result.status === 0;
-}
-
-/**
- * Runs `npx <args>` in the repo and returns what it printed.
- * @param root - The repo.
- * @param args - The package and its arguments.
- * @returns Its stdout and exit code, or null if npx could not start.
- * @example captureNpx(root, ["github:ramon-sg/claude-repo-guard", "doctor", "--json"])
- */
-export function captureNpx(root: string, args: string[]): { out: string; status: number | null } | null {
-  const result = spawnSync("npx", ["--yes", ...args], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
-  return result.error === undefined ? { out: result.stdout, status: result.status } : null;
-}
-
-/**
- * The flow's skills in the repo's skills lock, with the tag each one is at.
- * @param lock - The lock, or null.
- * @returns Name and tag of each skill of the flow's catalog.
- * @example flowSkills(lock) // [{ name: "close-pr", tag: "v0.1.0" }]
- */
-export function flowSkills(lock: Record<string, unknown> | null): { name: string; tag: string | null }[] {
-  const skills = isObject(lock?.skills) ? lock.skills : {};
-  return Object.entries(skills)
-    .filter(([, entry]) => isObject(entry) && entry.source === `catalog:${FLOW_CATALOG}`)
-    .map(([name, entry]) => ({ name, tag: isObject(entry) && typeof entry.tag === "string" ? entry.tag : null }));
 }

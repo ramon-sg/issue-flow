@@ -1,5 +1,5 @@
 {
-  "description": "Work starts from staging and PRs go there; main only gets releases. Also lets claude-repo-guard's auto mode merge into staging.",
+  "description": "Work starts from staging and PRs go there; main only gets releases.",
   "detect": [],
   "config": { "baseBranch": "staging" }
 }

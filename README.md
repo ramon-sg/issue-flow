@@ -2,11 +2,11 @@
 
 Flujo de trabajo de issue a PR para cualquier repo, en local y en las sesiones de Claude en la nube: nombra la rama de cada issue, crea su worktree con puertos y Docker propios, abre el PR en draft y limpia cuando se mergea. Trae las skills que usan ese flujo.
 
-> **Instalar en un repo:** `npx @ramon-sg/issue-flow init` (ver [Instalar en un repo](#instalar-en-un-repo-issue-flow-init)). El paquete es `@ramon-sg/issue-flow` y el comando, `issue-flow`; sin el scope, `issue-flow` en npm es otro paquete.
+> **Instalar en un repo:** `npx @ramon-sg/agent-kit`, que instala este flujo con sus skills, las skills generales, `claude-cloud` y `claude-repo-guard`, y los actualiza ([agent-kit](https://github.com/ramon-sg/agent-kit)). El paquete es `@ramon-sg/issue-flow` y el comando, `issue-flow`; sin el scope, `issue-flow` en npm es otro paquete.
 
 ## Qué va a tener
 
-- **`issue-flow init`:** escribe `.agents/flow.json` con las recetas que sugieren los archivos del repo, las dependencias y los hooks, y después instala `claude-cloud`, `claude-repo-guard` y las skills. `doctor` revisa que todo esté a esta versión y `upgrade` lo mueve a la siguiente.
+- **`issue-flow init|doctor|upgrade`:** escribe, revisa y mueve a su versión lo que el flujo deja en el repo: `.agents/flow.json` con sus recetas, las dependencias y los hooks. Los corre `agent-kit`.
 - **`issue-flow issue branch <n>`:** propone la rama de una issue (con Claude por defecto, o desde el título). Con `--missing`, agrega el slug de rama a todas las issues abiertas que no lo tienen.
 - **`issue-flow issue start <n>`:** crea la rama y el worktree, hace el commit inicial, abre el PR en draft, asigna la issue y abre Claude. Con `--cloud`, lo hace en una sesión en la nube.
 - **`issue-flow worktree setup|teardown|ports|cleanup|prune`:** prepara y limpia cada worktree con los pasos del repo, le da un bloque de puertos y borra los worktrees con el PR cerrado.
@@ -178,13 +178,15 @@ Es el hook `SessionStart` de Claude Code. Lo que imprime le llega a Claude como 
 4. Borra el Docker de los worktrees que ya no existen: Claude Code no llama al hook `WorktreeRemove` de los worktrees que no hizo un hook `WorktreeCreate`.
 5. Si hay `.envrc` y `direnv`, agrega su entorno a `CLAUDE_ENV_FILE`, para que los comandos de la sesión lo tengan.
 
-## Instalar en un repo: `issue-flow init`
+## Lo que el flujo deja en el repo: `issue-flow init`
+
+`npx @ramon-sg/agent-kit` corre estos tres comandos en la versión que corresponde. Correrlos a mano sirve para probar el flujo en un repo sin lo demás.
 
 ```sh
-npx @ramon-sg/issue-flow init           # pregunta cada paso
+npx @ramon-sg/issue-flow init           # pregunta cada receta y pide el OK
 npx @ramon-sg/issue-flow init --yes     # sin preguntas, con las recetas que sugiere el repo
-npx @ramon-sg/issue-flow doctor         # revisa que el repo esté como lo deja init
-npx @ramon-sg/issue-flow upgrade        # pasa todo a la última versión (o --to 0.2.0)
+npx @ramon-sg/issue-flow doctor         # revisa que el repo esté como lo deja init (--json para agent-kit)
+npx @ramon-sg/issue-flow@<versión> upgrade  # mueve el repo a esa versión (--dry-run)
 ```
 
 `init` muestra lo que va a escribir y pide el OK; correrlo otra vez solo completa lo que falta.
@@ -192,15 +194,10 @@ npx @ramon-sg/issue-flow upgrade        # pasa todo a la última versión (o --t
 1. **`.agents/flow.json`:** si no existe, lo crea con el `$schema` de esta versión y, si el repo tiene `paseo.json`, con su plantilla de rama y sus tipos. Suma las recetas que elijas.
 2. **`package.json`:** `@ramon-sg/issue-flow`, `@ramon-sg/github-rest` y `@ramon-sg/skills-manager` como dependencias de desarrollo con versión exacta, y los scripts `issue:start`, `worktree:prune` y `pr:worktree`. Lo que el repo ya tiene con otro valor se queda, con un aviso.
 3. **`.claude/settings.json`:** los hooks `SessionStart`, `WorktreeCreate` y `WorktreeRemove`, fijados a esta versión y con 600 segundos. El de `SessionStart` corre `claude-cloud session` en la nube, así que un hook propio de `claude-cloud` se quita para que no corra dos veces.
-4. **`claude-cloud init`**, después de preguntar (`--no-cloud` lo salta).
-5. **`claude-repo-guard`**, después de preguntar (`--no-guard`). Antes escribe en sus opciones que abrir el PR en draft, asignar la issue y agregar el "Slug de rama" son parte del flujo; la `baseBranch` como `integrationBranch`, si el repo tiene una; y en macOS `weakerNetworkIsolation`, que `gh` necesita dentro del sandbox.
-6. **Las skills**, con el menú de `skills-manager` y los dos catálogos: el de este repo en la tag de esta versión y el de `agent-skills` (`--no-skills`). Sin terminal o con `--yes`, elige las del flujo y `code-audit`.
 
-Si una de las herramientas falla, `init` sigue con las demás, dice cómo reintentar y sale con 1.
+**`doctor`** no cambia nada. Revisa la config, las dependencias y que los hooks estén en esta versión. Cada problema dice qué lo arregla.
 
-**`doctor`** no cambia nada. Revisa la config, las dependencias, que los hooks y las skills del flujo estén en esta versión, y `claude-repo-guard` (su propio `doctor` y, en macOS, `weakerNetworkIsolation`). Cada problema dice qué lo arregla.
-
-**`upgrade`** mueve juntas la CLI y las skills del flujo, porque las skills llaman a la CLI: las dependencias a las que fija esa versión (las lee de npm), los hooks, el `$schema` y el catálogo del flujo en `.agents/skills.json`, y corre `skills-manager update` solo con las skills del flujo. Las de `agent-skills` se actualizan aparte. `--dry-run` solo dice qué cambiaría.
+**`upgrade`** mueve el repo a la versión que corre: las dependencias a las que fija, los hooks y el `$schema`. No consulta npm, así que se corre con la versión: `npx @ramon-sg/issue-flow@<versión> upgrade`. Nunca baja de versión: si el repo ya tiene una más nueva (por ejemplo, una copia local vieja en `node_modules`), se detiene y dice qué correr. Las skills del flujo llaman a la CLI, así que tienen que ir a la misma tag: `agent-kit` las mueve después. `--dry-run` solo dice qué cambiaría.
 
 ### Recetas
 
@@ -213,7 +210,7 @@ Piezas de `flow.json` para lo que muchos repos comparten. `init` ofrece las que 
 | `direnv` | `.envrc` | `direnv allow` en cada worktree, para que carguen su entorno y sus secretos (Infisical, por ejemplo) |
 
 Los pasos de preparación de las recetas son `trusted`: corren el código del worktree (el lockfile, el compose, el `.envrc`), así que en un worktree con código que no está en la rama base, como el de `pr worktree`, se saltan y el comando dice qué correr cuando lo revisaste.
-| `staging-main` | Nada: se pide | `baseBranch: "staging"`; `init` deja a `claude-repo-guard` mergear a `staging` |
+| `staging-main` | Nada: se pide | `baseBranch: "staging"`; `agent-kit` deja a `claude-repo-guard` mergear a `staging` |
 
 ## Skills del flujo
 
@@ -227,11 +224,7 @@ Viven en `skills/` y `skills-catalog.json` las lista. Se instalan con [`skills-m
 | `pr-review-comments` | PRs | Verifica cada comentario y check contra el código, propone un plan, aplica lo aprobado y responde los hilos | `github-issues` |
 | `pr-worktree` | PRs | Revisa un PR en su worktree con `issue-flow pr worktree`, sin tocar el checkout principal | `close-pr` |
 
-```sh
-npx @ramon-sg/skills-manager@1 add --catalog ramon-sg/issue-flow
-```
-
-En un repo sin `.agents/skills.json`, `init` en vez de `add`. `close-pr` y `pr-worktree` usan `code-audit`, del catálogo [`agent-skills`](https://github.com/ramon-sg/agent-skills): instala los dos.
+`agent-kit` las instala con el catálogo en la tag de la versión del flujo y las mueve con él. `close-pr` y `pr-worktree` usan `code-audit`, del catálogo [`agent-skills`](https://github.com/ramon-sg/agent-skills): `agent-kit` ofrece los dos.
 
 **Lo propio de cada repo va en `project.md`**, que cada skill (salvo `pr-worktree`) crea desde su plantilla al instalarse: los labels y el assignee, qué flujo sigue cada issue, qué corre sin preguntar al cerrar, qué bots revisan y qué cuenta como review aprobado. Ese archivo es del repo: `check` no lo marca y las actualizaciones lo conservan.
 
@@ -285,7 +278,7 @@ Usa [`github-rest`](https://github.com/ramon-sg/github-rest) para hablar con Git
 
 ## Publicar una versión
 
-Una versión es una release `vX.Y.Z` en GitHub, con el mismo número que `package.json`. Al publicarla, GitHub Actions corre los tests y publica en npm con procedencia (`.github/workflows/publish.yml`). La tag es también la versión de las skills del flujo: `init` instala el catálogo en la tag de su propia versión, así que la CLI y sus skills van siempre juntas.
+Una versión es una release `vX.Y.Z` en GitHub, con el mismo número que `package.json`. Al publicarla, GitHub Actions corre los tests y publica en npm con procedencia (`.github/workflows/publish.yml`). La tag es también la versión de las skills del flujo: `agent-kit` instala el catálogo en la tag de la versión del flujo, así que la CLI y sus skills van siempre juntas.
 
 1. Un PR que sube `version` en `package.json`.
 2. Después del merge, una release `v<versión>` sobre ese commit de `main`.
@@ -296,7 +289,7 @@ El workflow se detiene si la tag no coincide con `package.json`.
 
 1. Desde `main`, con sesión en npm (`npm login`): `npm publish --provenance=false`. La procedencia solo se genera dentro de un CI.
 2. En npmjs.com, configurar la publicación desde GitHub (trusted publishing) para `publish.yml`.
-3. Pushear la tag `v0.1.0` sin crear una release: la necesitan `init` y el `$schema`, y una release volvería a publicar la misma versión y fallaría.
+3. Pushear la tag `v0.1.0` sin crear una release: la necesitan las skills y el `$schema`, y una release volvería a publicar la misma versión y fallaría.
 
 Desde 0.2.0, cada versión es una release y la publica el workflow.
 
