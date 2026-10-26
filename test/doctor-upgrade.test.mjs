@@ -53,9 +53,9 @@ test("doctor names each problem and what fixes it", () => {
   const r = s.cli(["doctor"], { env: npxEnv(s) });
 
   assert.equal(r.status, 1);
-  assert.match(r.out, /✗ @ramon-sg\/github-rest: not in package\.json, and the skills call it: run npx agent-kit/);
+  assert.match(r.out, /✗ @ramon-sg\/github-rest: not in package\.json, and the skills call it: run npx agent-kitchen/);
   assert.match(r.out, /✗ WorktreeRemove hook: not in \.claude\/settings\.json/);
-  assert.match(r.out, /✗ WorktreeCreate hook: at 0\.0\.1, this is .*: run npx agent-kit/);
+  assert.match(r.out, /✗ WorktreeCreate hook: at 0\.0\.1, this is .*: run npx agent-kitchen/);
   assert.match(r.out, /✓ SessionStart hook/);
 });
 
@@ -70,7 +70,7 @@ test("doctor --json prints passing checks with their detail, and exits 0", () =>
   assert.ok(checks.every((check) => check.ok === true && typeof check.detail === "string" && check.detail !== ""), r.out);
 });
 
-test("doctor --json turns a broken file into a failed check, so agent-kit can show it", () => {
+test("doctor --json turns a broken file into a failed check, so agent-kitchen can show it", () => {
   const s = setUp();
   writeFileSync(join(s.main, "package.json"), "{ not json");
 
@@ -80,7 +80,7 @@ test("doctor --json turns a broken file into a failed check, so agent-kit can sh
   assert.match(JSON.parse(r.out).find((check) => !check.ok).detail, /package\.json is not valid JSON/);
 });
 
-test("doctor --json prints the failing checks, for agent-kit", () => {
+test("doctor --json prints the failing checks, for agent-kitchen", () => {
   const s = setUp();
   atOldVersion(s);
 

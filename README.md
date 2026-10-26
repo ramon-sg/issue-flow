@@ -2,11 +2,11 @@
 
 Flujo de trabajo de issue a PR para cualquier repo, en local y en las sesiones de Claude en la nube: nombra la rama de cada issue, crea su worktree con puertos y Docker propios, abre el PR en draft y limpia cuando se mergea. Trae las skills que usan ese flujo.
 
-> **Instalar en un repo:** `npx agent-kit`, que instala este flujo con sus skills, las skills generales, `claude-cloud` y `claude-repo-guard`, y los actualiza ([agent-kit](https://github.com/ramon-sg/agent-kit)). El paquete es `@ramon-sg/issue-flow` y el comando, `issue-flow`; sin el scope, `issue-flow` en npm es otro paquete.
+> **Instalar en un repo:** `npx agent-kitchen`, que instala este flujo con sus skills, las skills generales, `claude-cloud` y `claude-repo-guard`, y los actualiza ([agent-kitchen](https://github.com/ramon-sg/agent-kitchen)). El paquete es `@ramon-sg/issue-flow` y el comando, `issue-flow`; sin el scope, `issue-flow` en npm es otro paquete.
 
 ## Qué va a tener
 
-- **`issue-flow init|doctor|upgrade`:** escribe, revisa y mueve a su versión lo que el flujo deja en el repo: `.agents/flow.json` con sus recetas, las dependencias y los hooks. Los corre `agent-kit`.
+- **`issue-flow init|doctor|upgrade`:** escribe, revisa y mueve a su versión lo que el flujo deja en el repo: `.agents/flow.json` con sus recetas, las dependencias y los hooks. Los corre `agent-kitchen`.
 - **`issue-flow issue branch <n>`:** propone la rama de una issue (con Claude por defecto, o desde el título). Con `--missing`, agrega el slug de rama a todas las issues abiertas que no lo tienen.
 - **`issue-flow issue start <n>`:** crea la rama y el worktree, hace el commit inicial, abre el PR en draft, asigna la issue y abre Claude. Con `--cloud`, lo hace en una sesión en la nube.
 - **`issue-flow worktree setup|teardown|ports|cleanup|prune`:** prepara y limpia cada worktree con los pasos del repo, le da un bloque de puertos y borra los worktrees con el PR cerrado.
@@ -180,12 +180,12 @@ Es el hook `SessionStart` de Claude Code. Lo que imprime le llega a Claude como 
 
 ## Lo que el flujo deja en el repo: `issue-flow init`
 
-`npx agent-kit` corre estos tres comandos en la versión que corresponde. Correrlos a mano sirve para probar el flujo en un repo sin lo demás.
+`npx agent-kitchen` corre estos tres comandos en la versión que corresponde. Correrlos a mano sirve para probar el flujo en un repo sin lo demás.
 
 ```sh
 npx @ramon-sg/issue-flow init           # pregunta cada receta y pide el OK
 npx @ramon-sg/issue-flow init --yes     # sin preguntas, con las recetas que sugiere el repo
-npx @ramon-sg/issue-flow doctor         # revisa que el repo esté como lo deja init (--json para agent-kit)
+npx @ramon-sg/issue-flow doctor         # revisa que el repo esté como lo deja init (--json para agent-kitchen)
 npx @ramon-sg/issue-flow@<versión> upgrade  # mueve el repo a esa versión (--dry-run)
 ```
 
@@ -197,7 +197,7 @@ npx @ramon-sg/issue-flow@<versión> upgrade  # mueve el repo a esa versión (--d
 
 **`doctor`** no cambia nada. Revisa la config, las dependencias y que los hooks estén en esta versión. Cada problema dice qué lo arregla.
 
-**`upgrade`** mueve el repo a la versión que corre: las dependencias a las que fija, los hooks y el `$schema`. No consulta npm, así que se corre con la versión: `npx @ramon-sg/issue-flow@<versión> upgrade`. Nunca baja de versión: si el repo ya tiene una más nueva (por ejemplo, una copia local vieja en `node_modules`), se detiene y dice qué correr. Las skills del flujo llaman a la CLI, así que tienen que ir a la misma tag: `agent-kit` las mueve después. `--dry-run` solo dice qué cambiaría.
+**`upgrade`** mueve el repo a la versión que corre: las dependencias a las que fija, los hooks y el `$schema`. No consulta npm, así que se corre con la versión: `npx @ramon-sg/issue-flow@<versión> upgrade`. Nunca baja de versión: si el repo ya tiene una más nueva (por ejemplo, una copia local vieja en `node_modules`), se detiene y dice qué correr. Las skills del flujo llaman a la CLI, así que tienen que ir a la misma tag: `agent-kitchen` las mueve después. `--dry-run` solo dice qué cambiaría.
 
 ### Recetas
 
@@ -210,7 +210,7 @@ Piezas de `flow.json` para lo que muchos repos comparten. `init` ofrece las que 
 | `direnv` | `.envrc` | `direnv allow` en cada worktree, para que carguen su entorno y sus secretos (Infisical, por ejemplo) |
 
 Los pasos de preparación de las recetas son `trusted`: corren el código del worktree (el lockfile, el compose, el `.envrc`), así que en un worktree con código que no está en la rama base, como el de `pr worktree`, se saltan y el comando dice qué correr cuando lo revisaste.
-| `staging-main` | Nada: se pide | `baseBranch: "staging"`; `agent-kit` deja a `claude-repo-guard` mergear a `staging` |
+| `staging-main` | Nada: se pide | `baseBranch: "staging"`; `agent-kitchen` deja a `claude-repo-guard` mergear a `staging` |
 
 ## Skills del flujo
 
@@ -224,7 +224,7 @@ Viven en `skills/` y `skills-catalog.json` las lista. Se instalan con [`skills-m
 | `pr-review-comments` | PRs | Verifica cada comentario y check contra el código, propone un plan, aplica lo aprobado y responde los hilos | `github-issues` |
 | `pr-worktree` | PRs | Revisa un PR en su worktree con `issue-flow pr worktree`, sin tocar el checkout principal | `close-pr` |
 
-`agent-kit` las instala con el catálogo en la tag de la versión del flujo y las mueve con él. `close-pr` y `pr-worktree` usan `code-audit`, del catálogo [`agent-skills`](https://github.com/ramon-sg/agent-skills): `agent-kit` ofrece los dos.
+`agent-kitchen` las instala con el catálogo en la tag de la versión del flujo y las mueve con él. `close-pr` y `pr-worktree` usan `code-audit`, del catálogo [`agent-skills`](https://github.com/ramon-sg/agent-skills): `agent-kitchen` ofrece los dos.
 
 **Lo propio de cada repo va en `project.md`**, que cada skill (salvo `pr-worktree`) crea desde su plantilla al instalarse: los labels y el assignee, qué flujo sigue cada issue, qué corre sin preguntar al cerrar, qué bots revisan y qué cuenta como review aprobado. Ese archivo es del repo: `check` no lo marca y las actualizaciones lo conservan.
 
@@ -278,7 +278,7 @@ Usa [`github-rest`](https://github.com/ramon-sg/github-rest) para hablar con Git
 
 ## Publicar una versión
 
-Una versión es una release `vX.Y.Z` en GitHub, con el mismo número que `package.json`. Al publicarla, GitHub Actions corre los tests y publica en npm con procedencia (`.github/workflows/publish.yml`). La tag es también la versión de las skills del flujo: `agent-kit` instala el catálogo en la tag de la versión del flujo, así que la CLI y sus skills van siempre juntas.
+Una versión es una release `vX.Y.Z` en GitHub, con el mismo número que `package.json`. Al publicarla, GitHub Actions corre los tests y publica en npm con procedencia (`.github/workflows/publish.yml`). La tag es también la versión de las skills del flujo: `agent-kitchen` instala el catálogo en la tag de la versión del flujo, así que la CLI y sus skills van siempre juntas.
 
 1. Un PR que sube `version` en `package.json`.
 2. Después del merge, una release `v<versión>` sobre ese commit de `main`.
