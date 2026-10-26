@@ -51,5 +51,5 @@ Code's WorktreeCreate and WorktreeRemove for claude --worktree.
 
 init sets the flow up in the repo: .agents/flow.json (with the recipes its files suggest),
 the dev dependencies and scripts, and the hooks. doctor checks them at this version, and
-upgrade moves them to this version. npx @ramon-sg/agent-kit runs the three, along with the
+upgrade moves them to this version. npx agent-kit runs the three, along with the
 skills, claude-cloud and claude-repo-guard.`;

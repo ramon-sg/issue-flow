@@ -53,9 +53,9 @@ test("doctor names each problem and what fixes it", () => {
   const r = s.cli(["doctor"], { env: npxEnv(s) });
 
   assert.equal(r.status, 1);
-  assert.match(r.out, /✗ @ramon-sg\/github-rest: not in package\.json, and the skills call it: run npx @ramon-sg\/agent-kit/);
+  assert.match(r.out, /✗ @ramon-sg\/github-rest: not in package\.json, and the skills call it: run npx agent-kit/);
   assert.match(r.out, /✗ WorktreeRemove hook: not in \.claude\/settings\.json/);
-  assert.match(r.out, /✗ WorktreeCreate hook: at 0\.0\.1, this is .*: run npx @ramon-sg\/agent-kit/);
+  assert.match(r.out, /✗ WorktreeCreate hook: at 0\.0\.1, this is .*: run npx agent-kit/);
   assert.match(r.out, /✓ SessionStart hook/);
 });
 
