@@ -6,6 +6,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSy
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import assert from "node:assert/strict";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CLI = join(HERE, "..", "dist", "cli.js");
@@ -117,7 +118,7 @@ export function startSandbox() {
       return g(work, "rev-parse", "HEAD");
     },
     ghCalls: () => lines(files.gh),
-    writes: () => lines(files.gh).filter((call) => call.method !== "GET" && call.path !== "graphql"),
+    writes: () => lines(files.gh).filter((call) => call.method !== "GET"),
     claudeCalls: () => lines(files.claude),
     sessionFiles: () => {
       const dir = join(main, ".git", "issue-flow-sessions");
@@ -159,6 +160,7 @@ export function startSandbox() {
         },
       });
       sandbox.load();
+      assert.deepEqual(lines(files.gh).filter((call) => call.path === "graphql"), [], "the flow must only call GitHub over REST");
       return { status: r.status, out: r.stdout, err: r.stderr, all: `${r.stdout}${r.stderr}` };
     },
   };
