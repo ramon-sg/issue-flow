@@ -47,7 +47,7 @@ function dependencyOf(pkg: Record<string, unknown> | null, name: string): { fiel
  * @param pkg - The package.json.
  * @param name - The package.
  * @returns Its version range, or null.
- * @example dependencyVersion(pkg, "@ramon-sg/github-rest") // "0.2.1"
+ * @example dependencyVersion(pkg, "@ramon-sg/github-rest") // "0.3.0"
  */
 export function dependencyVersion(pkg: Record<string, unknown> | null, name: string): string | null {
   return dependencyOf(pkg, name)?.version ?? null;

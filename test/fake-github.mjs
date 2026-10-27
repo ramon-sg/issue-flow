@@ -50,7 +50,6 @@ export function handle(method, path, body) {
   const base = `repos/${world.repo}`;
   const [route, query = ""] = path.split("?");
   const params = new URLSearchParams(query);
-  if (route === "graphql") return answer(404, { message: "GraphQL is blocked" });
   if (route === "user") return answer(200, { login: world.login });
   if (route === base) {
     if (world.offline) return answer(503, { message: "offline" });
