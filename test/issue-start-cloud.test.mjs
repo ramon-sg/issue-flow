@@ -394,7 +394,7 @@ test("--here starts the issue in this checkout, notes the cloud session in the P
   assert.equal(s.git(s.origin, "log", "-1", "--format=%s", BRANCH), "chore: empieza el trabajo en la issue #214 [skip ci]");
   assert.equal(s.git(s.main, "rev-parse", "--abbrev-ref", "@{u}"), `origin/${BRANCH}`);
   assert.equal(created(s)[0].body.draft, true);
-  assert.equal(s.world.pulls[0].body, `Closes #214\n\nEn progreso.\n\n${NOTE}`);
+  assert.equal(s.world.pulls[0].body, `Closes #214\n\nIssue: https://github.com/acme/widgets/issues/214\n\nEn progreso.\n\n${NOTE}`);
   assert.match(r.out, /Mode: {9}this session \(--here\)/);
   assert.match(r.out, /note the session in the PR/);
   assert.match(r.out, /\nPrompt: Issue #214\. Lee la issue/);
@@ -427,7 +427,7 @@ test("--here in another session replaces the link, keeping one line and the rest
 
   assert.equal(r.status, 0, r.err);
   assert.match(r.out, /note the session in the PR/);
-  assert.equal(s.world.pulls[0].body, "Closes #214\n\nEn progreso.\n\nCloud session: https://claude.ai/code/session_02OTHER");
+  assert.equal(s.world.pulls[0].body, "Closes #214\n\nIssue: https://github.com/acme/widgets/issues/214\n\nEn progreso.\n\nCloud session: https://claude.ai/code/session_02OTHER");
 });
 
 test("--here resumes from a clone of one branch, like the cloud's", () => {

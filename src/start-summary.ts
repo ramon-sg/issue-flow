@@ -70,7 +70,7 @@ export function plannedActions(state: StartState): string {
   if (commit) actions.push("empty commit");
   if (commit || !onOrigin(mainRoot, branch)) actions.push("push -u");
   if (state.pr === null) {
-    const first = prBody(state.options.config.start.prBody, number, state.kind).split("\n")[0];
+    const first = prBody(state.options.config.start.prBody, number, state.kind, state.issue.url).split("\n")[0];
     actions.push(`draft PR (${first})`);
     const others = openPrsElsewhere(state.work.prs, branch);
     if (state.kind === "part" && others.length > 0)

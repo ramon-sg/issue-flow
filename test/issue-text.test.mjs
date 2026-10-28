@@ -50,8 +50,8 @@ test("nextBranch: the proposed one if unused, or -2, -3 until it is free", () =>
 
 test("fill and prBody: one pass, so a title with {plan} is not filled again", () => {
   assert.equal(fill("{title} en {plan} {other}", { title: "Usa {plan}", plan: "docs/x.md" }), "Usa {plan} en docs/x.md {other}");
-  assert.equal(prBody("{keyword} #{number}\n\nEn progreso.", 4, "closes"), "Closes #4\n\nEn progreso.");
-  assert.equal(prBody("{keyword} #{number}", 4, "part"), "Part of #4");
+  assert.equal(prBody("{keyword} #{number}\n\nIssue: {url}\n\nEn progreso.", 4, "closes", "https://x/4"), "Closes #4\n\nIssue: https://x/4\n\nEn progreso.");
+  assert.equal(prBody("{keyword} #{number}", 4, "part", "https://x/4"), "Part of #4");
 });
 
 test("bodyToPartOf: every closing word for this issue, and no other number", () => {

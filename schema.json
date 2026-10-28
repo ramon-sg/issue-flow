@@ -188,10 +188,10 @@
           "default": "chore: empieza el trabajo en la issue #{number} [skip ci]"
         },
         "prBody": {
-          "description": "Body of the draft PR; {keyword} is Closes, or Part of when the issue has another live branch.",
+          "description": "Body of the draft PR; {keyword} is Closes, or Part of when the issue has another live branch; {number} and {url} are the issue's. The session that starts the issue changes \"En progreso.\" for a short summary.",
           "type": "string",
           "minLength": 1,
-          "default": "{keyword} #{number}\n\nEn progreso."
+          "default": "{keyword} #{number}\n\nIssue: {url}\n\nEn progreso."
         },
         "prompt": {
           "description": "Prompt Claude opens with on a new branch; {number}, {title} (text anyone can write in the issue: better left out).",

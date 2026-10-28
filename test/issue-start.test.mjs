@@ -107,7 +107,7 @@ test("yes creates the worktree, the start commit, the push, the draft PR and the
     {
       method: "POST",
       path: "repos/acme/widgets/pulls",
-      body: { head: BRANCH, base: "main", title: "Avisar devoluciones a Odoo", body: "Closes #214\n\nEn progreso.", draft: true },
+      body: { head: BRANCH, base: "main", title: "Avisar devoluciones a Odoo", body: "Closes #214\n\nIssue: https://github.com/acme/widgets/issues/214\n\nEn progreso.", draft: true },
     },
     { method: "POST", path: "repos/acme/widgets/issues/214/assignees", body: { assignees: ["me"] } },
   ]);
@@ -334,7 +334,7 @@ test("--new with another open branch: the new PR is Part of, and the open one th
 
   assert.match(dry.out, /Part of #214 in the open PRs \(#150, #151\)/);
   assert.equal(r.status, 0, r.err);
-  assert.equal(s.world.pulls.find((pull) => pull.number === 900).body, "Part of #214\n\nEn progreso.");
+  assert.equal(s.world.pulls.find((pull) => pull.number === 900).body, "Part of #214\n\nIssue: https://github.com/acme/widgets/issues/214\n\nEn progreso.");
   assert.equal(s.world.pulls.find((pull) => pull.number === 150).body, "Part of #214\n\nEn progreso.");
   assert.deepEqual(s.writes().filter((call) => call.method === "PATCH").map((call) => call.path), ["repos/acme/widgets/pulls/150"]);
 });
