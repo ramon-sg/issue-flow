@@ -143,14 +143,15 @@ export function fill(template: string, values: Record<string, string>): string {
 
 /**
  * The draft PR's body from the config's template.
- * @param template - The template, with `{keyword}` and `{number}`.
+ * @param template - The template, with `{keyword}`, `{number}` and `{url}`.
  * @param number - The issue.
  * @param kind - Whether the PR closes the issue or is part of it.
+ * @param url - The issue's URL.
  * @returns The body.
- * @example prBody("{keyword} #{number}", 4, "part") // "Part of #4"
+ * @example prBody("{keyword} #{number}", 4, "part", url) // "Part of #4"
  */
-export function prBody(template: string, number: number, kind: PrKind): string {
-  return fill(template, { keyword: kind === "part" ? "Part of" : "Closes", number: String(number) });
+export function prBody(template: string, number: number, kind: PrKind, url: string): string {
+  return fill(template, { keyword: kind === "part" ? "Part of" : "Closes", number: String(number), url });
 }
 
 /**

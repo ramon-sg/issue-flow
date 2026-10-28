@@ -68,7 +68,7 @@ export const DEFAULT_CONFIG: FlowConfig = {
   worktrees: { dir: ".claude/worktrees", setup: [], teardown: [], ports: null, dockerProjects: [] },
   start: {
     commitMessage: "chore: empieza el trabajo en la issue #{number} [skip ci]",
-    prBody: "{keyword} #{number}\n\nEn progreso.",
+    prBody: "{keyword} #{number}\n\nIssue: {url}\n\nEn progreso.",
     prompt:
       "Issue #{number}. Lee la issue con `npx @ramon-sg/github-rest issue view {number}`, resúmela en lenguaje llano y sigue la skill start-issue para elegir el flujo.",
     resumePrompt:

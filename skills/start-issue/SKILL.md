@@ -30,6 +30,12 @@ una sesión no puede abrir otra en su pestaña.
 El PR en draft es la señal pública de "esto ya lo tomó alguien"; no
 significa que haya algo listo para revisar.
 
+**El PR va en español** (título, cuerpo y commits), salvo que `project.md`
+diga otro idioma en "Idioma". `issue-flow` usa el título de la issue y, para
+el cuerpo y el commit de inicio, `start.prBody` y `start.commitMessage` de
+`.agents/flow.json`, que por defecto están en español. Si `project.md` pide
+otro idioma y esos textos no lo siguen, dilo en el resumen del Paso 2.
+
 **Lo propio de este repo está en `project.md`**, en esta misma carpeta: qué
 flujo sigue cada tipo de issue, cómo se busca la causa de un bug y cómo se
 termina. Léelo en el Paso 5. Si no existe o sigue igual que la plantilla,
@@ -79,7 +85,8 @@ No crea ni cambia nada: solo actualiza las referencias a origin. `--here` y
 `--adopt` no van con `--branch`, y `--adopt` no retoma otra rama: no va con
 `--resume` ni `--new`. Muestra la
 salida tal cual como el borrador a confirmar: issue, labels, rama (o lo que
-encontró, si la issue ya se empezó), modo y acciones.
+encontró, si la issue ya se empezó), modo y acciones. Si se crea el PR,
+suma a las acciones el resumen de la issue en su cuerpo (Paso 5).
 
 - **Sale con error:** muestra el mensaje y detente. Las guardas son: issue
   cerrada o inexistente, árbol sucio con `--branch`, un worktree que no se
@@ -134,7 +141,22 @@ Si se asignó la issue, dilo también.
 
 ## Paso 5: Qué sigue
 
-Lo que diga `project.md`. Sin nada propio:
+Primero, el resumen en el PR. El cuerpo que deja `issue-flow` trae la URL
+de la issue y `En progreso.`: cambia esa línea por lo que pide la issue en
+una o dos oraciones, para que una persona sepa de qué va el PR sin abrirla.
+Lenguaje llano, sin detalles de implementación, en el idioma del PR.
+
+```bash
+npx @ramon-sg/github-rest pr view <pr>
+npx @ramon-sg/github-rest pr edit <pr> --body-file <archivo>
+```
+
+Lo demás del cuerpo (`Closes`, la URL, la sesión de la nube) queda igual.
+Si el cuerpo ya no dice `En progreso.` (alguien lo escribió, o se retoma un
+PR con resumen), no lo toques. Lo cubre el OK del inicio: es parte de
+publicar el PR, y en el Paso 2 se nombra junto al PR en draft.
+
+Después, lo que diga `project.md`. Sin nada propio:
 
 | Issue | Primer paso |
 |---|---|

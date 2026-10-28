@@ -7,6 +7,14 @@ usa lo que dice la skill.
 La rama, la base, la carpeta de worktrees y los pasos de setup no van acá:
 son de `.agents/flow.json`.
 
+## Idioma
+
+El PR (título, cuerpo y commits) va en español.
+
+<!-- Si va en otro idioma, cámbialo acá (por ejemplo "en inglés") y también
+`start.prBody` y `start.commitMessage` en `.agents/flow.json`, que son los
+textos que usa `issue-flow` al publicar el PR. -->
+
 ## Sin usuario
 
 Ningún label es el OK: toda issue la empieza una persona.

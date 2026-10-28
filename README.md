@@ -261,7 +261,7 @@ Todo es opcional; sin el archivo valen los valores por defecto. Una clave descon
 | `worktrees.ports` | Apagado | `true` para bloques de 10 desde 20000, o `{ start, blockSize, blocks }` |
 | `worktrees.dockerProjects` | Ninguno | Prefijos de los proyectos de Compose de los worktrees |
 | `start.commitMessage` | `chore: empieza el trabajo en la issue #{number} [skip ci]` | Commit vacío inicial |
-| `start.prBody` | `{keyword} #{number}` y "En progreso." | Cuerpo del PR en draft |
+| `start.prBody` | `{keyword} #{number}`, la URL de la issue (`{url}`) y "En progreso." | Cuerpo del PR en draft |
 | `start.prompt`, `start.resumePrompt` | Resumir la issue y seguir `start-issue`, o retomar desde `{plan}` | Pedido con que se abre Claude |
 | `start.summaryPrompt`, `start.summaryPlanPrompt` | Resumir y esperar | Pedido de `--plan` |
 | `start.cloudPrompt` | `/start-issue {number} --yes{flags}` | Lo que `--cloud` le pide a la sesión; `{flags}` es `--new` o `--resume <rama>` |

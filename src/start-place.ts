@@ -149,7 +149,7 @@ export async function publish(state: StartState): Promise<number> {
       head: branch,
       base: state.base,
       title: state.issue.title,
-      body: prBody(options.config.start.prBody, options.number, state.kind),
+      body: prBody(options.config.start.prBody, options.number, state.kind, state.issue.url),
       draft: true,
     });
     state.out.stdout(`${created.url}\n`);
