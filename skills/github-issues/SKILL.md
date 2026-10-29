@@ -32,6 +32,25 @@ dentro: sirve para no usar GraphQL, no para trabajar sin token. Si
 `gh auth status` falla, detente y dilo. El repo sale del `origin` del
 checkout; para otro, agrega `-R <owner>/<repo>`.
 
+## 0. ¿Va en una issue?
+
+Cuando la issue nace de un hallazgo en una rama (un comentario de review, un
+check de CI, una auditoría), primero mira de dónde viene
+(`git log origin/<base>..HEAD` y el diff de esos commits):
+
+- **Lo causó un commit de esta rama:** no va en una issue. Se arregla en la
+  rama, aunque esté lejos de lo que pide la issue de la rama.
+- **Tiene que ver con lo que la rama intenta arreglar** (el mismo bug por
+  otro camino, un caso que el arreglo no cubre): tampoco va. Se arregla en
+  la rama.
+- **Es parte de otra issue:** no se crea ni se arregla en la rama. Se dice
+  así: "no se corrige aquí porque es parte de #N", con el criterio de #N
+  que lo cubre.
+- **Nada de lo anterior:** está fuera de alcance. Sigue al paso 1.
+
+En los dos primeros casos, devuelve el hallazgo a quien te llamó para que
+lo arregle. No hay borrador.
+
 ## 1. Buscar duplicados
 
 ```bash

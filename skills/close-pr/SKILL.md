@@ -60,7 +60,9 @@ conversación.
   atrasada, se cuelan commits que ya están en la base.
 
 Resuelve **todos** los hallazgos: arréglalos, descártalos con una razón, o
-propón una issue con `github-issues`. Listarlos no es cerrarlos.
+propón una issue con `github-issues`. Listarlos no es cerrarlos. Una issue
+solo si pasa el paso 0 de `github-issues`: lo que causó esta rama, o lo que
+tiene que ver con lo que arregla, se arregla acá.
 
 Antes del push, corre lo que CI va a correr sobre lo tocado (`project.md`
 dice qué; si no, el lint y los tests del área).
