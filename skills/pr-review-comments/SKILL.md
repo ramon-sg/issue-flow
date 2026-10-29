@@ -92,6 +92,11 @@ Actions, `gh run view <id> --log-failed`). Decide si el fallo:
 | **Fuera de alcance** | Respuesta y una issue con `github-issues` (sin arreglo) |
 | **Informativo** | Sin acción (resúmenes del bot) |
 
+**Fuera de alcance** solo si pasa el paso 0 de `github-issues`: lo que causó
+esta rama, o lo que tiene que ver con lo que arregla, es válido y se arregla
+acá. Si es parte de otra issue, la respuesta lo dice: "no se corrige aquí
+porque es parte de #N".
+
 **Agrupa por causa antes de parchear.** Varios hallazgos con el mismo origen
 se arreglan una vez y bien; parchados de a uno dejan el mismo agujero por
 otro camino. Tres comentarios sobre "devuelve éxito cuando falló" en
