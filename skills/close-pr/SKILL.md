@@ -36,13 +36,13 @@ revisión o de CI: esos siguen su propio OK en `pr-review-comments`.
 ## Paso 1: Terminar con `finish-pr`
 
 Corre `finish-pr` con el mismo PR. Hace todo hasta el chequeo de review,
-checks y base, y devuelve el estado.
+checks y base, y devuelve el estado. Se decide en este orden:
 
-- **`Estado: listo para mergear`:** sigue al Paso 2.
-- **Falta algo:** detente y muestra su reporte tal cual. No mergees.
-- **En la nube** (`CLAUDE_CODE_REMOTE` es `true`): el merge necesita `gh` en
-  local. Detente con el reporte de `finish-pr` y di que el merge queda para
-  una sesión local o para GitHub.
+1. **En la nube** (`CLAUDE_CODE_REMOTE` es `true`), aunque el estado sea
+   "listo": el merge necesita `gh` en local. Detente con el reporte de
+   `finish-pr` y di que el merge queda para una sesión local o para GitHub.
+2. **Falta algo:** detente y muestra su reporte tal cual. No mergees.
+3. **`Estado: listo para mergear`:** sigue al Paso 2.
 
 ## Paso 2: Mergear y limpiar
 
@@ -56,12 +56,10 @@ gh pr merge <n> --merge
 git push origin --delete <rama>
 ```
 
-- **Checkout principal:** `git checkout <base> && git pull --ff-only &&
-  git branch -d <rama>`. Si `-d` falla, detente: nunca `-D`.
-- **Worktree:** la rama local y el worktree no se borran desde adentro.
-  `npx @ramon-sg/issue-flow worktree prune` lo hace después, con su Docker y sus
-  puertos, si no hay nada sin commitear ni sin push. Si la sesión se abrió
-  con `issue-flow issue start`, lo ofrece al salir de Claude.
+Después, la rama local y el worktree se limpian como dice "Cómo limpiar
+después de mergear" en el Paso 8 de `finish-pr` (checkout principal o
+worktree). Si la sesión se abrió con `issue-flow issue start`, ofrece
+borrar el worktree al salir de Claude.
 
 ## Paso 3: Reportar
 

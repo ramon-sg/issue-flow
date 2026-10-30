@@ -47,7 +47,8 @@ error en otro lugar, y tres arreglos fallidos pasan a plan. -->
 
 ## Terminar
 
-`close-pr`.
+`close-pr`, que termina el PR con `finish-pr` y lo mergea. Si el merge lo
+hace una persona en GitHub, `finish-pr`.
 
 <!-- Lo que se hace antes de pedir revisión, por ejemplo: la suite del
 paquete con su salida en el cuerpo del PR, un `code-audit`, cada hallazgo

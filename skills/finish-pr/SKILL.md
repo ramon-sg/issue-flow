@@ -25,9 +25,9 @@ Esta skill deja el PR listo para mergear y se detiene ahí. El merge lo hace
 **Lo propio de este repo está en `project.md`**, en esta misma carpeta: qué
 pasos corren sin preguntar, qué se corre antes del push, cómo se cierra un
 plan, qué bots revisan y qué cuenta como review aprobado. Léelo antes de
-empezar. Si no existe o sigue igual que la plantilla, y existe
-`../close-pr/project.md` con esas secciones (de cuando vivían ahí), usa las
-de ese archivo. Si tampoco, vale lo de esta skill.
+empezar. Se mira sección por sección: una que falta o sigue igual que la
+plantilla se toma de `../close-pr/project.md`, si ahí tiene la misma
+sección (de cuando vivían en `close-pr`). Si tampoco, vale lo de esta skill.
 
 La rama base sale de `.agents/flow.json` (`baseBranch`, o la rama por
 defecto del repo).
@@ -39,6 +39,9 @@ Nunca commit, push ni ready sin el OK explícito del usuario, salvo lo que
 cuenta. El OK del ciclo cubre auditoría, commit, push y ready. **No cubre**
 los arreglos que salgan de la revisión o de CI: esos siguen su propio OK en
 `pr-review-comments`. Esta skill nunca mergea.
+
+Si la corre `close-pr`, el OK del ciclo completo que el usuario le dio a
+`close-pr` cuenta como el OK de esta skill: no se vuelve a preguntar.
 
 ## Paso 1: Encontrar el PR y dónde corre la sesión
 
@@ -54,18 +57,25 @@ En la nube (`CLAUDE_CODE_REMOTE` es `true`) sacar de draft necesita `gh` en
 local: en el Paso 5 le pides al usuario que lo saque de draft y sigues con
 los Pasos 6 y 7, que van por REST.
 
-**¿Ya se terminó antes?** El cuerpo del PR puede traer la marca que deja el
-Paso 4:
+**¿Ya se auditó antes?** El cuerpo del PR puede traer la marca que deja el
+Paso 4, con el último SHA auditado:
 
 ```bash
-npx @ramon-sg/github-rest pr view <n> | jq -r .body | grep -o 'finish-pr: auditado [0-9a-f]*'
+npx @ramon-sg/github-rest pr view <n> > pr.json
+jq -r .body pr.json | grep -o 'finish-pr: auditado [0-9a-f]\{40\}' | tail -1   # la marca
+jq -r .headRefOid pr.json                                                     # HEAD en origin
 git rev-parse HEAD
 git status --porcelain
 ```
 
-Si el SHA de la marca es `HEAD`, ese `HEAD` está en origin y no hay cambios
-sin commitear, la auditoría y los documentos ya están hechos para este
-código: salta al Paso 5. Si no, sigue en el Paso 2.
+- **La marca es el `HEAD` local, es el `headRefOid` del PR y no hay cambios
+  sin commitear:** la auditoría y los documentos ya están hechos para este
+  código. Salta los Pasos 2 y 3, y sigue en el Paso 4 solo para revisar
+  `Closes` o `Part of` (otro PR de la issue pudo mergearse mientras tanto).
+- **La marca es un commit anterior de la rama** (`git merge-base
+  --is-ancestor <marca> HEAD`): en el Paso 2 audita solo lo que vino
+  después, con `--branch <marca>`.
+- **No hay marca, o no es de esta rama:** sigue en el Paso 2 con todo.
 
 ## Paso 2: Auditoría
 
@@ -116,8 +126,10 @@ Commits con la convención del repo (`CLAUDE.md` o `project.md`). Nunca
 - Se abrió con `Closes #N` pero queda trabajo (otro PR abierto de la issue,
   o etapas del plan): cambia el cuerpo a `Part of #N`.
 
-Después del push, deja en el cuerpo la marca del código auditado, al final y
-en una sola línea (reemplaza la anterior si hay una):
+Después del push, deja en el cuerpo la marca del código auditado en el
+Paso 2, al final y en una sola línea (reemplaza la anterior: queda una
+sola). El SHA es el `HEAD` pusheado, que incluye los arreglos de la
+auditoría y los documentos:
 
 ```markdown
 <!-- finish-pr: auditado <sha de HEAD> -->
@@ -146,8 +158,9 @@ esperado, se sigue. En la nube, pídele al usuario que lo haga en GitHub
 
 Tras el push, procesa los comentarios y los checks con
 `pr-review-comments`. Cada push de arreglos vuelve a disparar la revisión y
-CI: se espera de nuevo. Un push de arreglos deja vieja la marca del Paso 4:
-actualízala con el SHA nuevo, porque la revisión ya cubrió esos cambios.
+CI: se espera de nuevo. La marca del Paso 4 **no** se mueve con estos
+pushes: la auditoría no vio esos commits. La próxima vez que corra la skill,
+los audita solos (Paso 1).
 
 ## Paso 7: ¿Se puede mergear?
 
@@ -176,8 +189,11 @@ Las tres cosas, o el PR no está listo:
 3. **La base no avanzó** desde el último push:
    `git fetch origin <base> && git log --oneline HEAD..origin/<base>`. Si
    avanzó, trae la base a la rama (merge, no rebase, con su OK) o avisa.
+   Traerla es un push nuevo: vuelve al Paso 6 y espera la revisión y los
+   checks de ese commit antes de volver acá.
 
-Si falta una, no esperes en silencio: es el reporte del Paso 8.
+Si falta una, no esperes en silencio: es el reporte del Paso 8. "Listo
+para mergear" vale solo para los checks del `HEAD` que está en origin.
 
 ## Paso 8: Reportar y detenerse
 
@@ -197,7 +213,8 @@ Por qué puede faltar algo: no hay review aprobado, un check falla o sigue
 corriendo, la base avanzó, o en la nube el PR sigue en draft. Correr la
 skill de nuevo sigue desde donde quedó.
 
-**Cómo limpiar después de mergear en GitHub** (va en `Después:`):
+**Cómo limpiar después de mergear** (va en `Después:`; `close-pr` también
+lo usa tras su merge):
 
 - **Rama en origin:** la borra GitHub si el repo tiene "Automatically
   delete head branches" (Settings → General). Si no, el botón "Delete
