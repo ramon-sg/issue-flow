@@ -65,7 +65,7 @@ cualquier comentario (algo se rompió, no es una opinión), y uno en
 `pending` se anota para volver a mirarlo, no se da por bueno.
 
 **Si el PR es draft**, muchos bots no lo revisan: dilo y propón sacarlo de
-draft (`close-pr`, Paso 5). No esperes comentarios que no van a llegar.
+draft (`finish-pr`, Paso 5). No esperes comentarios que no van a llegar.
 
 ### Investigar un check que falla
 

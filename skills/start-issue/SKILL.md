@@ -166,7 +166,8 @@ Después, lo que diga `project.md`. Sin nada propio:
 | `spike` | Las preguntas que tiene que responder, y el informe en el PR |
 | `documentation` | Editar |
 
-Para cerrar el PR, `close-pr`. Después del merge,
+Para dejar el PR listo sin mergearlo, `finish-pr`; para cerrarlo con merge,
+`close-pr`. Después del merge,
 `npx @ramon-sg/issue-flow worktree prune` borra el worktree con su Docker y sus puertos; si la sesión se abrió
 con `issue-flow issue start`, lo ofrece al salir de Claude.
 

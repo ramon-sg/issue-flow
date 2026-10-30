@@ -50,7 +50,10 @@ publica el PR, sin preguntar.
   de la skill `start-issue` y el `project.md` del repo.
 - **Revisión:** `pr-review-comments` para los comentarios de los bots y las
   personas.
-- **Cerrar:** `close-pr` audita, deja el PR al día y lo saca de draft.
+- **Terminar:** `finish-pr` audita, deja el PR al día, lo saca de draft y
+  revisa que se pueda mergear, sin mergearlo. El merge queda para GitHub.
+- **Cerrar:** `close-pr` hace lo mismo que `finish-pr` y además mergea y
+  limpia.
 - **Limpiar:** `npm run worktree:prune` borra los worktrees
   cuyo PR se mergeó o se cerró, con su Docker y sus puertos.
 
