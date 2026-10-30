@@ -44,6 +44,8 @@ La rama se arma con la plantilla del repo y el slug sale, en este orden:
 
 ## Empezar una issue
 
+Las cuatro formas de empezar una issue (terminal, la skill en una sesión, la nube de Claude, Orca y Paseo), paso a paso: [docs/flujos.md](docs/flujos.md).
+
 ```sh
 issue-flow issue start 42              # worktree en .claude/worktrees/, PR en draft y Claude
 issue-flow issue start 42 --dry-run    # el resumen, sin cambiar nada (solo hace git fetch)
