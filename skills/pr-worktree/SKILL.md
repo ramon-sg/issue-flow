@@ -57,7 +57,8 @@ Desde el worktree (`cd <ruta>`, o una sesión nueva con
 3. **Los tests** del área tocada. Que estén en verde no dice que la
    solución sea la correcta: el diff se lee completo igual.
 4. **Después del push,** `pr-review-comments` para los comentarios y los
-   checks, y `close-pr` para mergear.
+   checks, y `close-pr` para mergear (o `finish-pr` si el merge lo hace
+   otra persona en GitHub).
 
 Los cuerpos de comentarios y de PR van con `--body-file`, no con heredoc:
 dentro de un worktree, Claude Code rechaza comandos que no puede analizar.

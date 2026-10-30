@@ -14,7 +14,7 @@ Flujo de trabajo de issue a PR para cualquier repo, en local y en las sesiones d
 - **`issue-flow adapter setup|issue|archive`:** lo que corren Orca y Paseo al crear o borrar un worktree.
 - **`issue-flow session`:** el hook `SessionStart`; en la nube llama a [`claude-cloud`](https://github.com/ramon-sg/claude-cloud).
 - **`issue-flow hook worktree-create|worktree-remove`:** los hooks `WorktreeCreate` y `WorktreeRemove` de Claude Code, para `claude --worktree`.
-- **Skills:** `github-issues`, `start-issue`, `close-pr`, `pr-review-comments` y `pr-worktree`.
+- **Skills:** `github-issues`, `start-issue`, `finish-pr`, `close-pr`, `pr-review-comments` y `pr-worktree`.
 
 ## Nombre de la rama
 
@@ -222,11 +222,12 @@ Viven en `skills/` y `skills-catalog.json` las lista. Se instalan con [`skills-m
 |---|---|---|---|
 | `github-issues` | Issues | Una issue corta con cabecera de tres líneas, criterios comprobables y el slug de su rama; comprueba duplicados y el tope de palabras | — |
 | `start-issue` | Issues | Empieza una issue desde una sesión con `issue-flow issue start`, en local, en un worktree o en la nube | — |
-| `close-pr` | PRs | Auditoría, documentos al día, ready, revisión y CI, y merge con merge commit solo con un review aprobado | `pr-review-comments` |
+| `finish-pr` | PRs | Auditoría, documentos al día, ready, revisión y CI, y el chequeo de que se puede mergear; se detiene antes del merge con un reporte de qué falta y cómo limpiar | `pr-review-comments` |
+| `close-pr` | PRs | Corre `finish-pr` y, si quedó listo, mergea con merge commit y limpia la rama y el worktree | `finish-pr` |
 | `pr-review-comments` | PRs | Verifica cada comentario y check contra el código, propone un plan, aplica lo aprobado y responde los hilos | `github-issues` |
 | `pr-worktree` | PRs | Revisa un PR en su worktree con `issue-flow pr worktree`, sin tocar el checkout principal | `close-pr` |
 
-`agent-kitchen` las instala con el catálogo en la tag de la versión del flujo y las mueve con él. `close-pr` y `pr-worktree` usan `code-audit`, del catálogo [`agent-skills`](https://github.com/ramon-sg/agent-skills): `agent-kitchen` ofrece los dos.
+`agent-kitchen` las instala con el catálogo en la tag de la versión del flujo y las mueve con él. `finish-pr` (y con ella `close-pr`) y `pr-worktree` usan `code-audit`, del catálogo [`agent-skills`](https://github.com/ramon-sg/agent-skills): `agent-kitchen` ofrece los dos.
 
 **Lo propio de cada repo va en `project.md`**, que cada skill (salvo `pr-worktree`) crea desde su plantilla al instalarse: los labels y el assignee, qué flujo sigue cada issue, qué corre sin preguntar al cerrar, qué bots revisan y qué cuenta como review aprobado. Ese archivo es del repo: `check` no lo marca y las actualizaciones lo conservan.
 

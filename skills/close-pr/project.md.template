@@ -4,37 +4,13 @@ Lo propio de este repo para la skill `close-pr`. Este archivo es del repo:
 edítalo; las actualizaciones de la skill no lo tocan. Lo que dejes como está
 usa lo que dice la skill.
 
-## Qué corre sin preguntar
+Lo de antes del merge (qué corre antes del push, planes, review aprobado,
+bots y CI) va en el `project.md` de `finish-pr`.
 
-Nada: cada paso que escribe en git o en GitHub espera el OK.
+## Merge
 
-<!-- Por ejemplo: "commit, push y merge a `staging` corren solos; la única
-pregunta es la del reporte final". -->
+Mergea el agente, con el OK del usuario.
 
-## Antes del push
-
-El lint y los tests del área tocada.
-
-<!-- Los comandos de este repo, por ejemplo `npm run lint` y `npm test`. -->
-
-## Planes y documentos
-
-Con `planning`, si está instalada.
-
-<!-- El comando que cierra un plan o una spec en este repo, por ejemplo
-`npm run docs:close <ruta> --pr <n>`, y los documentos que un cambio suele
-dejar viejos (`docs/api.yaml`, el README de un paquete). -->
-
-## Review aprobado
-
-Hace falta un review en `APPROVED` y ninguno en `CHANGES_REQUESTED`.
-
-<!-- Si el repo es de una persona y GitHub no deja aprobar el propio PR:
-"basta el OK del usuario en la conversación, después de ver los checks". -->
-
-## Revisión automática y CI
-
-Ningún bot de review ni CI propio anotado: los checks del PR.
-
-<!-- Qué bots revisan (y si saltan los drafts), qué CI corre y qué skill lee
-sus logs. -->
+<!-- Si el merge lo hace siempre una persona en GitHub: "mergea la persona";
+`close-pr` corre `finish-pr` y se detiene con su reporte. Si el merge corre
+sin preguntar: "el merge a `staging` corre solo". -->
