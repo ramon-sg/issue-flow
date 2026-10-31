@@ -19,9 +19,8 @@ export const USAGE = `Usage:
   issue-flow adapter setup [--only <step>] | issue [<url>] | archive [-R owner/repo]
   issue-flow session
   issue-flow hook worktree-create | worktree-remove
-  issue-flow init [--yes] [--recipe <name>,...]
+  issue-flow apply [--yes] [--dry-run] [--json] [--recipe <name>,...]
   issue-flow doctor [--json]
-  issue-flow upgrade [--dry-run]
   issue-flow labels sync [--update] [--dry-run] [--json] [-R owner/repo]
 
 The slug comes from the issue's "Slug de rama" block, then from Claude, then from the title,
@@ -50,10 +49,12 @@ when they make a worktree (its steps and, if it came from an issue, issue start 
 issue to start one by hand, and archive before they delete it. hook implements Claude
 Code's WorktreeCreate and WorktreeRemove for claude --worktree.
 
-init sets the flow up in the repo: .agents/flow.json (with the recipes its files suggest),
-the dev dependencies and scripts, and the hooks. doctor checks them at this version, and
-upgrade moves them to this version. npx agent-kitchen apply runs the three, along with the
-skills, claude-cloud and claude-repo-guard.
+apply leaves the repo as this version needs it: .agents/flow.json (the first time, with
+the recipes its files suggest), issue-flow at this version and github-rest and the scripts
+if missing in package.json, and the hooks; it changes no other version, and refuses a newer
+issue-flow or a range. doctor checks them. npx agent-kitchen apply runs apply at the version
+it picks, along with the skills, claude-cloud and claude-repo-guard. init and upgrade still
+run apply, with a warning, until 0.4.0.
 
 labels sync makes in GitHub the labels the flow wants ("labels" in .agents/flow.json: the
 issue types and P1 to P4 by default) that the repo lacks. Names ignore case and are never

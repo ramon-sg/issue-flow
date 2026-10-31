@@ -1,5 +1,5 @@
 /**
- * @file What `init`, `doctor` and `upgrade` share: this package's own versions, the JSON
+ * @file What `apply` and `doctor` share: this package's own versions, the JSON
  * files of the repo they read and write, and its package manager. Every package goes by its
  * scoped name: the unscoped `issue-flow`, `github-rest` and `skills-manager` on npm belong
  * to other people.
@@ -15,34 +15,57 @@ export const PACKAGE = "@ramon-sg/issue-flow";
 /** The GitHub repo of this package, whose tags hold the config's schema of each version. */
 export const FLOW_REPO = "ramon-sg/issue-flow";
 
+/** The start of the config's schema URL, at any version. */
+export const SCHEMA_PREFIX = `https://raw.githubusercontent.com/${FLOW_REPO}/`;
+
+/**
+ * The URL of the config's schema at a version.
+ * @param version - This package's version.
+ * @returns The URL.
+ * @example schemaUrl("0.1.0") // "https://raw.githubusercontent.com/ramon-sg/issue-flow/v0.1.0/schema.json"
+ */
+export function schemaUrl(version: string): string {
+  return `${SCHEMA_PREFIX}v${version}/schema.json`;
+}
+
+/**
+ * Whether a config's `$schema` is the flow's at another version (one that is not the
+ * flow's is the repo's choice and never stale).
+ * @param schema - The config's `$schema`.
+ * @param version - This package's version.
+ * @returns True if `apply` would move it.
+ */
+export function isStaleSchema(schema: unknown, version: string): boolean {
+  return typeof schema === "string" && schema.startsWith(SCHEMA_PREFIX) && schema !== schemaUrl(version);
+}
+
 /** Claude Code's settings of the repo. */
 export const SETTINGS_FILE = ".claude/settings.json";
 
-/** Error of `init`, `doctor` or `upgrade`: exits 1 with the message. */
+/** Error of `apply` or `doctor`: exits 1 with the message. */
 export class SetupError extends Error {}
 
 /** The versions this package pins in the repo. */
 export interface OwnVersions {
   issueFlow: string;
+  /** The lowest `github-rest` the flow works with: the floor of its own dependency. */
   githubRest: string;
-  skillsManager: string;
 }
 
 /**
- * This package's version and the exact versions of `github-rest` and `skills-manager` it
- * was built and tested with, from its own `package.json`.
+ * This package's version and the lowest `github-rest` it works with, from its own
+ * `package.json` (`"^0.3.0"` gives 0.3.0).
  * @returns The versions.
  * @throws SetupError if the package.json does not have them.
  * @example ownVersions().issueFlow // "0.1.0"
  */
 export function ownVersions(): OwnVersions {
   const file = join(dirname(fileURLToPath(import.meta.url)), "..", "package.json");
-  const pkg = JSON.parse(readFileSync(file, "utf8")) as { version?: string; dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
-  const githubRest = pkg.dependencies?.["@ramon-sg/github-rest"];
-  const skillsManager = pkg.devDependencies?.["@ramon-sg/skills-manager"];
-  if (pkg.version === undefined || githubRest === undefined || skillsManager === undefined)
-    throw new SetupError(`${file} lacks the version of issue-flow, github-rest or skills-manager.`);
-  return { issueFlow: pkg.version, githubRest, skillsManager };
+  const pkg = JSON.parse(readFileSync(file, "utf8")) as { version?: string; dependencies?: Record<string, string> };
+  const githubRest = pkg.dependencies?.["@ramon-sg/github-rest"]?.replace(/^[\^~]/, "");
+  if (pkg.version === undefined || githubRest === undefined)
+    throw new SetupError(`${file} lacks the version of issue-flow or github-rest.`);
+  return { issueFlow: pkg.version, githubRest };
 }
 
 /**
