@@ -267,6 +267,50 @@
         "P3:": "yellow",
         "P4:": "cyan"
       }
+    },
+    "labels": {
+      "description": "Labels that `issue-flow labels sync` makes in GitHub when the repo lacks them. Merges over the default: a name replaces the default of the same name (ignoring case) and null drops it.",
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^\\S(?:.*\\S)?$",
+        "maxLength": 50
+      },
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "null"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "color"
+            ],
+            "properties": {
+              "color": {
+                "description": "Six hex digits, without #.",
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{6}$"
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 100,
+                "default": ""
+              }
+            }
+          }
+        ]
+      },
+      "default": {
+        "bug": { "color": "d73a4a", "description": "Something isn't working" },
+        "enhancement": { "color": "a2eeef", "description": "New feature or request" },
+        "documentation": { "color": "0075ca", "description": "Improvements or additions to documentation" },
+        "spike": { "color": "fbca04", "description": "Time-boxed research before building" },
+        "P1: urgent": { "color": "B60205", "description": "Breaks production or blocks work" },
+        "P2: important": { "color": "F9D0C4", "description": "Real impact, with some slack" },
+        "P3: minor": { "color": "FEF2C0", "description": "Default when in doubt" },
+        "P4: low": { "color": "BFDADC", "description": "Nice-to-have" }
+      }
     }
   },
   "$defs": {

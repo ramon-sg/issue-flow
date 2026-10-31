@@ -18,6 +18,12 @@ export interface TypeRules {
   titlePrefixes: Record<string, string>;
 }
 
+/** A label the flow wants in the repo: its color (hex, no `#`) and description. */
+export interface LabelSpec {
+  color: string;
+  description: string;
+}
+
 /** The whole config, with every default applied. */
 export interface FlowConfig {
   repo: string | null;
@@ -40,6 +46,7 @@ export interface FlowConfig {
   };
   plans: { dirs: string[] };
   colors: Record<string, string>;
+  labels: Record<string, LabelSpec>;
 }
 
 /** The defaults, the same rules Abastio uses. */
@@ -86,6 +93,16 @@ export const DEFAULT_CONFIG: FlowConfig = {
     "P2:": "orange",
     "P3:": "yellow",
     "P4:": "cyan",
+  },
+  labels: {
+    bug: { color: "d73a4a", description: "Something isn't working" },
+    enhancement: { color: "a2eeef", description: "New feature or request" },
+    documentation: { color: "0075ca", description: "Improvements or additions to documentation" },
+    spike: { color: "fbca04", description: "Time-boxed research before building" },
+    "P1: urgent": { color: "B60205", description: "Breaks production or blocks work" },
+    "P2: important": { color: "F9D0C4", description: "Real impact, with some slack" },
+    "P3: minor": { color: "FEF2C0", description: "Default when in doubt" },
+    "P4: low": { color: "BFDADC", description: "Nice-to-have" },
   },
 };
 
@@ -228,6 +245,52 @@ function colorsSection(value: unknown): Record<string, string> {
   return value as Record<string, string>;
 }
 
+/** A label color: six hex digits, without `#`. */
+const LABEL_COLOR = /^[0-9a-fA-F]{6}$/;
+
+/** A label name: no spaces at the ends, since GitHub trims them. */
+const LABEL_NAME = /^\S(?:.*\S)?$/;
+
+/** GitHub's limits for a label's name and description, in characters. */
+const LABEL_NAME_MAX = 50;
+const LABEL_DESCRIPTION_MAX = 100;
+
+/**
+ * The `labels` map: the labels `labels sync` makes in the repo. Unlike the other maps, it
+ * merges over the default, because a repo usually adds labels: a name replaces the default
+ * of the same name (ignoring case, as GitHub does) and `null` drops it.
+ * @param value - The map, or undefined.
+ * @returns The labels.
+ * @throws ConfigError if a label is invalid.
+ * @example labelsSection({ spike: null, "area:api": { color: "1d76db" } })["area:api"].description // ""
+ */
+function labelsSection(value: unknown): Record<string, LabelSpec> {
+  if (value === undefined) return DEFAULT_CONFIG.labels;
+  if (!isObject(value)) throw new ConfigError(`${CONFIG_PATH}: "labels" must be an object.`);
+  // NOTE: a Map, so a "__proto__" key from JSON.parse stays a label and not the prototype.
+  const labels = new Map(Object.entries(DEFAULT_CONFIG.labels));
+  const seen = new Set<string>();
+  for (const [name, spec] of Object.entries(value)) {
+    const where = `labels.${name}`;
+    if (!LABEL_NAME.test(name) || [...name].length > LABEL_NAME_MAX)
+      throw new ConfigError(`${CONFIG_PATH}: "${where}" needs a name of 1 to ${LABEL_NAME_MAX} characters, without spaces at the ends.`);
+    const key = name.toLowerCase();
+    if (seen.has(key)) throw new ConfigError(`${CONFIG_PATH}: "labels" has "${name}" twice (names ignore case).`);
+    seen.add(key);
+    for (const known of [...labels.keys()]) if (known.toLowerCase() === key) labels.delete(known);
+    if (spec === null) continue;
+    if (!isObject(spec)) throw new ConfigError(`${CONFIG_PATH}: "${where}" must be an object or null.`);
+    onlyKeys(spec, ["color", "description"], where);
+    if (typeof spec.color !== "string" || !LABEL_COLOR.test(spec.color))
+      throw new ConfigError(`${CONFIG_PATH}: "${where}.color" must be six hex digits, without #, such as "1d76db".`);
+    const description = spec.description ?? "";
+    if (typeof description !== "string" || [...description].length > LABEL_DESCRIPTION_MAX)
+      throw new ConfigError(`${CONFIG_PATH}: "${where}.description" must be a string of up to ${LABEL_DESCRIPTION_MAX} characters.`);
+    labels.set(name, { color: spec.color, description });
+  }
+  return Object.fromEntries(labels);
+}
+
 /**
  * Validates a parsed config and fills in the defaults.
  * @param raw - The parsed JSON.
@@ -237,7 +300,7 @@ function colorsSection(value: unknown): Record<string, string> {
  */
 export function parseConfig(raw: unknown): FlowConfig {
   if (!isObject(raw)) throw new ConfigError(`${CONFIG_PATH} must be a JSON object.`);
-  onlyKeys(raw, ["repo", "baseBranch", "branch", "worktrees", "start", "plans", "colors"], "");
+  onlyKeys(raw, ["repo", "baseBranch", "branch", "worktrees", "start", "plans", "colors", "labels"], "");
   const repo = text(raw.repo, "repo", null);
   if (repo !== null && !REPO.test(repo))
     throw new ConfigError(`${CONFIG_PATH}: "repo" must be owner/repo.`);
@@ -249,6 +312,7 @@ export function parseConfig(raw: unknown): FlowConfig {
     start: textSection(raw.start, "start", DEFAULT_CONFIG.start),
     plans: plansSection(raw.plans),
     colors: colorsSection(raw.colors),
+    labels: labelsSection(raw.labels),
   };
 }
 

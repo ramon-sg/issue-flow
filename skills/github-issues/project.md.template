@@ -14,15 +14,16 @@ colaboradores.
 Los del repo (`npx @ramon-sg/github-rest label list`). Uno de tipo siempre: `bug`,
 `enhancement`, `spike` o `documentation`.
 
-<!-- Si el repo tiene su taxonomía, va acá, por ejemplo:
+Los que el flujo espera, con su color, están en `labels` de
+`.agents/flow.json`, y los crea `npx @ramon-sg/issue-flow labels sync`.
+Una taxonomía propia (área, tamaño) va ahí, no en este archivo.
+
+<!-- Cómo se usa la taxonomía del repo va acá, por ejemplo:
 | Dimensión | Valores | Cantidad |
 |---|---|---|
 | Área | `area:server`, `area:web` | 1 o más |
 | Prioridad | `P1: urgent`, `P2: important`, `P3: minor` (ante duda), `P4: low` | 1 |
 | Tamaño | `size:XS` (<2 h), `size:S` (<1 día), `size:M` (1–3 días), `size:L` (3–5 días) | 0 o 1 |
-
-Y los comandos para crearlos en un repo nuevo, que se corren solo con OK:
-npx @ramon-sg/github-rest label create "P1: urgent" --color B60205 --description "Rompe algo en uso"
 -->
 
 ## Lista para un agente

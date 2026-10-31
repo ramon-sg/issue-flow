@@ -85,10 +85,28 @@ test("each invalid value is an error that names its key", () => {
     [{ plans: { dirs: ["/abs"] } }, /"plans.dirs" must be a non-empty list of folders relative/],
     [{ plans: { folders: ["x"] } }, /unknown key "plans.folders"/],
     [{ colors: { "P1:": "crimson" } }, /"colors.P1:" must be one of red, blue/],
+    [{ labels: [] }, /"labels" must be an object/],
+    [{ labels: { "area:api": { color: "#1d76db" } } }, /"labels.area:api.color" must be six hex digits/],
+    [{ labels: { "area:api": { color: "1d76db", description: "x".repeat(101) } } }, /"labels.area:api.description" must be a string of up to 100/],
+    [{ labels: { "area:api": { color: "1d76db", colour: "x" } } }, /unknown key "labels.area:api.colour"/],
+    [{ labels: { "area:api": "1d76db" } }, /"labels.area:api" must be an object or null/],
+    [{ labels: { ["x".repeat(51)]: { color: "1d76db" } } }, /needs a name of 1 to 50/],
+    [{ labels: { "bug ": { color: "1d76db" } } }, /"labels.bug " needs a name .* without spaces at the ends/],
+    [{ labels: { "area:API": { color: "111111" }, "area:api": { color: "222222" } } }, /"labels" has "area:api" twice/],
     [[], /must be a JSON object/],
   ]) {
     assert.throws(() => parseConfig(raw), (error) => error instanceof ConfigError && message.test(error.message), JSON.stringify(raw));
   }
+});
+
+test("labels merge over the default: a name replaces its default ignoring case, and null drops it", () => {
+  const labels = parseConfig({ labels: { spike: null, Bug: { color: "ff0000" }, "area:api": { color: "1d76db", description: "API" } } }).labels;
+
+  assert.deepEqual(Object.keys(labels), ["enhancement", "documentation", "P1: urgent", "P2: important", "P3: minor", "P4: low", "Bug", "area:api"]);
+  assert.deepEqual(labels.Bug, { color: "ff0000", description: "" });
+  assert.deepEqual(labels["area:api"], { color: "1d76db", description: "API" });
+  assert.deepEqual(parseConfig({}).labels, DEFAULT_CONFIG.labels);
+  assert.deepEqual(parseConfig(JSON.parse('{"labels": {"__proto__": {"color": "ffffff"}}}')).labels.__proto__, { color: "ffffff", description: "" });
 });
 
 test("a file that is not JSON is a ConfigError", () => {
@@ -114,4 +132,5 @@ test("schema.json has the same keys and defaults as the code", async () => {
   assert.deepEqual(props.plans.properties.dirs.default, DEFAULT_CONFIG.plans.dirs);
   assert.deepEqual(props.colors.default, DEFAULT_CONFIG.colors);
   assert.deepEqual(props.colors.additionalProperties.enum, SESSION_COLORS);
+  assert.deepEqual(props.labels.default, DEFAULT_CONFIG.labels);
 });

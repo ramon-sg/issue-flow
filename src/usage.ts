@@ -22,6 +22,7 @@ export const USAGE = `Usage:
   issue-flow init [--yes] [--recipe <name>,...]
   issue-flow doctor [--json]
   issue-flow upgrade [--dry-run]
+  issue-flow labels sync [--update] [--dry-run] [--json] [-R owner/repo]
 
 The slug comes from the issue's "Slug de rama" block, then from Claude, then from the title,
 and the branch from the repo's template (an older "Rama sugerida" block is used if it fits).
@@ -52,4 +53,8 @@ Code's WorktreeCreate and WorktreeRemove for claude --worktree.
 init sets the flow up in the repo: .agents/flow.json (with the recipes its files suggest),
 the dev dependencies and scripts, and the hooks. doctor checks them at this version, and
 upgrade moves them to this version. npx agent-kitchen runs the three, along with the
-skills, claude-cloud and claude-repo-guard.`;
+skills, claude-cloud and claude-repo-guard.
+
+labels sync makes in GitHub the labels the flow wants ("labels" in .agents/flow.json: the
+issue types and P1 to P4 by default) that the repo lacks. Names ignore case and are never
+renamed nor deleted; --update also fixes the color and description of those that differ.`;

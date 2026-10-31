@@ -76,8 +76,18 @@ Infiere todo y déjalo editable en el borrador.
 
 - **Nunca crear labels de pasada.** GitHub crea el label que no existe al
   crear la issue, así que antes del borrador compara con la lista. Si falta
-  uno, el borrador lo dice y ofrece crearlo (`npx @ramon-sg/github-rest label create`);
-  no se crea sin OK.
+  uno de los que el flujo espera (los de tipo, `P1` a `P4` y los de
+  `labels` en `.agents/flow.json`), el borrador lo dice y ofrece crearlos
+  todos de una vez, con el color y la descripción del flujo:
+
+  ```bash
+  npx @ramon-sg/issue-flow labels sync --dry-run   # qué faltan
+  npx @ramon-sg/issue-flow labels sync             # solo con OK
+  ```
+
+  Un label que no está en esa lista no se crea: se propone sumarlo a
+  `labels` en `.agents/flow.json` (no al `project.md`, que con
+  `claude-repo-guard` el agente no puede escribir). Nada se crea sin OK.
 - **Tamaño grande** (de días): se propone dividir antes de crearla.
 - **Label de agente:** solo si `project.md` define uno y la issue cumple
   todas sus condiciones. Si falta una, no va, y el borrador dice cuál.
@@ -178,7 +188,7 @@ les agrega con `npx @ramon-sg/issue-flow issue branch --missing`.
 Repo:           <owner>/<repo>
 Título:         <título>
 Labels:         <tipo>, <los demás>
-Faltan labels:  ninguno | <label> (lo creo si me das el OK)
+Faltan labels:  ninguno | <label> (con tu OK, `labels sync` los crea)
 Rama:           <tipo>/<n>-<slug>   (slug de rama: <slug>)
 Assignee:       <login>
 Duplicados:     ninguno | #12 (parcial, enlazada)
