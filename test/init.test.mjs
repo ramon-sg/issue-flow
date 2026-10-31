@@ -154,3 +154,24 @@ test("init refuses to run in a worktree: the config is the main checkout's", () 
   assert.equal(existsSync(join(dir, ".agents")), false);
   assert.equal(existsSync(join(s.main, ".agents")), false);
 });
+
+test("reaches: what upgrade keeps of github-rest and skills-manager", async () => {
+  const { reaches } = await import("../dist/package-edits.js");
+  const cases = [
+    ["1.3.0", "1.2.0", true],
+    ["1.2.0", "1.2.0", true],
+    ["1.1.0", "1.2.0", false],
+    ["1.10.0", "1.9.0", true],
+    ["1.2.0-rc.1", "1.2.0", false],
+    ["1.3.0-rc.1", "1.2.0", true],
+    ["^1.2.0", "1.3.0", true],
+    ["^0.1.0", "0.3.0", false],
+    ["^0.3.0", "0.3.0", true],
+    ["~1.2.0", "1.3.0", false],
+    [">=0.1.0", "0.3.0", true],
+    ["=0.2.0", "0.3.0", false],
+    ["workspace:*", "0.3.0", true],
+    ["github:ramon-sg/github-rest", "0.3.0", true],
+  ];
+  for (const [current, tested, expected] of cases) assert.equal(reaches(current, tested), expected, `${current} for ${tested}`);
+});

@@ -200,7 +200,7 @@ npx @ramon-sg/issue-flow@<versión> upgrade  # mueve el repo a esa versión (--d
 
 **`doctor`** no cambia nada. Revisa la config, las dependencias y que los hooks estén en esta versión. Cada problema dice qué lo arregla.
 
-**`upgrade`** mueve el repo a la versión que corre: las dependencias a las que fija, los hooks y el `$schema`. No consulta npm, así que se corre con la versión: `npx @ramon-sg/issue-flow@<versión> upgrade`. Nunca baja de versión: si el repo ya tiene una más nueva (por ejemplo, una copia local vieja en `node_modules`), se detiene y dice qué correr. Las skills del flujo llaman a la CLI, así que tienen que ir a la misma tag: `agent-kitchen` las mueve después. `--dry-run` solo dice qué cambiaría.
+**`upgrade`** mueve el repo a la versión que corre: `@ramon-sg/issue-flow`, los hooks y el `$schema`. `github-rest` y `skills-manager` solo suben si no llegan a la versión con que se probó issue-flow: una versión igual o más nueva, un rango que la permite (`^1.2.0` para 1.3.0, no `^0.1.0` para 0.3.0) o una fuente como `workspace:*` se deja como está y se avisa (`kept …`). No consulta npm, así que se corre con la versión: `npx @ramon-sg/issue-flow@<versión> upgrade`. Nunca baja de versión: si el repo ya tiene una más nueva (por ejemplo, una copia local vieja en `node_modules`), se detiene y dice qué correr. Las skills del flujo llaman a la CLI, así que tienen que ir a la misma tag: `agent-kitchen` las mueve después. `--dry-run` solo dice qué cambiaría.
 
 ### Recetas
 
