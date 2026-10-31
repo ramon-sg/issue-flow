@@ -20,7 +20,7 @@ interface Check {
 }
 
 /** What fixes every problem: it runs init or upgrade at the right version. */
-const RUN_AGENT_KITCHEN = "run npx agent-kitchen";
+const RUN_AGENT_KITCHEN = "run npx agent-kitchen apply";
 
 /**
  * Checks the config.

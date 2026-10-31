@@ -2,7 +2,7 @@
 
 Flujo de trabajo de issue a PR para cualquier repo, en local y en las sesiones de Claude en la nube: nombra la rama de cada issue, crea su worktree con puertos y Docker propios, abre el PR en draft y limpia cuando se mergea. Trae las skills que usan ese flujo.
 
-> **Instalar en un repo:** `npx agent-kitchen`, que instala este flujo con sus skills, las skills generales, `claude-cloud` y `claude-repo-guard`, y los actualiza ([agent-kitchen](https://github.com/ramon-sg/agent-kitchen)). El paquete es `@ramon-sg/issue-flow` y el comando, `issue-flow`; sin el scope, `issue-flow` en npm es otro paquete.
+> **Instalar en un repo:** `npx agent-kitchen apply`, que instala este flujo con sus skills, las skills generales, `claude-cloud` y `claude-repo-guard`, y los actualiza ([agent-kitchen](https://github.com/ramon-sg/agent-kitchen)). El paquete es `@ramon-sg/issue-flow` y el comando, `issue-flow`; sin el scope, `issue-flow` en npm es otro paquete.
 
 ## Qué va a tener
 
@@ -183,7 +183,7 @@ Es el hook `SessionStart` de Claude Code. Lo que imprime le llega a Claude como 
 
 ## Lo que el flujo deja en el repo: `issue-flow init`
 
-`npx agent-kitchen` corre estos tres comandos en la versión que corresponde. Correrlos a mano sirve para probar el flujo en un repo sin lo demás.
+`npx agent-kitchen apply` corre estos tres comandos en la versión que corresponde. Correrlos a mano sirve para probar el flujo en un repo sin lo demás.
 
 ```sh
 npx @ramon-sg/issue-flow init           # pregunta cada receta y pide el OK

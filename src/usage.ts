@@ -52,7 +52,7 @@ Code's WorktreeCreate and WorktreeRemove for claude --worktree.
 
 init sets the flow up in the repo: .agents/flow.json (with the recipes its files suggest),
 the dev dependencies and scripts, and the hooks. doctor checks them at this version, and
-upgrade moves them to this version. npx agent-kitchen runs the three, along with the
+upgrade moves them to this version. npx agent-kitchen apply runs the three, along with the
 skills, claude-cloud and claude-repo-guard.
 
 labels sync makes in GitHub the labels the flow wants ("labels" in .agents/flow.json: the
