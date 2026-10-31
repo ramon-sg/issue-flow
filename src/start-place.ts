@@ -9,7 +9,7 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync } from "node:f
 import { dirname, join, relative } from "node:path";
 import { assign, createPr, findPr, getPr, updatePr } from "@ramon-sg/github-rest";
 import { confirm } from "./ask.js";
-import { checkedOutAt, currentBranch, git, gitLines, hasLocal, isClean, onOrigin, safeToDelete } from "./git.js";
+import { checkedOutAt, currentBranch, git, gitLines, hasLocal, isClean, onOrigin, safeToDelete, trackOrigin, untracked } from "./git.js";
 import { bodyToPartOf, dirName, fill, prBody, type StartMode } from "./issue-text.js";
 import { forgetSession } from "./launch.js";
 import { type Output, warn } from "./output.js";
@@ -84,7 +84,9 @@ export function prepareBranch(state: StartState): void {
   const { mainRoot, branch, base, found } = state;
   if (state.mode === "worktree") {
     if (existsSync(state.workDir)) return;
-    const args = found === null ? ["-b", branch, `origin/${base}`] : [branch];
+    // NOTE: --no-track, since tracking writes .git/config, which Claude Code's sandbox
+    // forbids; publish sets the branch's upstream when it can (see trackOrigin).
+    const args = found === null ? ["--no-track", "-b", branch, `origin/${base}`] : hasLocal(mainRoot, branch) ? [branch] : ["--no-track", "-b", branch, `origin/${branch}`];
     const result = git(mainRoot, ["worktree", "add", "-q", state.workDir, ...args]);
     if (!result.ok)
       throw new StartError(
@@ -95,7 +97,10 @@ export function prepareBranch(state: StartState): void {
   if (currentBranch(mainRoot) === branch) return;
   if (!isClean(mainRoot))
     throw new StartError("the main checkout has uncommitted changes; commit or stash them first. No stash is made.");
-  if (found !== null) return mustGit(mainRoot, ["checkout", "-q", branch], `could not check out ${branch}`);
+  if (found !== null) {
+    const args = hasLocal(mainRoot, branch) ? [branch] : ["--no-track", "-b", branch, `origin/${branch}`];
+    return mustGit(mainRoot, ["checkout", "-q", ...args], `could not check out ${branch}`);
+  }
   if (currentBranch(mainRoot) !== base) throw new StartError(`the main checkout is not on ${base}.`);
   if (git(mainRoot, ["rev-list", "--count", `origin/${base}..${base}`]).out !== "0")
     throw new StartError(`local ${base} has commits that are not in origin/${base}; sort it out by hand.`);
@@ -140,9 +145,8 @@ export async function publish(state: StartState): Promise<number> {
     mustGit(workDir, ["commit", "-q", "--allow-empty", "--only", "-m", message], "could not make the start commit");
   }
   if (commit || !onOrigin(workDir, branch))
-    mustGit(workDir, ["push", "-q", "-u", "origin", branch], `could not push ${branch}`);
-  if (!git(workDir, ["rev-parse", "-q", "--verify", "@{u}"]).ok)
-    git(workDir, ["branch", "-q", `--set-upstream-to=origin/${branch}`, branch]);
+    mustGit(workDir, ["push", "-q", "origin", branch], `could not push ${branch}`);
+  if (!trackOrigin(workDir, branch)) warn(state.out, untracked(branch));
   let number = state.pr?.number ?? null;
   if (number === null) {
     const created = await createPr(options.repo, {

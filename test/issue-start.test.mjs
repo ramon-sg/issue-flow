@@ -59,7 +59,7 @@ test("--dry-run shows the summary and changes nothing", () => {
     `Mode:         worktree at ${WT}`,
     `Session:      w-${BRANCH}`,
     "Permissions:  your settings (claude-repo-guard is not installed)",
-    "Actions:      create the branch from origin/main + empty commit + push -u + draft PR (Closes #214) + assign #214 to @me",
+    "Actions:      create the branch from origin/main + empty commit + push + draft PR (Closes #214) + assign #214 to @me",
   ])
     assert.ok(r.out.includes(expected), expected);
   assert.deepEqual(s.writes(), []);
@@ -705,4 +705,60 @@ test("the question before deleting a worktree names its ignored files", () => {
   const r = s.run(["214", "--yes"], { input: "n\n", env: { FAKE_CLAUDE_MERGE: "900" } });
 
   assert.match(r.err, /Its ignored files go too: \.local\//);
+});
+
+// NOTE: Claude Code's sandbox forbids writing .git/config; a config.lock that is there makes
+// git fail the same way ("could not lock config file").
+test("with .git/config locked, as in Claude Code's sandbox, it still makes the worktree, the push and the PR", () => {
+  const s = startSandbox();
+  writeFileSync(join(s.main, ".git", "config.lock"), "");
+
+  const r = s.run(["214", "--yes", "--no-launch"]);
+
+  assert.equal(r.status, 0, r.err);
+  const wt = join(s.main, WT);
+  assert.equal(s.git(wt, "rev-parse", "--abbrev-ref", "HEAD"), BRANCH);
+  assert.equal(s.git(s.origin, "rev-parse", BRANCH), s.git(wt, "rev-parse", "HEAD"));
+  assert.equal(s.writes()[0].path, "repos/acme/widgets/pulls");
+  assert.match(r.err, /could not make .* track origin\/.*; push with 'git push origin HEAD'/);
+});
+
+test("--branch with .git/config locked still makes the branch, the push and the PR", () => {
+  const s = startSandbox();
+  writeFileSync(join(s.main, ".git", "config.lock"), "");
+
+  const r = s.run(["214", "--yes", "--no-launch", "--branch"]);
+
+  assert.equal(r.status, 0, r.err);
+  assert.equal(s.git(s.main, "rev-parse", "--abbrev-ref", "HEAD"), BRANCH);
+  assert.equal(s.git(s.origin, "rev-parse", BRANCH), s.git(s.main, "rev-parse", "HEAD"));
+  assert.equal(s.writes()[0].path, "repos/acme/widgets/pulls");
+});
+
+test("with .git/config locked, a branch only in origin is resumed, in a worktree or with --branch", () => {
+  const s = startSandbox();
+  s.pushBranch(BRANCH, { commit: true });
+  s.pull({ number: 210, branch: BRANCH, body: "Closes #214" });
+  const b = startSandbox();
+  b.pushBranch(BRANCH, { commit: true });
+  b.pull({ number: 210, branch: BRANCH, body: "Closes #214" });
+  for (const box of [s, b]) writeFileSync(join(box.main, ".git", "config.lock"), "");
+
+  const r = s.run(["214", "--yes", "--no-launch"]);
+  const onBranch = b.run(["214", "--yes", "--no-launch", "--branch"]);
+
+  assert.equal(r.status, 0, r.err);
+  assert.equal(s.git(join(s.main, WT), "rev-parse", "HEAD"), s.git(s.origin, "rev-parse", BRANCH));
+  assert.equal(onBranch.status, 0, onBranch.err);
+  assert.equal(b.git(b.main, "rev-parse", "--abbrev-ref", "HEAD"), BRANCH);
+});
+
+test("a local branch that tracks origin's base ends up tracking its own branch in origin", () => {
+  const s = startSandbox();
+  s.git(s.main, "branch", "-q", "--track", BRANCH, "origin/main");
+
+  const r = s.run(["214", "--yes", "--no-launch", "--branch"]);
+
+  assert.equal(r.status, 0, r.err);
+  assert.equal(s.git(s.main, "rev-parse", "--abbrev-ref", `${BRANCH}@{u}`), `origin/${BRANCH}`);
 });

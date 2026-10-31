@@ -53,6 +53,30 @@ export function hasRef(cwd: string, ref: string): boolean {
 }
 
 /**
+ * Makes a branch track origin's of the same name, unless it already does. The upstream lives
+ * in `.git/config`, which Claude Code's sandbox forbids writing, so this is the only step that
+ * writes it: branches are made with `--no-track` and pushed without `-u`.
+ * @param cwd - The checkout.
+ * @param branch - The branch.
+ * @returns True if it tracks `origin/<branch>` now; false if git could not write it.
+ * @example trackOrigin("/repo", "feat/42-x")
+ */
+export function trackOrigin(cwd: string, branch: string): boolean {
+  const upstream = git(cwd, ["rev-parse", "-q", "--symbolic-full-name", `${branch}@{u}`]);
+  if (upstream.ok && upstream.out === `refs/remotes/origin/${branch}`) return true;
+  return git(cwd, ["branch", "-q", `--set-upstream-to=origin/${branch}`, branch]).ok;
+}
+
+/**
+ * The warning when a branch cannot track origin's.
+ * @param branch - The branch.
+ * @returns The warning.
+ */
+export function untracked(branch: string): string {
+  return `could not make ${branch} track origin/${branch} (is .git/config read-only, as in a sandbox?); push with 'git push origin HEAD'.`;
+}
+
+/**
  * Whether the branch exists locally.
  * @param cwd - The checkout.
  * @param branch - The branch.

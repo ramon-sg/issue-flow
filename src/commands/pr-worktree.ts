@@ -14,7 +14,7 @@ import { join } from "node:path";
 import { getPr } from "@ramon-sg/github-rest";
 import type { FlowConfig } from "../config.js";
 import { canonicalPath } from "../docker.js";
-import { checkedOutAt, git, hasLocal, locateRepo, worktrees } from "../git.js";
+import { checkedOutAt, git, hasLocal, locateRepo, trackOrigin, untracked, worktrees } from "../git.js";
 import { permissionArgs } from "../launch.js";
 import { type Output, warn } from "../output.js";
 import { copyWorktreeIncludes } from "../start-place.js";
@@ -58,7 +58,7 @@ function mustGit(cwd: string, args: string[], message: string): void {
 
 /**
  * Makes the worktree on the PR's branch: the local branch if there is one (moved forward to
- * origin's when it can be), or a new one tracking origin's.
+ * origin's when it can be), or a new one; either way tracking origin's when it can.
  * @param mainRoot - The main checkout.
  * @param branch - The PR's branch.
  * @param path - The worktree.
@@ -69,14 +69,13 @@ function addWorktree(mainRoot: string, branch: string, path: string, out: Output
   mustGit(mainRoot, ["fetch", "-q", "origin", `+refs/heads/${branch}:refs/remotes/origin/${branch}`], `could not fetch ${branch} from origin`);
   const elsewhere = checkedOutAt(mainRoot, branch);
   if (elsewhere !== null) throw new StartError(`${branch} is checked out in ${elsewhere}; review it there, or switch that checkout to another branch.`);
-  if (!hasLocal(mainRoot, branch)) {
-    mustGit(mainRoot, ["worktree", "add", "-q", "--track", "-b", branch, path, `origin/${branch}`], `could not make the worktree of ${branch}`);
-    return;
-  }
-  mustGit(mainRoot, ["worktree", "add", "-q", path, branch], `could not make the worktree of ${branch}`);
-  if (!git(path, ["branch", "-q", "--set-upstream-to", `origin/${branch}`]).ok)
-    warn(out, `could not make ${branch} track origin/${branch}.`);
-  if (!git(path, ["merge", "-q", "--ff-only", `origin/${branch}`]).ok)
+  // NOTE: the tracking goes apart, after the worktree: it writes .git/config, which Claude
+  // Code's sandbox forbids, and the worktree is still useful without it.
+  const local = hasLocal(mainRoot, branch);
+  const args = local ? [path, branch] : ["--no-track", "-b", branch, path, `origin/${branch}`];
+  mustGit(mainRoot, ["worktree", "add", "-q", ...args], `could not make the worktree of ${branch}`);
+  if (!trackOrigin(path, branch)) warn(out, untracked(branch));
+  if (local && !git(path, ["merge", "-q", "--ff-only", `origin/${branch}`]).ok)
     warn(out, `the local ${branch} does not move forward to origin/${branch}: you see other commits than the PR's.`);
 }
 

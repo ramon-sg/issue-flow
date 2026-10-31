@@ -162,7 +162,8 @@ hecho. Clasificar algo como válido no lo arregla.
 
 ## Paso 6: Push (con su propio OK)
 
-1. Pide el OK para el push; el del commit no lo cubre.
+1. Pide el OK para el push; el del commit no lo cubre. Usa
+   `git push origin HEAD`: dentro del sandbox la rama puede no tener upstream.
 2. Confirma que llegó: `git ls-remote origin <rama>` coincide con
    `git rev-parse HEAD`. Recién entonces los SHA que cites existen en
    GitHub.

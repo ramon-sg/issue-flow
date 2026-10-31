@@ -29,8 +29,10 @@ abierta. La skill `start-issue` corre el mismo script que el
    "Continúa" a otra cosa no cuenta.
 4. **Ejecuta** `issue start 42 --yes --no-launch` con las mismas opciones.
    En un worktree nuevo corre los pasos de setup, que pueden tardar (instalar
-   dependencias). Si el sandbox bloquea algo, no lo reintenta de otra forma:
-   te muestra qué correr en una terminal.
+   dependencias). No necesita escribir `.git/config`, que el sandbox de
+   Claude Code prohíbe: si no puede dejar la rama siguiendo a `origin`, avisa,
+   y el push se hace con `git push origin HEAD`. Si el sandbox bloquea otra
+   cosa, no lo reintenta de otra forma: te muestra qué correr en una terminal.
 5. **Devuelve el resultado:** la URL del PR, la rama, la carpeta y el
    siguiente paso.
 6. **Sigue con la issue.** Cambia el "En progreso." del PR por un resumen

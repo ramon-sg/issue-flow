@@ -59,7 +59,7 @@ export function describeBranch(state: StartState, branch: string, withPr: boolea
  * The actions it will take, joined with " + ".
  * @param state - The start.
  * @returns The text.
- * @example plannedActions(state) // "create the branch from origin/main + empty commit + push -u + …"
+ * @example plannedActions(state) // "create the branch from origin/main + empty commit + push + …"
  */
 export function plannedActions(state: StartState): string {
   if (state.mode === "cloud") return "open the cloud session, which makes the branch, the commit, the PR and the assignment";
@@ -68,7 +68,7 @@ export function plannedActions(state: StartState): string {
   const { number, remoteSession } = state.options;
   const commit = needsStartCommit(state);
   if (commit) actions.push("empty commit");
-  if (commit || !onOrigin(mainRoot, branch)) actions.push("push -u");
+  if (commit || !onOrigin(mainRoot, branch)) actions.push("push");
   if (state.pr === null) {
     const first = prBody(state.options.config.start.prBody, number, state.kind, state.issue.url).split("\n")[0];
     actions.push(`draft PR (${first})`);
