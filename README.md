@@ -8,6 +8,7 @@ Flujo de trabajo de issue a PR para cualquier repo, en local y en las sesiones d
 
 - **`issue-flow init|doctor|upgrade`:** escribe, revisa y mueve a su versión lo que el flujo deja en el repo: `.agents/flow.json` con sus recetas, las dependencias y los hooks. Los corre `agent-kitchen`.
 - **`issue-flow issue branch <n>`:** propone la rama de una issue (con Claude por defecto, o desde el título). Con `--missing`, agrega el slug de rama a todas las issues abiertas que no lo tienen.
+- **`issue-flow labels sync`:** crea en GitHub los labels que el flujo espera y le faltan al repo: los de tipo y `P1` a `P4`, con los mismos colores en todos los repos.
 - **`issue-flow issue start <n>`:** crea la rama y el worktree, hace el commit inicial, abre el PR en draft, asigna la issue y abre Claude. Con `--cloud`, lo hace en una sesión en la nube.
 - **`issue-flow worktree setup|teardown|ports|cleanup|prune`:** prepara y limpia cada worktree con los pasos del repo, le da un bloque de puertos y borra los worktrees con el PR cerrado.
 - **`issue-flow pr worktree <n>`:** abre un PR en su propio worktree, en la rama del PR, para revisarlo sin soltar lo que estás haciendo.
@@ -270,6 +271,40 @@ Todo es opcional; sin el archivo valen los valores por defecto. Una clave descon
 | `start.cloudPrompt` | `/start-issue {number} --yes{flags}` | Lo que `--cloud` le pide a la sesión; `{flags}` es `--new` o `--resume <rama>` |
 | `plans.dirs` | `docs/plans`, `docs/specs` | Dónde buscar el plan de la issue: lo que tocó la rama, o el documento cuyo `prs:` nombra su PR |
 | `colors` | `critical-path` y `P1:` rojo, `P2:` naranjo, `P3:` amarillo, `P4:` cian | Color de la sesión por prefijo de label; gana el primero que calce |
+| `labels` | Los 8 de abajo | Labels que crea `labels sync`; lo del repo se suma al default (ver abajo) |
+
+## Labels: `issue-flow labels sync`
+
+```sh
+npx @ramon-sg/issue-flow labels sync --dry-run   # qué haría
+npx @ramon-sg/issue-flow labels sync             # crea los que faltan
+npx @ramon-sg/issue-flow labels sync --update    # también corrige color y descripción
+```
+
+Crea en GitHub los labels de `labels` que el repo no tiene. Los nombres se comparan sin mayúsculas, como en GitHub: un `Bug` cuenta como `bug` y nunca se renombra. Uno que existe con otro color o descripción solo se avisa, salvo con `--update`. Nunca borra. `--json` da la lista con el estado de cada uno: `created`, `updated`, `ok`, `differs`, o `to-create` y `to-update` con `--dry-run`. Si GitHub rechaza uno, sigue con los demás, lo marca `failed` y sale con 1.
+
+| Label | Color | Descripción |
+|---|---|---|
+| `bug` | `d73a4a` | Something isn't working |
+| `enhancement` | `a2eeef` | New feature or request |
+| `documentation` | `0075ca` | Improvements or additions to documentation |
+| `spike` | `fbca04` | Time-boxed research before building |
+| `P1: urgent` | `B60205` | Breaks production or blocks work |
+| `P2: important` | `F9D0C4` | Real impact, with some slack |
+| `P3: minor` | `FEF2C0` | Default when in doubt |
+| `P4: low` | `BFDADC` | Nice-to-have |
+
+Los tres primeros son los de GitHub, con sus colores y textos. A diferencia de `branch.types` y `colors`, lo que pone el repo **se suma** al default: un nombre reemplaza al de por defecto con ese nombre, y `null` lo quita. La taxonomía del repo va acá y no en el `project.md` de `github-issues`, porque con `claude-repo-guard` el agente no puede escribir en `.agents/skills/`:
+
+```json
+{
+  "labels": {
+    "area:api": { "color": "1d76db", "description": "packages/api" },
+    "size:S": { "color": "c5def5", "description": "Menos de 1 día" },
+    "spike": null
+  }
+}
+```
 
 ## Desarrollo
 

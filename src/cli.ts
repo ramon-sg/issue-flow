@@ -8,6 +8,7 @@ import { parseArgs } from "node:util";
 import { GitHubError, InvalidRepoEnvError, resolveRepo } from "@ramon-sg/github-rest";
 import { branchMissing, branchOf } from "./commands/issue-branch.js";
 import { issueStart } from "./commands/issue-start.js";
+import { labelsSync } from "./commands/labels.js";
 import { ADAPTER_COMMANDS, HOOK_COMMANDS, runAdapter, runHook, runSession, runWorktree, WORKTREE_COMMANDS } from "./cli-worktree.js";
 import { runSetupCommand, SETUP_COMMANDS } from "./cli-setup.js";
 import { prWorktree } from "./commands/pr-worktree.js";
@@ -43,6 +44,7 @@ const OPTIONS = {
   next: { type: "boolean" },
   "no-setup": { type: "boolean" },
   recipe: { type: "string" },
+  update: { type: "boolean" },
 } as const;
 
 /** The parsed flags. */
@@ -81,6 +83,7 @@ const COMMAND_FLAGS: Record<string, (keyof Flags)[]> = {
   init: ["yes", "recipe"],
   doctor: ["json"],
   upgrade: ["dry-run"],
+  "labels sync": ["update", "dry-run", "json"],
 };
 
 /** An issue number: digits only. */
@@ -223,6 +226,7 @@ export async function main(argv: string[], out: Output, cwd: string): Promise<nu
   const [group, sub, ...rest] = positionals;
   if (command !== null && (group !== "pr" || sub !== "worktree")) throw new UsageError("-- only goes with pr worktree.");
   if (group === "pr") return runPr(sub, rest, flags, { out, cwd, command });
+  if (group === "labels") return runLabels(sub, rest, flags, { out, cwd });
   if (group !== undefined && SETUP_COMMANDS.includes(group)) {
     ownFlags(group, flags);
     return runSetupCommand(group, flags, [sub, ...rest].filter((item) => item !== undefined), { out, cwd });
@@ -257,6 +261,26 @@ async function runPr(sub: string | undefined, rest: string[], flags: Flags, run:
   const config = loadConfig(run.cwd);
   return prWorktree(
     { repo: repoOf(flags.repo, config, run.cwd), config, cwd: run.cwd, number: Number(text), setup: !(flags["no-setup"] ?? false), command: run.command },
+    run.out,
+  );
+}
+
+/**
+ * Runs `issue-flow labels sync`.
+ * @param sub - The word after `labels`.
+ * @param rest - The positionals after it.
+ * @param flags - The flags.
+ * @param run - Where it writes and runs.
+ * @returns The exit code.
+ * @throws UsageError if the arguments do not fit; GitHubError if GitHub fails.
+ */
+async function runLabels(sub: string | undefined, rest: string[], flags: Flags, run: { out: Output; cwd: string }): Promise<number> {
+  if (sub !== "sync") throw new UsageError("labels expects sync.");
+  ownFlags("labels sync", flags);
+  if (rest.length > 0) throw new UsageError("labels sync takes no arguments.");
+  const config = loadConfig(run.cwd);
+  return labelsSync(
+    { repo: repoOf(flags.repo, config, run.cwd), labels: config.labels, update: flags.update ?? false, dryRun: flags["dry-run"] ?? false, json: flags.json ?? false },
     run.out,
   );
 }
