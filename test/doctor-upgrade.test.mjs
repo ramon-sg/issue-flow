@@ -113,6 +113,36 @@ test("upgrade moves the dependencies, hooks and schema to the version that runs,
   assert.equal(s.cli(["doctor"], { env: npxEnv(s) }).status, 0);
 });
 
+test("upgrade keeps a newer skills-manager and a range that reaches, raises what falls short, and then settles", () => {
+  const s = setUp();
+  atOldVersion(s);
+  const pkg = readRepoJson(s, "package.json");
+  pkg.devDependencies = { ...pkg.devDependencies, "@ramon-sg/skills-manager": "99.0.0", "@ramon-sg/github-rest": "^0.1.0" };
+  writeFileSync(join(s.main, "package.json"), JSON.stringify(pkg));
+  const ranged = setUp();
+  const other = readRepoJson(ranged, "package.json");
+  other.devDependencies["@ramon-sg/github-rest"] = `>=${OWN.dependencies["@ramon-sg/github-rest"]}`;
+  writeFileSync(join(ranged.main, "package.json"), JSON.stringify(other));
+
+  const r = s.cli(["upgrade"], { env: npxEnv(s) });
+  const again = s.cli(["upgrade"], { env: npxEnv(s) });
+  const keptRange = ranged.cli(["upgrade"], { env: npxEnv(ranged) });
+
+  assert.equal(r.status, 0, r.err);
+  assert.deepEqual(readRepoJson(s, "package.json").devDependencies, {
+    "@ramon-sg/issue-flow": VERSION,
+    "@ramon-sg/github-rest": OWN.dependencies["@ramon-sg/github-rest"],
+    "@ramon-sg/skills-manager": "99.0.0",
+  });
+  assert.match(r.err, /kept @ramon-sg\/skills-manager 99\.0\.0 \(issue-flow .* was tested with /);
+  assert.match(r.out, /package\.json: devDependencies: @ramon-sg\/github-rest \^0\.1\.0 → /);
+  assert.equal(again.status, 0, again.err);
+  assert.match(again.out, /^Already at issue-flow /);
+  assert.match(again.err, /kept @ramon-sg\/skills-manager 99\.0\.0/);
+  assert.match(keptRange.out, /^Already at issue-flow /);
+  assert.match(keptRange.err, /kept @ramon-sg\/github-rest >=/);
+});
+
 test("upgrade never moves the repo back: a newer version in package.json or a hook stops it", () => {
   const s = setUp();
   const pkg = readRepoJson(s, "package.json");

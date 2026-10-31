@@ -11,7 +11,7 @@ import { CONFIG_PATH, isObject } from "../config-base.js";
 import { parseConfig } from "../config.js";
 import { checkoutRoot, locateRepo } from "../git.js";
 import { type Output, UsageError, warn } from "../output.js";
-import { withFlowPackages } from "../package-edits.js";
+import { KEPT, withFlowPackages } from "../package-edits.js";
 import { applyRecipe, detectedRecipes, loadRecipes, projectPrefix, type Recipe } from "../recipes.js";
 import { registerHooks } from "../settings-hooks.js";
 import { FLOW_REPO, type OwnVersions, ownVersions, packageManager, readJson, SETTINGS_FILE, SetupError, writeJson } from "../setup-files.js";
@@ -80,9 +80,6 @@ interface Planned {
   changes: string[];
   kept: string[];
 }
-
-/** How a line of a change that keeps what the repo had starts. */
-const KEPT = "kept ";
 
 /**
  * What `init` would write: the config, `package.json` and the settings' hooks.
