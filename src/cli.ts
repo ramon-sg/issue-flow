@@ -80,6 +80,7 @@ const COMMAND_FLAGS: Record<string, (keyof Flags)[]> = {
   "adapter archive": [],
   "hook worktree-create": [],
   "hook worktree-remove": [],
+  apply: ["yes", "dry-run", "json", "recipe"],
   init: ["yes", "recipe"],
   doctor: ["json"],
   upgrade: ["dry-run"],

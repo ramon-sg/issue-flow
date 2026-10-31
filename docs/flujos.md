@@ -8,7 +8,7 @@ y quién abre Claude.
 Por debajo, todas corren el mismo comando: `issue-flow issue start <n>`, con
 una opción distinta en cada caso.
 
-Los comandos usan los scripts que `issue-flow init` agrega al `package.json`
+Los comandos usan los scripts que `issue-flow apply` agrega al `package.json`
 del repo: `issue:start`, `worktree:prune` y `pr:worktree`. Con `npm run`, lo
 que va después del script necesita `--` (`npm run issue:start -- 42
 --branch`), porque sin él npm se queda con las opciones. Con pnpm o bun no

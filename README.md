@@ -6,7 +6,7 @@ Flujo de trabajo de issue a PR para cualquier repo, en local y en las sesiones d
 
 ## Qué va a tener
 
-- **`issue-flow init|doctor|upgrade`:** escribe, revisa y mueve a su versión lo que el flujo deja en el repo: `.agents/flow.json` con sus recetas, las dependencias y los hooks. Los corre `agent-kitchen`.
+- **`issue-flow apply|doctor`:** deja como lo pide su versión, y revisa, lo que el flujo deja en el repo: `.agents/flow.json` con sus recetas, las dependencias y los hooks. Los corre `agent-kitchen`.
 - **`issue-flow issue branch <n>`:** propone la rama de una issue (con Claude por defecto, o desde el título). Con `--missing`, agrega el slug de rama a todas las issues abiertas que no lo tienen.
 - **`issue-flow labels sync`:** crea en GitHub los labels que el flujo espera y le faltan al repo: los de tipo y `P1` a `P4`, con los mismos colores en todos los repos.
 - **`issue-flow issue start <n>`:** crea la rama y el worktree, hace el commit inicial, abre el PR en draft, asigna la issue y abre Claude. Con `--cloud`, lo hace en una sesión en la nube.
@@ -181,30 +181,33 @@ Es el hook `SessionStart` de Claude Code. Lo que imprime le llega a Claude como 
 4. Borra el Docker de los worktrees que ya no existen: Claude Code no llama al hook `WorktreeRemove` de los worktrees que no hizo un hook `WorktreeCreate`.
 5. Si hay `.envrc` y `direnv`, agrega su entorno a `CLAUDE_ENV_FILE`, para que los comandos de la sesión lo tengan.
 
-## Lo que el flujo deja en el repo: `issue-flow init`
+## Lo que el flujo deja en el repo: `issue-flow apply`
 
-`npx agent-kitchen apply` corre estos tres comandos en la versión que corresponde. Correrlos a mano sirve para probar el flujo en un repo sin lo demás.
+`npx agent-kitchen apply` corre `apply` en la versión que elige y después mueve las skills del flujo a la misma tag. Correrlo a mano sirve para probar el flujo en un repo sin lo demás.
 
 ```sh
-npx @ramon-sg/issue-flow init           # pregunta cada receta y pide el OK
-npx @ramon-sg/issue-flow init --yes     # sin preguntas, con las recetas que sugiere el repo
-npx @ramon-sg/issue-flow doctor         # revisa que el repo esté como lo deja init (--json para agent-kitchen)
-npx @ramon-sg/issue-flow@<versión> upgrade  # mueve el repo a esa versión (--dry-run)
+npx @ramon-sg/issue-flow@<versión> apply          # deja el repo como lo pide esa versión
+npx @ramon-sg/issue-flow@<versión> apply --yes    # sin preguntas, con las recetas que sugiere el repo
+npx @ramon-sg/issue-flow apply --recipe docker-compose   # suma una receta más tarde
+npx @ramon-sg/issue-flow apply --dry-run          # solo dice qué cambiaría (--json para agent-kitchen)
+npx @ramon-sg/issue-flow doctor                   # revisa que el repo esté como lo deja apply (--json)
 ```
 
-`init` muestra lo que va a escribir y pide el OK; correrlo otra vez solo completa lo que falta.
+`apply` deja el repo como lo pide la versión que corre, y correrlo otra vez no cambia nada. La versión la elige quien actualiza, al elegir cuál correr: `apply` no cambia la versión de ningún otro paquete.
 
-1. **`.agents/flow.json`:** si no existe, lo crea con el `$schema` de esta versión y, si el repo tiene `paseo.json`, con su plantilla de rama y sus tipos. Suma las recetas que elijas.
-2. **`package.json`:** `@ramon-sg/issue-flow`, `@ramon-sg/github-rest` y `@ramon-sg/skills-manager` como dependencias de desarrollo con versión exacta, y los scripts `issue:start`, `worktree:prune` y `pr:worktree`. Lo que el repo ya tiene con otro valor se queda, con un aviso.
+1. **`.agents/flow.json`:** si no existe, lo crea con el `$schema` de esta versión y, si el repo tiene `paseo.json`, con su plantilla de rama y sus tipos. Esa primera vez propone las recetas que sugieren los archivos del repo (con `--yes`, todas; sin terminal y sin `--yes`, no escribe nada y lo dice). Si ya existe, no pregunta: corre las migraciones de esta versión, mueve el `$schema` y suma las recetas de `--recipe`.
+2. **`package.json`:** `@ramon-sg/issue-flow` en esta versión, exacta. `@ramon-sg/github-rest` y los scripts `issue:start`, `worktree:prune` y `pr:worktree` solo si faltan: un `github-rest` que el repo ya tiene se queda, con un aviso si no llega a la versión que necesitan las skills.
 3. **`.claude/settings.json`:** los hooks `SessionStart`, `WorktreeCreate` y `WorktreeRemove`, fijados a esta versión y con 600 segundos. El de `SessionStart` corre `claude-cloud session` en la nube, así que un hook propio de `claude-cloud` se quita para que no corra dos veces.
 
-**`doctor`** no cambia nada. Revisa la config, las dependencias y que los hooks estén en esta versión. Cada problema dice qué lo arregla.
+No consulta npm, y nunca baja de versión: si el repo ya tiene una issue-flow más nueva (por ejemplo, `package.json` subido a mano antes del `install`), o un rango como `^0.2.6`, se detiene y dice qué correr. `--json` da `{ version, changes, kept, written, next }`. Sale con 0 si aplicó o no había nada que hacer, y con 1 si se negó o tenía que preguntar y no pudo.
 
-**`upgrade`** mueve el repo a la versión que corre: `@ramon-sg/issue-flow`, los hooks y el `$schema`. `github-rest` y `skills-manager` solo suben si no llegan a la versión con que se probó issue-flow: una versión igual o más nueva, un rango que la permite (`^1.2.0` para 1.3.0, no `^0.1.0` para 0.3.0) o una fuente como `workspace:*` se deja como está y se avisa (`kept …`). No consulta npm, así que se corre con la versión: `npx @ramon-sg/issue-flow@<versión> upgrade`. Nunca baja de versión: si el repo ya tiene una más nueva (por ejemplo, una copia local vieja en `node_modules`), se detiene y dice qué correr. Las skills del flujo llaman a la CLI, así que tienen que ir a la misma tag: `agent-kitchen` las mueve después. `--dry-run` solo dice qué cambiaría.
+**`doctor`** no cambia nada. Revisa la config y su `$schema`, las dependencias y que los hooks estén en esta versión. Cada problema dice qué lo arregla: `npx agent-kitchen apply` si el repo fija otra issue-flow (también mueve las skills), y `npx @ramon-sg/issue-flow apply` si la versión es esta pero sus archivos quedaron atrás.
+
+**`init` y `upgrade`** siguen funcionando hasta la 0.4.0, con un aviso: `init` es `apply`, y `upgrade` es `apply --yes` sin recetas, porque nunca preguntaba.
 
 ### Recetas
 
-Piezas de `flow.json` para lo que muchos repos comparten. `init` ofrece las que sugieren los archivos del repo; `--recipe a,b` elige otras. Una receta solo agrega lo que falta: un paso con el mismo nombre o una clave que el repo ya tiene no se tocan.
+Piezas de `flow.json` para lo que muchos repos comparten. `apply` ofrece, la primera vez, las que sugieren los archivos del repo; `--recipe a,b` elige otras. Una receta solo agrega lo que falta: un paso con el mismo nombre o una clave que el repo ya tiene no se tocan.
 
 | Receta | La sugiere | Qué agrega |
 |---|---|---|

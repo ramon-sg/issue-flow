@@ -50,7 +50,7 @@ final:
 ## Con `claude --worktree`
 
 `claude --worktree <nombre>` crea un worktree antes de abrir la sesión. Con
-los hooks que agrega `issue-flow init`:
+los hooks que agrega `issue-flow apply`:
 
 1. **El hook `WorktreeCreate`** (`issue-flow hook worktree-create`) crea
    `<worktrees.dir>/<nombre>` en la rama `worktree-<nombre>` desde

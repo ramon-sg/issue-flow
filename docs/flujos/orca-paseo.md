@@ -19,7 +19,7 @@ scripts:
 ```
 
 El segundo bloque va en `paseo.json`. Acá va `npx` y no un script de
-`npm run`, porque `init` no agrega uno para `adapter`.
+`npm run`, porque `apply` no agrega uno para `adapter`.
 
 ## Qué hace por debajo
 

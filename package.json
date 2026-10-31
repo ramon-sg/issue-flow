@@ -17,6 +17,6 @@
     "test": "tsc && node --test test/*.test.mjs",
     "prepublishOnly": "npm test"
   },
-  "dependencies": { "@ramon-sg/github-rest": "0.3.0" },
+  "dependencies": { "@ramon-sg/github-rest": "^0.3.0" },
   "devDependencies": { "@ramon-sg/skills-manager": "1.2.0", "@types/node": "^24.0.0", "typescript": "^5.9.3" }
 }

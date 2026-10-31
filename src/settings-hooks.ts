@@ -1,8 +1,8 @@
 /**
- * @file The Claude Code hooks `init` registers in `.claude/settings.json`: `SessionStart`
+ * @file The Claude Code hooks `apply` registers in `.claude/settings.json`: `SessionStart`
  * (`issue-flow session`) and `WorktreeCreate` and `WorktreeRemove` (`issue-flow hook …`), each
  * pinned to this package's version. They are found again by their command, so running
- * `init` twice changes nothing and `upgrade` only moves the version. The `SessionStart`
+ * `apply` twice changes nothing, and a new version only moves the version. The `SessionStart`
  * command names `claude-cloud session`, which `issue-flow session` runs in the cloud: that
  * way `claude-cloud init` sees it and does not add its own, and a hook of `claude-cloud`
  * already there is dropped, so it does not run twice.
@@ -23,7 +23,7 @@ const HOOK_COMMANDS: Record<string, { sub: string; note: string }> = {
   WorktreeRemove: { sub: "hook worktree-remove", note: "" },
 };
 
-/** The hook events `init` registers. */
+/** The hook events `apply` registers. */
 export const HOOK_EVENTS = Object.keys(HOOK_COMMANDS);
 
 /**

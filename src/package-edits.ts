@@ -1,10 +1,10 @@
 /**
- * @file The repo's `package.json` as the flow needs it: `issue-flow`, `github-rest` and
- * `skills-manager` as exact dev dependencies (the skills call them with `npx`, which then
- * uses the repo's copy), and the scripts to start an issue, prune worktrees and review a PR.
- * A dependency or script the repo already has with another value stays as it is, except
- * that `upgrade` moves `issue-flow` to the version that runs and raises the other two only
- * when they fall short of it: a newer version or a range that allows it is never moved back.
+ * @file The repo's `package.json` as the flow needs it: `issue-flow` at the version that
+ * runs and `github-rest` as exact dev dependencies (the skills call them with `npx`, which
+ * then uses the repo's copy), and the scripts to start an issue, prune worktrees and review
+ * a PR. `apply` adds `github-rest` only if it is missing: its version is the repo's to pick,
+ * and `doctor` says when it falls short of what the flow needs. A script the repo already
+ * has with another value stays as it is.
  */
 import { type OwnVersions, PACKAGE } from "./setup-files.js";
 
@@ -76,13 +76,13 @@ function ceiling(sign: string, floor: Version): Version | null {
 }
 
 /**
- * Whether the repo's version of a package reaches the one the flow was tested with, so
- * `upgrade` keeps it: an exact version as new or newer, a range that allows it or newer
+ * Whether the repo's version of a package reaches the one the flow needs, so `apply` and
+ * `doctor` accept it: an exact version as new or newer, a range that allows it or newer
  * (`^1.2.0` for 1.3.0, not `^0.1.0` for 0.3.0), or a source it cannot read (`workspace:*`,
  * `github:…`, `latest`), which the repo chose on purpose.
  * @param current - The repo's version or range.
- * @param tested - The version the flow was tested with.
- * @returns True to keep it.
+ * @param tested - The version the flow needs.
+ * @returns True if it reaches it.
  * @example reaches("1.3.0", "1.2.0") // true
  */
 export function reaches(current: string, tested: string): boolean {
@@ -98,36 +98,18 @@ export function reaches(current: string, tested: string): boolean {
   return top === null || compare(wanted, top) < 0;
 }
 
-/** A dependency the flow pins: its version, and whether `upgrade` keeps one that reaches it. */
-interface Pin {
-  version: string;
-  keepsReaching: boolean;
-}
-
 /** How a change that keeps what the repo had starts. */
 export const KEPT = "kept ";
 
-/** The scripts `init` adds. */
+/** The package the skills call, which the repo gets if it lacks it. */
+export const GITHUB_REST = "@ramon-sg/github-rest";
+
+/** The scripts `apply` adds. */
 const FLOW_SCRIPTS: Record<string, string> = {
   "issue:start": "issue-flow issue start",
   "worktree:prune": "issue-flow worktree prune",
   "pr:worktree": "issue-flow pr worktree",
 };
-
-/**
- * The dependencies the flow pins, with their versions. `issue-flow` always follows the
- * version that runs; the other two are a floor, so `upgrade` keeps what reaches it.
- * @param versions - This package's versions.
- * @returns Package to pin.
- * @example pinnedPackages(versions)["@ramon-sg/issue-flow"].version // "0.1.0"
- */
-export function pinnedPackages(versions: OwnVersions): Record<string, Pin> {
-  return {
-    [PACKAGE]: { version: versions.issueFlow, keepsReaching: false },
-    "@ramon-sg/github-rest": { version: versions.githubRest, keepsReaching: true },
-    "@ramon-sg/skills-manager": { version: versions.skillsManager, keepsReaching: true },
-  };
-}
 
 /**
  * Where a package is in the repo's package.json, and its version.
@@ -156,29 +138,28 @@ export function dependencyVersion(pkg: Record<string, unknown> | null, name: str
 }
 
 /**
- * Adds the flow's dev dependencies and scripts that are missing. With `move`, also moves the
- * ones already there to these versions (what `upgrade` does).
+ * Pins `issue-flow` to the version that runs, adds `github-rest` if it is missing and the
+ * scripts that are missing. Nothing else changes: a `github-rest` the repo has stays, with a
+ * note if it falls short of the version the flow needs.
  * @param pkg - The package.json, or null if there is none.
- * @param versions - The versions to pin.
- * @param move - Whether to move the dependencies already there.
+ * @param versions - This package's versions.
  * @returns The new package.json and what changed or was kept.
- * @example withFlowPackages(null, versions, false).changes // ["devDependencies: @ramon-sg/issue-flow 0.1.0", …]
+ * @example withFlowPackages(null, versions).changes // ["devDependencies: @ramon-sg/issue-flow 0.1.0", …]
  */
-export function withFlowPackages(pkg: Record<string, unknown> | null, versions: OwnVersions, move: boolean): { pkg: Record<string, unknown>; changes: string[] } {
+export function withFlowPackages(pkg: Record<string, unknown> | null, versions: OwnVersions): { pkg: Record<string, unknown>; changes: string[] } {
   const next: Record<string, unknown> = pkg === null ? { private: true } : { ...pkg };
   const scripts = { ...((next.scripts as Record<string, string> | undefined) ?? {}) };
   const changes: string[] = [];
-  for (const [name, { version, keepsReaching }] of Object.entries(pinnedPackages(versions))) {
-    const current = dependencyOf(next, name);
-    if (current?.version === version) continue;
-    if (current !== null && (!move || (keepsReaching && reaches(current.version, version)))) {
-      changes.push(`${KEPT}${name} ${current.version} (issue-flow ${versions.issueFlow} was tested with ${version})`);
-      continue;
-    }
-    const field = current?.field ?? "devDependencies";
+  const pin = (name: string, version: string, field: string, from: string | null): void => {
     next[field] = { ...((next[field] as Record<string, string> | undefined) ?? {}), [name]: version };
-    changes.push(`${field}: ${name} ${current === null ? "" : `${current.version} → `}${version}`);
-  }
+    changes.push(`${field}: ${name} ${from === null ? "" : `${from} → `}${version}`);
+  };
+  const flow = dependencyOf(next, PACKAGE);
+  if (flow?.version !== versions.issueFlow) pin(PACKAGE, versions.issueFlow, flow?.field ?? "devDependencies", flow?.version ?? null);
+  const rest = dependencyOf(next, GITHUB_REST);
+  if (rest === null) pin(GITHUB_REST, versions.githubRest, "devDependencies", null);
+  else if (!reaches(rest.version, versions.githubRest))
+    changes.push(`${KEPT}${GITHUB_REST} ${rest.version} (the skills need ${versions.githubRest} or newer: raise it)`);
   for (const [name, command] of Object.entries(FLOW_SCRIPTS)) {
     if (scripts[name] !== undefined) continue;
     scripts[name] = command;
