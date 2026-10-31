@@ -49,7 +49,7 @@ export function upgrade(options: UpgradeOptions, out: Output): number {
   const versions = ownVersions();
   const current = repoVersion(root);
   if (current !== null && isNewer(current, versions.issueFlow))
-    throw new SetupError(`the repo is at issue-flow ${current}, newer than this ${versions.issueFlow}; run 'npx ${PACKAGE}@${current.replace(/^[\^~=]/, "")} upgrade' or 'npx agent-kitchen'.`);
+    throw new SetupError(`the repo is at issue-flow ${current}, newer than this ${versions.issueFlow}; run 'npx ${PACKAGE}@${current.replace(/^[\^~=]/, "")} upgrade' or 'npx agent-kitchen apply'.`);
   const writes: { path: string; value: Record<string, unknown> }[] = [];
   const lines: string[] = [];
   const pkg = withFlowPackages(readJson(root, "package.json"), versions, true);
