@@ -196,7 +196,8 @@ export function prepareHere(state: StartState): void {
     throw new StartError(`branch ${branch} is only local (on another machine or checkout): push it from there and run this again.`);
   if (hasLocal(mainRoot, branch) && git(mainRoot, ["rev-list", "--count", branch, "--not", `origin/${branch}`]).out !== "0")
     throw new StartError(`the local branch ${branch} has commits that are not in origin; push them or sort it out by hand.`);
-  checkout(["-B", branch, `origin/${branch}`]);
+  // NOTE: --no-track: publish sets the upstream when it can (see trackOrigin).
+  checkout(["--no-track", "-B", branch, `origin/${branch}`]);
 }
 
 /**

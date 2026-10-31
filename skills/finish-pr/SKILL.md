@@ -117,7 +117,8 @@ Si el PR no implementa ningún documento, salta este paso.
 ## Paso 4: Commit y push
 
 Commits con la convención del repo (`CLAUDE.md` o `project.md`). Nunca
-`--no-verify`: si un hook bloquea, se arregla la causa.
+`--no-verify`: si un hook bloquea, se arregla la causa. El push va con
+`git push origin HEAD`: dentro del sandbox la rama puede no tener upstream.
 
 **`Closes` o `Part of`:** solo el último PR de una issue la cierra.
 

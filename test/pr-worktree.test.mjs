@@ -40,6 +40,32 @@ test("pr worktree makes a worktree on the PR's branch, tracking origin, and leav
   assert.deepEqual(s.writes(), []);
 });
 
+test("pr worktree with .git/config locked, as in Claude Code's sandbox, still makes the worktree", () => {
+  const s = startSandbox();
+  const sha = withPr(s);
+  writeFileSync(join(s.main, ".git", "config.lock"), "");
+
+  const r = s.cli(["pr", "worktree", "7", "--no-setup"]);
+
+  assert.equal(r.status, 0, r.err);
+  assert.equal(s.git(prPath(s), "rev-parse", "HEAD"), sha);
+  assert.equal(s.git(prPath(s), "rev-parse", "--abbrev-ref", "HEAD"), PR_BRANCH);
+  assert.match(r.err, /could not make feat\/7-review-me track origin\/feat\/7-review-me/);
+});
+
+test("pr worktree with .git/config locked and a local branch already tracking origin warns of nothing", () => {
+  const s = startSandbox();
+  withPr(s);
+  s.git(s.main, "fetch", "-q", "origin", `${PR_BRANCH}:${PR_BRANCH}`);
+  s.git(s.main, "branch", "-q", `--set-upstream-to=origin/${PR_BRANCH}`, PR_BRANCH);
+  writeFileSync(join(s.main, ".git", "config.lock"), "");
+
+  const r = s.cli(["pr", "worktree", "7", "--no-setup"]);
+
+  assert.equal(r.status, 0, r.err);
+  assert.doesNotMatch(r.err, /track/);
+});
+
 test("pr worktree runs the setup but skips trusted steps, since the PR's code is not in main", () => {
   const s = startSandbox();
   flow(s, { worktrees: { setup: [{ ...logStep("deps"), trusted: true }, logStep("env")] } });

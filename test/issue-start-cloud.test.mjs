@@ -402,6 +402,19 @@ test("--here starts the issue in this checkout, notes the cloud session in the P
   assert.equal(existsSync(join(s.main, WT)), false);
 });
 
+test("--here with .git/config locked resumes a branch from origin", () => {
+  const s = startSandbox();
+  s.pushBranch(BRANCH, { commit: true });
+  s.pull({ number: 210, branch: BRANCH, body: "Closes #214" });
+  writeFileSync(join(s.main, ".git", "config.lock"), "");
+
+  const r = s.run(["214", "--here", "--yes"], { env: SESSION_ENV });
+
+  assert.equal(r.status, 0, r.err);
+  assert.equal(branchAt(s, s.main), BRANCH);
+  assert.equal(s.git(s.main, "rev-parse", "HEAD"), s.git(s.origin, "rev-parse", BRANCH));
+});
+
 test("--here again in the same session adds no PR and does not touch the body", () => {
   const s = startSandbox();
   s.run(["214", "--here", "--yes"], { env: SESSION_ENV });
