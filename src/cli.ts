@@ -19,9 +19,6 @@ import type { Permissions } from "./launch.js";
 import { type Output, processOutput, UsageError } from "./output.js";
 import { usageOf } from "./usage.js";
 
-export type { Flags } from "./cli-flags.js";
-
-
 /** An issue number: digits only. */
 const NUMBER = /^\d+$/;
 
@@ -138,6 +135,43 @@ function cloudArgs(flags: Flags): void {
 }
 
 /**
+ * The positionals of some arguments, with each flag's value left out (`-R o/r` is a flag).
+ * @param args - The arguments.
+ * @returns The positionals.
+ */
+function positionalsOf(args: string[]): string[] {
+  return parseArgs({ args, options: OPTIONS, allowPositionals: true, strict: false }).positionals;
+}
+
+/**
+ * Splits the arguments from the command that `pr worktree` runs after `--`. Anywhere else
+ * a `--` is dropped, since pnpm passes it on as it is (`pnpm issue:start -- 42` runs
+ * `issue start -- 42`), and so is one right after `pr worktree` with no PR number before it
+ * (`pnpm pr:worktree -- 5`).
+ * @param argv - The arguments.
+ * @returns The arguments for issue-flow, and the command, or null if there is none.
+ * @example splitArgs(["pr", "worktree", "5", "--", "npm", "test"]) // { args: ["pr", "worktree", "5"], command: ["npm", "test"] }
+ */
+export function splitArgs(argv: string[]): { args: string[]; command: string[] | null } {
+  let args = argv;
+  for (let dashes = args.indexOf("--"); dashes !== -1; dashes = args.indexOf("--")) {
+    const words = positionalsOf(args.slice(0, dashes));
+    if (words[0] === "pr" && words[1] === "worktree" && words.length > 2) return { args: args.slice(0, dashes), command: args.slice(dashes + 1) };
+    args = args.filter((_, index) => index !== dashes);
+  }
+  return { args, command: null };
+}
+
+/**
+ * The command's words, as `usageOf` takes them.
+ * @param argv - The arguments.
+ * @returns The positionals, without the flags nor their values.
+ */
+function commandWords(argv: string[]): string[] {
+  return positionalsOf(splitArgs(argv).args);
+}
+
+/**
  * Runs the CLI.
  * @param argv - Arguments without `node` or the script.
  * @param out - Where to write.
@@ -146,11 +180,10 @@ function cloudArgs(flags: Flags): void {
  * @throws UsageError, ConfigError or GitHubError, which the entry point handles.
  */
 export async function main(argv: string[], out: Output, cwd: string): Promise<number> {
-  const dashes = argv.indexOf("--");
-  const command = dashes === -1 ? null : argv.slice(dashes + 1);
+  const { args, command } = splitArgs(argv);
   let parsed;
   try {
-    parsed = parseArgs({ args: dashes === -1 ? argv : argv.slice(0, dashes), options: OPTIONS, allowPositionals: true, strict: true });
+    parsed = parseArgs({ args, options: OPTIONS, allowPositionals: true, strict: true });
   } catch (error) {
     throw new UsageError(error instanceof Error ? error.message : String(error));
   }
@@ -160,7 +193,6 @@ export async function main(argv: string[], out: Output, cwd: string): Promise<nu
     return 0;
   }
   const [group, sub, ...rest] = positionals;
-  if (command !== null && (group !== "pr" || sub !== "worktree")) throw new UsageError("-- only goes with pr worktree.");
   if (group === "pr") return runPr(sub, rest, flags, { out, cwd, command });
   if (group === "labels") return runLabels(sub, rest, flags, { out, cwd });
   if (group !== undefined && SETUP_COMMANDS.includes(group)) {
@@ -309,7 +341,7 @@ main(process.argv.slice(2), out, process.cwd()).then(
   (error: unknown) => {
     const usage = error instanceof UsageError;
     const config = error instanceof ConfigError;
-    out.stderr(`issue-flow: ${error instanceof Error ? error.message : String(error)}\n${usage ? `${usageOf(process.argv.slice(2).filter((arg) => !arg.startsWith("-")))}\n` : ""}`);
+    out.stderr(`issue-flow: ${error instanceof Error ? error.message : String(error)}\n${usage ? `${usageOf(commandWords(process.argv.slice(2)))}\n` : ""}`);
     process.exitCode = usage || config ? 2 : 1;
   },
 );

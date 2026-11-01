@@ -2,7 +2,7 @@
  * @file The `worktree`, `session`, `adapter` and `hook` commands of the CLI: their flags
  * turned into options.
  */
-import type { Flags } from "./cli.js";
+import type { Flags } from "./cli-flags.js";
 import { adapterArchive, adapterIssue, type AdapterOptions, adapterSetup } from "./commands/adapter.js";
 import { hookInput, worktreeCreate, worktreeRemove } from "./commands/claude-hooks.js";
 import { session } from "./commands/session.js";

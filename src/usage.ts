@@ -88,12 +88,16 @@ Permissions of the Claude it opens (one at most):
   --ask-permissions    your settings: Claude asks before what they do not allow
   --free               no sandbox and no questions, as claude:free
 
-From npm, the flags go after --, or npm keeps them (pnpm and bun need no --):
-  npm run issue:start -- 42 --free
-  npm run issue:start:free -- 42
+From the repo's scripts (issue:start, and issue:start:free, which adds --free):
+  npm run issue:start:free 42           npm passes a number on as it is
+  npm run issue:start -- 42 --free      but keeps the flags for itself, unless after --
+  pnpm issue:start 42 --free            pnpm, bun and yarn pass everything on
+  bun run issue:start 42 --free
+  yarn issue:start 42 --free
+A -- does no harm with any of them: issue-flow drops it.
 
-issue:start:free adds --free, so it does not go with --ask-permissions, --cloud, --here
-nor --adopt: use issue:start for those.`;
+issue:start:free does not go with --ask-permissions, --cloud, --here nor --adopt: use
+issue:start for those.`;
 
 /** The usage text of each command that has its own, by its words. */
 const OWN_USAGE: Record<string, string> = { "issue start": START_USAGE };

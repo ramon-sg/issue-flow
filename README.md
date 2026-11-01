@@ -75,7 +75,7 @@ Qué hace, en orden:
    - Si el PR se mergeó y no queda trabajo sin pushear, ofrece borrar el worktree y la rama.
    - Si no, dice cómo retomar.
 
-**Permisos:** si el repo tiene [`claude-repo-guard`](https://github.com/ramon-sg/claude-repo-guard), Claude se abre en modo auto con su contexto (lo mismo que `claude:auto`). Con `--ask-permissions` se abre con tus settings, y con `--free` sin sandbox ni preguntas (como `claude:free`). Sin `claude-repo-guard`, se abre con tus settings. `--plan` devuelve esos mismos argumentos en `claudeArgs`. Desde npm, los flags van después de `--` (`npm run issue:start -- 42 --free`), o con el atajo `npm run issue:start:free -- 42`. `issue-flow issue start --help` explica cada flag.
+**Permisos:** si el repo tiene [`claude-repo-guard`](https://github.com/ramon-sg/claude-repo-guard), Claude se abre en modo auto con su contexto (lo mismo que `claude:auto`). Con `--ask-permissions` se abre con tus settings, y con `--free` sin sandbox ni preguntas (como `claude:free`). Sin `claude-repo-guard`, se abre con tus settings. `--plan` devuelve esos mismos argumentos en `claudeArgs`. El atajo es `npm run issue:start:free 42`. Con npm, las opciones van después de `--` (`npm run issue:start -- 42 --free`); con pnpm, bun o yarn no hace falta. La tabla de cada administrador está en [Flujos](docs/flujos.md#administradores). `issue-flow issue start --help` explica cada opción.
 
 ### Con la nube y con otras herramientas
 

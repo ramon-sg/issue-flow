@@ -41,11 +41,25 @@ test("issue start --help explains its own flags and how to pass them from npm; -
   assert.match(own.out, /^Usage: issue-flow issue start <n> \[flags\]/);
   assert.match(own.out, /\n {2}--free +no sandbox and no questions, as claude:free\n/);
   assert.match(own.out, /\n {2}--ask-permissions +your settings/);
-  assert.match(own.out, /npm run issue:start -- 42 --free\n {2}npm run issue:start:free -- 42/);
+  assert.match(own.out, /npm run issue:start:free 42 /);
+  assert.match(own.out, /npm run issue:start -- 42 --free /);
+  assert.match(own.out, /pnpm issue:start 42 --free /);
+  assert.match(own.out, /bun run issue:start 42 --free/);
+  assert.match(own.out, /yarn issue:start 42 --free/);
   assert.doesNotMatch(own.out, /worktree prune/);
   assert.equal(all.status, 0, all.err);
   assert.match(all.out, /issue-flow worktree prune/);
   assert.match(all.out, /issue start --help explains each flag/);
+});
+
+test("a -- that pnpm passes on is dropped: issue start -- 214 --dry-run works as without it", () => {
+  const s = startSandbox();
+
+  const r = s.cli(["issue", "start", "--free", "--", "214", "--dry-run"]);
+
+  assert.equal(r.status, 0, r.err);
+  assert.match(r.out, /Permissions: +none: no sandbox and no questions \(--free\)/);
+  assert.deepEqual(s.writes(), []);
 });
 
 test("issue start --help names every flag issue start takes, and a usage error of issue start shows it", async () => {
@@ -53,9 +67,10 @@ test("issue start --help names every flag issue start takes, and a usage error o
   const { START_USAGE } = await import("../dist/usage.js");
   const s = startSandbox();
 
-  const bad = s.cli(["issue", "start", "42", "--free", "--ask-permissions"]);
+  const bad = s.cli(["-R", "acme/widgets", "issue", "start", "42", "--free", "--ask-permissions"]);
 
-  for (const flag of COMMAND_FLAGS.start) assert.match(START_USAGE, new RegExp(`--${flag}\\b`), `--${flag} is not in issue start --help`);
+  for (const flag of COMMAND_FLAGS.start)
+    assert.match(START_USAGE, new RegExp(`^ {2}(-\\w, )?--${flag}\\b`, "m"), `--${flag} has no line of its own in issue start --help`);
   assert.equal(bad.status, 2);
   assert.match(bad.err, /use --ask-permissions or --free, not both\.\nUsage: issue-flow issue start <n> \[flags\]/);
 });

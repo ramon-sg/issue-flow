@@ -6,7 +6,7 @@ El flujo normal en tu máquina: corres el script, confirmas y terminas dentro
 de Claude, en un worktree propio de la issue.
 
 ```sh
-npm run issue:start -- 42
+npm run issue:start 42
 npm run issue:start -- 42 --branch    # sin worktree, en esta carpeta
 ```
 
@@ -68,8 +68,9 @@ npm run issue:start -- 42 --branch    # sin worktree, en esta carpeta
 **Permisos al abrir Claude:** si el repo tiene `claude-repo-guard`, Claude se
 abre en modo auto con su contexto. Sin él, con tus settings.
 
-El atajo `npm run issue:start:free -- 42` es `issue start 42 --free`, como
-`claude:free`.
+El atajo `npm run issue:start:free 42` es `issue start 42 --free`, como
+`claude:free`. Con npm, las opciones van después de `--`; con pnpm, bun o
+yarn no hace falta (ver [cada administrador](../flujos.md#administradores)).
 
 `npm run issue:start -- --help` explica cada opción de `issue start`, y
 `npx @ramon-sg/issue-flow --help` muestra la ayuda de todo el CLI.

@@ -153,6 +153,17 @@ test("apply asks about recipes only the first time; --recipe adds one later, kee
   assert.match(added.err, /kept the "deps" step of worktrees\.setup \(pnpm\)/);
 });
 
+test("apply notes an issue:start:free of the flow that skips the repo's own issue:start", () => {
+  const s = withNpx(startSandbox());
+  writeFileSync(join(s.main, "package.json"), JSON.stringify({ name: "shop", scripts: { "issue:start": "bash scripts/start-issue.sh", "issue:start:free": "issue-flow issue start --free" } }));
+
+  const r = s.cli(["apply", "--yes"], { env: npxEnv(s) });
+
+  assert.equal(r.status, 0, r.err);
+  assert.equal(readRepoJson(s, "package.json").scripts["issue:start:free"], "issue-flow issue start --free");
+  assert.match(r.err, /kept scripts: issue:start:free, which skips the repo's own issue:start: make it run that one with --free, or delete it/);
+});
+
 test("without a terminal nor --yes, apply writes nothing when the repo suggests recipes, and does not wait", () => {
   const s = withNpx(startSandbox());
   writeFileSync(join(s.main, "pnpm-lock.yaml"), "");

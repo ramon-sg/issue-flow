@@ -165,10 +165,13 @@ export function withFlowPackages(pkg: Record<string, unknown> | null, versions: 
   if (rest === null) pin(GITHUB_REST, versions.githubRest, "devDependencies", null);
   else if (!reaches(rest.version, versions.githubRest))
     changes.push(`${KEPT}${GITHUB_REST} ${rest.version} (the skills need ${versions.githubRest} or newer: raise it)`);
+  // NOTE: with its own issue:start (a wrapper), issue:start:free would skip it: it is not
+  // added, and the flow's one gets a note.
+  const ownStart = scripts[START_SCRIPT] !== undefined && scripts[START_SCRIPT] !== FLOW_SCRIPTS[START_SCRIPT];
+  if (ownStart && scripts[FREE_SCRIPT] === FLOW_SCRIPTS[FREE_SCRIPT])
+    changes.push(`${KEPT}scripts: ${FREE_SCRIPT}, which skips the repo's own ${START_SCRIPT}: make it run that one with --free, or delete it`);
   for (const [name, command] of Object.entries(FLOW_SCRIPTS)) {
-    if (scripts[name] !== undefined) continue;
-    // NOTE: a repo with its own issue:start (a wrapper) gets no issue:start:free, which would skip it.
-    if (name === FREE_SCRIPT && scripts[START_SCRIPT] !== undefined && scripts[START_SCRIPT] !== FLOW_SCRIPTS[START_SCRIPT]) continue;
+    if (scripts[name] !== undefined || (name === FREE_SCRIPT && ownStart)) continue;
     scripts[name] = command;
     changes.push(`scripts: ${name}`);
   }
