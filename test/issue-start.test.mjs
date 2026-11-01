@@ -31,6 +31,35 @@ test("usage errors exit with 2 before calling GitHub", () => {
   }
 });
 
+test("issue start --help explains its own flags and how to pass them from npm; --help shows every command", () => {
+  const s = startSandbox();
+
+  const own = s.cli(["issue", "start", "--help"]);
+  const all = s.cli(["--help"]);
+
+  assert.equal(own.status, 0, own.err);
+  assert.match(own.out, /^Usage: issue-flow issue start <n> \[flags\]/);
+  assert.match(own.out, /\n {2}--free +no sandbox and no questions, as claude:free\n/);
+  assert.match(own.out, /\n {2}--ask-permissions +your settings/);
+  assert.match(own.out, /npm run issue:start -- 42 --free\n {2}npm run issue:start:free -- 42/);
+  assert.doesNotMatch(own.out, /worktree prune/);
+  assert.equal(all.status, 0, all.err);
+  assert.match(all.out, /issue-flow worktree prune/);
+  assert.match(all.out, /issue start --help explains each flag/);
+});
+
+test("issue start --help names every flag issue start takes, and a usage error of issue start shows it", async () => {
+  const { COMMAND_FLAGS } = await import("../dist/cli-flags.js");
+  const { START_USAGE } = await import("../dist/usage.js");
+  const s = startSandbox();
+
+  const bad = s.cli(["issue", "start", "42", "--free", "--ask-permissions"]);
+
+  for (const flag of COMMAND_FLAGS.start) assert.match(START_USAGE, new RegExp(`--${flag}\\b`), `--${flag} is not in issue start --help`);
+  assert.equal(bad.status, 2);
+  assert.match(bad.err, /use --ask-permissions or --free, not both\.\nUsage: issue-flow issue start <n> \[flags\]/);
+});
+
 test("a closed issue, or one that does not exist, stops with 1", () => {
   const s = startSandbox();
   s.issue(214, { state: "closed" });

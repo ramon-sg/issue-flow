@@ -75,7 +75,7 @@ Qué hace, en orden:
    - Si el PR se mergeó y no queda trabajo sin pushear, ofrece borrar el worktree y la rama.
    - Si no, dice cómo retomar.
 
-**Permisos:** si el repo tiene [`claude-repo-guard`](https://github.com/ramon-sg/claude-repo-guard), Claude se abre en modo auto con su contexto (lo mismo que `claude:auto`). Con `--ask-permissions` se abre con tus settings, y con `--free` sin sandbox ni preguntas (como `claude:free`). Sin `claude-repo-guard`, se abre con tus settings. `--plan` devuelve esos mismos argumentos en `claudeArgs`.
+**Permisos:** si el repo tiene [`claude-repo-guard`](https://github.com/ramon-sg/claude-repo-guard), Claude se abre en modo auto con su contexto (lo mismo que `claude:auto`). Con `--ask-permissions` se abre con tus settings, y con `--free` sin sandbox ni preguntas (como `claude:free`). Sin `claude-repo-guard`, se abre con tus settings. `--plan` devuelve esos mismos argumentos en `claudeArgs`. Desde npm, los flags van después de `--` (`npm run issue:start -- 42 --free`), o con el atajo `npm run issue:start:free -- 42`. `issue-flow issue start --help` explica cada flag.
 
 ### Con la nube y con otras herramientas
 
@@ -196,7 +196,7 @@ npx @ramon-sg/issue-flow doctor                   # revisa que el repo esté com
 `apply` deja el repo como lo pide la versión que corre, y correrlo otra vez no cambia nada. La versión la elige quien actualiza, al elegir cuál correr: `apply` no cambia la versión de ningún otro paquete.
 
 1. **`.agents/flow.json`:** si no existe, lo crea con el `$schema` de esta versión y, si el repo tiene `paseo.json`, con su plantilla de rama y sus tipos. Esa primera vez propone las recetas que sugieren los archivos del repo (con `--yes`, todas; sin terminal y sin `--yes`, no escribe nada y lo dice). Si ya existe, no pregunta: corre las migraciones de esta versión, mueve el `$schema` y suma las recetas de `--recipe`.
-2. **`package.json`:** `@ramon-sg/issue-flow` en esta versión, exacta. `@ramon-sg/github-rest` y los scripts `issue:start`, `worktree:prune` y `pr:worktree` solo si faltan: un `github-rest` que el repo ya tiene se queda, con un aviso si no llega a la versión que necesitan las skills.
+2. **`package.json`:** `@ramon-sg/issue-flow` en esta versión, exacta. `@ramon-sg/github-rest` y los scripts `issue:start`, `issue:start:free`, `worktree:prune` y `pr:worktree` solo si faltan (`issue:start:free` no se agrega si el repo tiene su propio `issue:start`, que se saltaría): un `github-rest` que el repo ya tiene se queda, con un aviso si no llega a la versión que necesitan las skills.
 3. **`.claude/settings.json`:** los hooks `SessionStart`, `WorktreeCreate` y `WorktreeRemove`, fijados a esta versión y con 600 segundos. El de `SessionStart` corre `claude-cloud session` en la nube, así que un hook propio de `claude-cloud` se quita para que no corra dos veces.
 
 No consulta npm, y nunca baja de versión: si el repo ya tiene una issue-flow más nueva (por ejemplo, `package.json` subido a mano antes del `install`), o un rango como `^0.2.6`, se detiene y dice qué correr. `--json` da `{ version, changes, kept, written, next }`. Sale con 0 si aplicó o no había nada que hacer, y con 1 si se negó o tenía que preguntar y no pudo.

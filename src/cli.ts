@@ -5,6 +5,7 @@
  * `.agents/flow.json`.
  */
 import { parseArgs } from "node:util";
+import { COMMAND_FLAGS, type Flags, OPTIONS } from "./cli-flags.js";
 import { GitHubError, InvalidRepoEnvError, resolveRepo } from "@ramon-sg/github-rest";
 import { branchMissing, branchOf } from "./commands/issue-branch.js";
 import { issueStart } from "./commands/issue-start.js";
@@ -16,76 +17,10 @@ import { ConfigError } from "./config-base.js";
 import { type FlowConfig, loadConfig, type Namer } from "./config.js";
 import type { Permissions } from "./launch.js";
 import { type Output, processOutput, UsageError } from "./output.js";
-import { USAGE } from "./usage.js";
+import { usageOf } from "./usage.js";
 
-/** Options of the CLI. */
-const OPTIONS = {
-  repo: { type: "string", short: "R" },
-  json: { type: "boolean" },
-  help: { type: "boolean", short: "h" },
-  missing: { type: "boolean" },
-  limit: { type: "string" },
-  namer: { type: "string" },
-  yes: { type: "boolean", short: "y" },
-  "dry-run": { type: "boolean" },
-  branch: { type: "boolean" },
-  resume: { type: "string" },
-  new: { type: "boolean" },
-  "no-launch": { type: "boolean" },
-  "ask-permissions": { type: "boolean" },
-  free: { type: "boolean" },
-  plan: { type: "boolean" },
-  cloud: { type: "boolean" },
-  here: { type: "boolean" },
-  teleport: { type: "boolean" },
-  adopt: { type: "boolean" },
-  only: { type: "string" },
-  path: { type: "string" },
-  next: { type: "boolean" },
-  "no-setup": { type: "boolean" },
-  recipe: { type: "string" },
-  update: { type: "boolean" },
-} as const;
+export type { Flags } from "./cli-flags.js";
 
-/** The parsed flags. */
-export type Flags = ReturnType<typeof parseArgs<{ options: typeof OPTIONS; allowPositionals: true; strict: true }>>["values"];
-
-/** Flags each command takes, besides `--repo`, `--help` and `--namer`. */
-const COMMAND_FLAGS: Record<string, (keyof Flags)[]> = {
-  branch: ["json", "missing", "limit", "yes", "dry-run"],
-  start: [
-    "yes",
-    "dry-run",
-    "branch",
-    "resume",
-    "new",
-    "no-launch",
-    "ask-permissions",
-    "free",
-    "plan",
-    "cloud",
-    "here",
-    "teleport",
-    "adopt",
-  ],
-  "worktree setup": ["only"],
-  "worktree teardown": ["path"],
-  "worktree ports": ["next"],
-  "worktree cleanup": ["path"],
-  "worktree prune": ["only", "yes"],
-  session: [],
-  "pr worktree": ["no-setup"],
-  "adapter setup": ["only"],
-  "adapter issue": [],
-  "adapter archive": [],
-  "hook worktree-create": [],
-  "hook worktree-remove": [],
-  apply: ["yes", "dry-run", "json", "recipe"],
-  init: ["yes", "recipe"],
-  doctor: ["json"],
-  upgrade: ["dry-run"],
-  "labels sync": ["update", "dry-run", "json"],
-};
 
 /** An issue number: digits only. */
 const NUMBER = /^\d+$/;
@@ -221,7 +156,7 @@ export async function main(argv: string[], out: Output, cwd: string): Promise<nu
   }
   const { values: flags, positionals } = parsed;
   if (flags.help) {
-    out.stdout(`${USAGE}\n`);
+    out.stdout(`${usageOf(positionals)}\n`);
     return 0;
   }
   const [group, sub, ...rest] = positionals;
@@ -374,7 +309,7 @@ main(process.argv.slice(2), out, process.cwd()).then(
   (error: unknown) => {
     const usage = error instanceof UsageError;
     const config = error instanceof ConfigError;
-    out.stderr(`issue-flow: ${error instanceof Error ? error.message : String(error)}\n${usage ? `${USAGE}\n` : ""}`);
+    out.stderr(`issue-flow: ${error instanceof Error ? error.message : String(error)}\n${usage ? `${usageOf(process.argv.slice(2).filter((arg) => !arg.startsWith("-")))}\n` : ""}`);
     process.exitCode = usage || config ? 2 : 1;
   },
 );

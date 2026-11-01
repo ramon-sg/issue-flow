@@ -31,7 +31,7 @@ issue start makes the branch in a worktree (or, with --branch, in this checkout)
 start commit, the push, the draft PR and the assignment, after confirming, and opens
 Claude: in auto mode if the repo has claude-repo-guard, with your settings with
 --ask-permissions, and with no sandbox nor questions with --free. --plan prints the branch
-and the prompt as JSON and changes nothing.
+and the prompt as JSON and changes nothing. issue start --help explains each flag.
 
 --cloud confirms here and opens a Claude cloud session that starts the issue there.
 --here, inside a cloud session, starts it in this checkout and opens nothing. --teleport
@@ -59,3 +59,51 @@ run apply, with a warning, until 0.4.0.
 labels sync makes in GitHub the labels the flow wants ("labels" in .agents/flow.json: the
 issue types and P1 to P4 by default) that the repo lacks. Names ignore case and are never
 renamed nor deleted; --update also fixes the color and description of those that differ.`;
+
+/** Usage text of `issue start`, printed with `issue start --help`. */
+export const START_USAGE = `Usage: issue-flow issue start <n> [flags]
+
+Starts issue <n>: the branch (in a worktree, or in this checkout with --branch), the empty
+start commit, the push, the draft PR and the assignment, after confirming; then it opens
+Claude there.
+
+Flags:
+  --dry-run            show what it would do and change nothing
+  -y, --yes            do it without asking
+  --branch             in this checkout instead of a worktree
+  --resume <branch>    take that branch of the issue
+  --new                make another branch, even if the issue has one
+  --no-launch          leave everything ready and do not open Claude
+  --namer claude|title who names the branch when the issue has no slug block
+  -R owner/repo        another repo than the checkout's
+  --plan               print the branch and the prompt as JSON, and change nothing
+  --cloud              open a Claude cloud session that starts the issue there
+  --here               inside a cloud session, start it in this checkout
+  --teleport           bring the cloud session noted in the PR to the worktree
+  --adopt              start it in the worktree Orca or Paseo just made
+  -h, --help           this help
+
+Permissions of the Claude it opens (one at most):
+  (none)               auto mode if the repo has claude-repo-guard, else your settings
+  --ask-permissions    your settings: Claude asks before what they do not allow
+  --free               no sandbox and no questions, as claude:free
+
+From npm, the flags go after --, or npm keeps them (pnpm and bun need no --):
+  npm run issue:start -- 42 --free
+  npm run issue:start:free -- 42
+
+issue:start:free adds --free, so it does not go with --ask-permissions, --cloud, --here
+nor --adopt: use issue:start for those.`;
+
+/** The usage text of each command that has its own, by its words. */
+const OWN_USAGE: Record<string, string> = { "issue start": START_USAGE };
+
+/**
+ * The usage text for a command: its own if it has one, else the whole CLI's.
+ * @param words - The command's words, as given (`["issue", "start", "42"]`).
+ * @returns The text.
+ * @example usageOf(["issue", "start"]) === START_USAGE
+ */
+export function usageOf(words: string[]): string {
+  return OWN_USAGE[words.slice(0, 2).join(" ")] ?? USAGE;
+}

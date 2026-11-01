@@ -104,9 +104,14 @@ export const KEPT = "kept ";
 /** The package the skills call, which the repo gets if it lacks it. */
 export const GITHUB_REST = "@ramon-sg/github-rest";
 
+/** The script that starts an issue, and its shortcut with `--free`. */
+const START_SCRIPT = "issue:start";
+const FREE_SCRIPT = "issue:start:free";
+
 /** The scripts `apply` adds. */
 const FLOW_SCRIPTS: Record<string, string> = {
   "issue:start": "issue-flow issue start",
+  "issue:start:free": "issue-flow issue start --free",
   "worktree:prune": "issue-flow worktree prune",
   "pr:worktree": "issue-flow pr worktree",
 };
@@ -162,6 +167,8 @@ export function withFlowPackages(pkg: Record<string, unknown> | null, versions: 
     changes.push(`${KEPT}${GITHUB_REST} ${rest.version} (the skills need ${versions.githubRest} or newer: raise it)`);
   for (const [name, command] of Object.entries(FLOW_SCRIPTS)) {
     if (scripts[name] !== undefined) continue;
+    // NOTE: a repo with its own issue:start (a wrapper) gets no issue:start:free, which would skip it.
+    if (name === FREE_SCRIPT && scripts[START_SCRIPT] !== undefined && scripts[START_SCRIPT] !== FLOW_SCRIPTS[START_SCRIPT]) continue;
     scripts[name] = command;
     changes.push(`scripts: ${name}`);
   }

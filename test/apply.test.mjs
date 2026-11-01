@@ -59,6 +59,7 @@ test("apply --yes sets an empty repo up: config, package.json and hooks, and run
   assert.equal(pkg.devDependencies["@ramon-sg/github-rest"], OWN.dependencies["@ramon-sg/github-rest"].replace(/^\^/, ""));
   assert.equal(pkg.devDependencies["@ramon-sg/issue-flow"], VERSION);
   assert.equal(pkg.scripts["issue:start"], "issue-flow issue start");
+  assert.equal(pkg.scripts["issue:start:free"], "issue-flow issue start --free");
   const settings = readRepoJson(s, ".claude/settings.json");
   assert.deepEqual(commandsOf(settings, "SessionStart"), [SESSION]);
   assert.deepEqual(commandsOf(settings, "WorktreeCreate"), [`npx --yes @ramon-sg/issue-flow@${VERSION} hook worktree-create`]);
@@ -112,6 +113,7 @@ test("apply keeps the repo's own hooks, scripts and github-rest, and drops claud
   const pkg = readRepoJson(s, "package.json");
   assert.equal(pkg.devDependencies["@ramon-sg/github-rest"], "0.1.0");
   assert.equal(pkg.scripts["issue:start"], "bash scripts/start-issue.sh");
+  assert.equal(pkg.scripts["issue:start:free"], undefined, "it would skip the repo's own issue:start");
   assert.match(r.err, /kept @ramon-sg\/github-rest 0\.1\.0 \(the skills need .* or newer: raise it\)/);
   assert.deepEqual(npxCalls(s), []);
 });
