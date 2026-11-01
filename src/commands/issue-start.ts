@@ -17,7 +17,7 @@ import { inPath, launchSession, permissionArgs, teleportSession } from "../launc
 import { emitJson, type Output, warn } from "../output.js";
 import { findOpenPlan, findPlan, type PlanQuery } from "../plan-doc.js";
 import { proposeBranches } from "../propose.js";
-import { liftRepoDeny, restoreRepoDeny } from "../repo-deny.js";
+import { type Lifted, liftRepoDeny, restoreRepoDeny } from "../repo-deny.js";
 import { type Lock, lockWorktree, unlockWorktree } from "../session-lock.js";
 import { afterSession, choosePlace, copyWorktreeIncludes, prepareBranch, publish } from "../start-place.js";
 import {
@@ -274,20 +274,21 @@ function question(state: StartState): { text: string; declined: string } {
  * another session in the worktree it touches nothing, as it may be using them.
  * @param state - The start.
  * @param lock - The worktree lock.
- * @returns Whether the rules were taken out, and so must be put back.
+ * @returns What to put back, or null if nothing was taken out.
  */
-function liftForSession(state: StartState, lock: Lock): boolean {
+function liftForSession(state: StartState, lock: Lock): Lifted | null {
   const { out, commonDir, branch } = state;
   const wanted = state.options.permissions === "free-no-repo-deny";
   if (lock.shared) {
     if (wanted) warn(out, "another session uses this worktree: the repo's deny rules stay.");
-    return false;
+    return null;
   }
-  const leftover = restoreRepoDeny(commonDir, branch);
+  const leftover = restoreRepoDeny(commonDir, branch, state.workDir, null);
   if (leftover !== null) warn(out, leftover);
-  if (!wanted) return false;
-  out.stdout(`${liftRepoDeny(state.workDir, commonDir, branch)}\n`);
-  return true;
+  if (!wanted) return null;
+  const { message, saved } = liftRepoDeny(state.workDir, commonDir, branch);
+  out.stdout(`${message}\n`);
+  return saved;
 }
 
 /**
@@ -325,8 +326,8 @@ async function openSession(state: StartState): Promise<number> {
     },
     (text) => warn(out, text),
   );
-  if (lifted) {
-    const problem = restoreRepoDeny(state.commonDir, state.branch);
+  if (lifted !== null) {
+    const problem = restoreRepoDeny(state.commonDir, state.branch, state.workDir, lifted);
     if (problem !== null) warn(out, problem);
   }
   release();

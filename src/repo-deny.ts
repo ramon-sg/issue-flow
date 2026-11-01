@@ -20,14 +20,15 @@ import { noteFile } from "./launch.js";
 export const REPO_SETTINGS = ".claude/settings.json";
 
 /** What it takes to put the rules back. */
-interface Note {
-  /** The worktree. */
-  workDir: string;
+export interface Lifted {
   /** The file as it was. */
   original: string;
   /** The file as issue-flow left it, without the rules. */
   lifted: string;
 }
+
+/** The settings, as far as the deny rules go. */
+type Settings = { permissions?: { deny?: unknown[] } & Record<string, unknown> } & Record<string, unknown>;
 
 /**
  * The settings without `permissions.deny` (and without `permissions` if nothing else is
@@ -38,7 +39,7 @@ interface Note {
  * @example withoutDeny('{"permissions":{"deny":["Edit(/x)"]}}') // "{}\n"
  */
 export function withoutDeny(text: string): string | null {
-  const settings = JSON.parse(text) as { permissions?: { deny?: unknown[] } & Record<string, unknown> };
+  const settings = JSON.parse(text) as Settings;
   const deny = settings.permissions?.deny;
   if (!Array.isArray(deny) || deny.length === 0) return null;
   const { deny: _dropped, ...permissions } = settings.permissions ?? {};
@@ -48,59 +49,88 @@ export function withoutDeny(text: string): string | null {
 }
 
 /**
- * Takes the `deny` rules out of the worktree's settings and hides the change from git.
+ * The settings with the original's deny rules added back (keeping any the text has).
+ * @param text - The settings now.
+ * @param original - The settings with the rules.
+ * @returns The new text.
+ * @throws SyntaxError if either is not JSON.
+ * @example withDeny("{}", '{"permissions":{"deny":["Edit(/x)"]}}') // '{\n  "permissions": {\n    "deny": [\n      "Edit(/x)"\n    ]\n  }\n}\n'
+ */
+export function withDeny(text: string, original: string): string {
+  const settings = JSON.parse(text) as Settings;
+  const deny = (JSON.parse(original) as Settings).permissions?.deny ?? [];
+  const now = Array.isArray(settings.permissions?.deny) ? settings.permissions.deny : [];
+  const merged = [...deny, ...now.filter((rule) => !deny.includes(rule))];
+  return `${JSON.stringify({ ...settings, permissions: { ...settings.permissions, deny: merged } }, null, 2)}\n`;
+}
+
+/**
+ * Takes the `deny` rules out of the worktree's settings and hides the change from git. A
+ * note in the shared `.git` keeps the original in case the process dies before it puts
+ * them back; the caller keeps what it returns and puts them back from that.
  * @param workDir - The worktree.
  * @param commonDir - The shared `.git`.
  * @param branch - The branch.
- * @returns What happened, for the person.
- * @example liftRepoDeny(wt, "/repo/.git", "feat/42-x") // "took out the deny rules of .claude/settings.json for this session."
+ * @returns What happened, for the person, and what to put back (null if nothing was taken).
+ * @example liftRepoDeny(wt, "/repo/.git", "feat/42-x").message
  */
-export function liftRepoDeny(workDir: string, commonDir: string, branch: string): string {
+export function liftRepoDeny(workDir: string, commonDir: string, branch: string): { message: string; saved: Lifted | null } {
   const file = join(workDir, REPO_SETTINGS);
-  if (!existsSync(file)) return `the repo has no ${REPO_SETTINGS}: there are no deny rules to take out.`;
+  if (!existsSync(file)) return { message: `the repo has no ${REPO_SETTINGS}: there are no deny rules to take out.`, saved: null };
   const original = readFileSync(file, "utf8");
   let lifted: string | null;
   try {
     lifted = withoutDeny(original);
   } catch {
-    return `${REPO_SETTINGS} is not valid JSON: its deny rules stay.`;
+    return { message: `${REPO_SETTINGS} is not valid JSON: its deny rules stay.`, saved: null };
   }
-  if (lifted === null) return `${REPO_SETTINGS} has no deny rules: nothing to take out.`;
+  if (lifted === null) return { message: `${REPO_SETTINGS} has no deny rules: nothing to take out.`, saved: null };
+  const saved: Lifted = { original, lifted };
   const note = noteFile(commonDir, branch);
   mkdirSync(dirname(note), { recursive: true });
-  writeFileSync(note, `${JSON.stringify({ workDir, original, lifted } satisfies Note)}\n`);
+  writeFileSync(note, `${JSON.stringify(saved)}\n`);
   writeFileSync(file, lifted);
   git(workDir, ["update-index", "--skip-worktree", REPO_SETTINGS]);
-  return `took out the deny rules of ${REPO_SETTINGS} for this session; they come back when Claude exits.`;
+  return { message: `took out the deny rules of ${REPO_SETTINGS} for this session; they come back when Claude exits.`, saved };
 }
 
 /**
- * Puts the rules back, if the branch's note says they are out. If Claude changed the file
- * meanwhile, it is left as it is, visible to git again, with a warning: putting the
- * original back would lose that change.
+ * Puts the rules back in the worktree's settings. From `saved` when the caller kept it (the
+ * note is in reach of the session, so it is only trusted after a process that died); else
+ * from the branch's note, if there is one. If Claude changed the file meanwhile, the rules
+ * go back on top of its change, with a warning to review it.
  * @param commonDir - The shared `.git`.
  * @param branch - The branch.
+ * @param workDir - The worktree, never taken from the note.
+ * @param saved - What liftRepoDeny returned, or null to read the note.
  * @returns A warning, or null if there was nothing to say.
- * @example restoreRepoDeny("/repo/.git", "feat/42-x") // null
+ * @example restoreRepoDeny("/repo/.git", "feat/42-x", wt, null) // null
  */
-export function restoreRepoDeny(commonDir: string, branch: string): string | null {
+export function restoreRepoDeny(commonDir: string, branch: string, workDir: string, saved: Lifted | null): string | null {
   const note = noteFile(commonDir, branch);
-  if (!existsSync(note)) return null;
-  let saved: Note;
-  try {
-    saved = JSON.parse(readFileSync(note, "utf8")) as Note;
-  } catch {
-    rmSync(note, { force: true });
-    return `could not read ${note}; check the deny rules of ${REPO_SETTINGS} with git diff.`;
+  let from = saved;
+  if (from === null) {
+    if (!existsSync(note)) return null;
+    try {
+      from = JSON.parse(readFileSync(note, "utf8")) as Lifted;
+    } catch {
+      rmSync(note, { force: true });
+      return `could not read ${note}; check the deny rules of ${REPO_SETTINGS} with git diff.`;
+    }
   }
   rmSync(note, { force: true });
-  const file = join(saved.workDir, REPO_SETTINGS);
-  if (!existsSync(saved.workDir)) return null;
-  git(saved.workDir, ["update-index", "--no-skip-worktree", REPO_SETTINGS]);
+  if (!existsSync(workDir)) return null;
+  const file = join(workDir, REPO_SETTINGS);
+  git(workDir, ["update-index", "--no-skip-worktree", REPO_SETTINGS]);
   const now = existsSync(file) ? readFileSync(file, "utf8") : null;
-  if (now !== saved.lifted)
-    return `Claude changed ${REPO_SETTINGS} during the session, so its deny rules were not put back: add them again before committing (git diff ${REPO_SETTINGS}).`;
-  writeFileSync(file, saved.original);
-  return null;
+  if (now === from.lifted || now === null) {
+    writeFileSync(file, from.original);
+    return null;
+  }
+  try {
+    writeFileSync(file, withDeny(now, from.original));
+  } catch {
+    return `Claude left ${REPO_SETTINGS} as invalid JSON, so its deny rules could not be put back: fix it and add them before committing (git diff ${REPO_SETTINGS}).`;
+  }
+  return `Claude changed ${REPO_SETTINGS} during the session: its deny rules are back on top of that change; review it with git diff ${REPO_SETTINGS}.`;
 }
-

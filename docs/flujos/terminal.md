@@ -82,8 +82,8 @@ como `.githooks/` con `claude-repo-guard`. Quita los `deny` del
 `.claude/settings.json` del worktree (no del checkout principal) mientras
 Claude corre, y git no ve el cambio (`git update-index --skip-worktree`), así
 que no entra en un commit. Al salir Claude, los vuelve a poner. Si Claude
-cambió ese archivo durante la sesión, no los pone (se perdería el cambio):
-avisa, y hay que agregarlos a mano. Si la terminal se cierra antes, el
+cambió ese archivo durante la sesión, los pone encima de su cambio y avisa
+para revisarlo con `git diff`. Si la terminal se cierra antes, el
 siguiente `issue start` de la issue los pone. Con pnpm:
 `pnpm issue:start:free 42 --no-repo-deny`; con npm:
 `npm run issue:start:free -- 42 --no-repo-deny`.

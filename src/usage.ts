@@ -103,8 +103,9 @@ What each one takes away, and what stays:
                        exits; git does not see the change meanwhile. Your deny rules and the
                        local ones stay, and so do the repo's hooks, attribution, CLAUDE.md,
                        skills, agents and MCP servers. If Claude changes that file, the
-                       rules are not put back: it warns, and you add them again. If the
-                       terminal closes first, the next issue start of the issue puts them back.
+                       rules go back on top of its change, with a warning to review it. If
+                       the terminal closes first, the next issue start of the issue puts
+                       them back.
 
 From the repo's scripts (issue:start, and issue:start:free, which adds --free):
   npm run issue:start:free 42           npm passes a number on as it is

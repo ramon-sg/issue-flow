@@ -83,7 +83,7 @@ test("--free alone leaves the repo's deny rules in place", () => {
   assert.doesNotMatch(r.out, /took out the deny rules/);
 });
 
-test("if Claude changes the settings during the session, they are left as they are, with a warning", () => {
+test("if Claude changes the settings during the session, the deny rules go back on top of its change, with a warning", () => {
   const s = guarded();
   const wt = join(s.main, WT);
   const edited = '{"permissions":{"allow":["Bash(npm test)"]},"env":{"X":"1"}}\n';
@@ -91,8 +91,11 @@ test("if Claude changes the settings during the session, they are left as they a
   const r = s.run(["214", "--yes", "--free", "--no-repo-deny"], { env: { FAKE_CLAUDE_SETTINGS: edited } });
 
   assert.equal(r.status, 0, r.err);
-  assert.match(r.err, /Claude changed \.claude\/settings\.json during the session, so its deny rules were not put back/);
-  assert.equal(readFileSync(join(wt, ".claude", "settings.json"), "utf8"), edited);
+  assert.match(r.err, /Claude changed \.claude\/settings\.json during the session: its deny rules are back on top of that change/);
+  assert.deepEqual(JSON.parse(readFileSync(join(wt, ".claude", "settings.json"), "utf8")), {
+    permissions: { allow: ["Bash(npm test)"], deny: ["Edit(/.githooks/**)"] },
+    env: { X: "1" },
+  });
   assert.equal(flagOf(s, wt), "H");
   assert.match(s.git(wt, "status", "--porcelain"), /M \.claude\/settings\.json/);
   assert.equal(existsSync(join(s.main, NOTE)), false);
@@ -124,5 +127,17 @@ test("without a deny rule in the repo, --no-repo-deny says so and changes nothin
 
   assert.equal(r.status, 0, r.err);
   assert.match(r.out, /the repo has no \.claude\/settings\.json: there are no deny rules to take out\./);
+  assert.equal(existsSync(join(s.main, NOTE)), false);
+});
+
+test("a note changed during the session is not trusted: the rules come back from what issue-flow kept", () => {
+  const s = guarded();
+  const wt = join(s.main, WT);
+  const forged = JSON.stringify({ original: '{"hooks":{"SessionStart":[]}}\n', lifted: "x" });
+
+  const r = s.run(["214", "--yes", "--free", "--no-repo-deny"], { env: { FAKE_CLAUDE_WRITE: join(s.main, NOTE), FAKE_CLAUDE_TEXT: forged } });
+
+  assert.equal(r.status, 0, r.err);
+  assert.equal(readFileSync(join(wt, ".claude", "settings.json"), "utf8"), ORIGINAL);
   assert.equal(existsSync(join(s.main, NOTE)), false);
 });

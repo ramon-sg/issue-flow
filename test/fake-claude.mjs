@@ -3,7 +3,8 @@
 // default). Like the real one, `--session-id <id>` saves the session under
 // CLAUDE_CONFIG_DIR. FAKE_CLAUDE_MERGE=<n> marks that PR merged in FAKE_GH_WORLD, as if it
 // was merged during the session. It also logs the folder's .claude/settings.json and git
-// status; FAKE_CLAUDE_SETTINGS=<text> writes that file, as a session that edits it.
+// status; FAKE_CLAUDE_SETTINGS=<text> writes that file, as a session that edits it, and
+// FAKE_CLAUDE_WRITE=<path> with FAKE_CLAUDE_TEXT=<text> writes any file.
 import { execFileSync } from "node:child_process";
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -27,6 +28,7 @@ try {
 } catch {}
 appendFileSync(process.env.FAKE_CLAUDE_LOG, `${JSON.stringify({ args, input, cwd: process.cwd(), lock, settings, status })}\n`);
 if (process.env.FAKE_CLAUDE_SETTINGS && !args.includes("-p")) writeFileSync(".claude/settings.json", process.env.FAKE_CLAUDE_SETTINGS);
+if (process.env.FAKE_CLAUDE_WRITE && !args.includes("-p")) writeFileSync(process.env.FAKE_CLAUDE_WRITE, process.env.FAKE_CLAUDE_TEXT ?? "");
 const session = args.indexOf("--session-id");
 if (session !== -1 && process.env.CLAUDE_CONFIG_DIR) {
   mkdirSync(join(process.env.CLAUDE_CONFIG_DIR, "projects", "p"), { recursive: true });
