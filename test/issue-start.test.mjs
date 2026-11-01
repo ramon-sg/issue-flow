@@ -58,7 +58,7 @@ test("a -- that pnpm passes on is dropped: issue start -- 214 --dry-run works as
   const r = s.cli(["issue", "start", "--free", "--", "214", "--dry-run"]);
 
   assert.equal(r.status, 0, r.err);
-  assert.match(r.out, /Permissions: +none: no sandbox and no questions \(--free\)/);
+  assert.match(r.out, /Permissions: +none: no sandbox and no questions; deny rules still apply \(--free\)/);
   assert.deepEqual(s.writes(), []);
 });
 

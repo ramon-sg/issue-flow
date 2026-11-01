@@ -59,14 +59,34 @@ npm run issue:start -- 42 --branch    # sin worktree, en esta carpeta
 | `--new` | Crea una rama nueva aunque la issue ya tenga otras. No va con `--resume`. |
 | `--no-launch` | Hace todo, pero no abre Claude. Dice qué correr para abrirlo. |
 | `--ask-permissions` | Abre Claude con tus settings, en vez del modo auto de `claude-repo-guard`. |
-| `--free` | Abre Claude sin sandbox ni preguntas. |
+| `--free` | Abre Claude sin sandbox ni preguntas. Los `deny` siguen valiendo. |
+| `--no-repo-deny` | Con `--free`: además quita los `deny` del `.claude/settings.json` del repo mientras dura la sesión. |
 | `--namer claude\|title` | De dónde sale el slug si la issue no tiene el bloque. |
-| `--plan` | Una línea JSON con la rama y el pedido. No cambia nada. No va con `--branch`, `--dry-run`, `--yes`, `--resume` ni `--new`. |
+| `--plan` | Una línea JSON con la rama y el pedido. No cambia nada. No va con `--branch`, `--dry-run`, `--yes`, `--resume`, `--new` ni `--no-repo-deny`. |
 | `--teleport` | Retoma la rama y trae la sesión de la nube anotada en el PR. Ver [Nube](nube.md). |
 | `-R owner/repo` | Otro repo que el `origin` de este checkout. |
 
 **Permisos al abrir Claude:** si el repo tiene `claude-repo-guard`, Claude se
 abre en modo auto con su contexto. Sin él, con tus settings.
+
+**Qué quita cada modo:**
+
+| Modo | Quita | Conserva |
+|---|---|---|
+| (ninguno), `--ask-permissions` | Nada. | Sandbox, preguntas y todos los `deny`. |
+| `--free` | Sandbox y preguntas. | Todos los `deny`: los tuyos (`~/.claude`), los del repo (`.claude/settings.json`) y los locales (`.claude/settings.local.json`). |
+| `--free --no-repo-deny` | Sandbox, preguntas y los `deny` del repo. | Tus `deny` y los locales; los hooks, `attribution`, `CLAUDE.md`, skills, agentes y MCP del repo. |
+
+`--no-repo-deny` sirve cuando la issue pide tocar algo que el repo prohíbe,
+como `.githooks/` con `claude-repo-guard`. Quita los `deny` del
+`.claude/settings.json` del worktree (no del checkout principal) mientras
+Claude corre, y git no ve el cambio (`git update-index --skip-worktree`), así
+que no entra en un commit. Al salir Claude, los vuelve a poner. Si Claude
+cambió ese archivo durante la sesión, los pone encima de su cambio y avisa
+para revisarlo con `git diff`. Si la terminal se cierra antes, el
+siguiente `issue start` de la issue los pone. Con pnpm:
+`pnpm issue:start:free 42 --no-repo-deny`; con npm:
+`npm run issue:start:free -- 42 --no-repo-deny`.
 
 El atajo `npm run issue:start:free 42` es `issue start 42 --free`, como
 `claude:free`. Con npm, las opciones van después de `--`; con pnpm, bun o

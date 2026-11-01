@@ -1,8 +1,8 @@
 /**
  * @file Opens Claude for an issue in the same terminal. The permission mode follows
  * `claude-repo-guard` when the repo has it: auto mode with its classifier context by
- * default, plain `claude` with `--ask-permissions`, and no sandbox nor questions with
- * `--free`. Each branch keeps its session id, so starting the issue again resumes it.
+ * default, plain `claude` with `--ask-permissions`, no sandbox nor questions with `--free`,
+ * and also without the repo's deny rules with `--free --no-repo-deny`. Each branch keeps its session id, so starting the issue again resumes it.
  * Ported from `launch_session` and `run_claude` in Abastio's `scripts/start-issue.sh`.
  */
 import { randomUUID } from "node:crypto";
@@ -21,8 +21,12 @@ export const SESSIONS_DIR = "issue-flow-sessions";
 /** Settings that turn the sandbox off for one session, as `claude:free` does. */
 const NO_SANDBOX = '{"sandbox":{"enabled":false}}';
 
-/** How Claude asks for permissions: chosen by the flags, or the default. */
-export type Permissions = "default" | "ask" | "free";
+/**
+ * How Claude asks for permissions: chosen by the flags, or the default. `free-no-repo-deny`
+ * is `--free --no-repo-deny`: the same arguments as `free`, and `issue start` also takes the
+ * repo's deny rules out while Claude runs (see repo-deny.ts).
+ */
+export type Permissions = "default" | "ask" | "free" | "free-no-repo-deny";
 
 /** The arguments of the permission mode, and how the summary names it. */
 export interface PermissionArgs {
@@ -49,7 +53,12 @@ export function permissionArgs(
   if (permissions === "free")
     return {
       args: ["--settings", NO_SANDBOX, "--dangerously-skip-permissions"],
-      label: "none: no sandbox and no questions (--free)",
+      label: "none: no sandbox and no questions; deny rules still apply (--free)",
+    };
+  if (permissions === "free-no-repo-deny")
+    return {
+      args: ["--settings", NO_SANDBOX, "--dangerously-skip-permissions"],
+      label: "none: no sandbox, no questions and no deny rules of the repo; yours still apply (--free --no-repo-deny)",
     };
   if (permissions === "ask") return { args: [], label: "your settings (--ask-permissions)" };
   const file = workDir !== null && existsSync(join(workDir, AUTO_MODE_FILE))
@@ -114,13 +123,26 @@ export function savedSession(commonDir: string, branch: string): string | null {
 }
 
 /**
- * Forgets a branch's session id, once its work is gone.
+ * The note `--no-repo-deny` keeps while the repo's deny rules are out, next to the
+ * branch's session id.
+ * @param commonDir - The shared `.git`.
+ * @param branch - The branch.
+ * @returns The path.
+ * @example noteFile("/repo/.git", "feat/42-x") // "/repo/.git/issue-flow-sessions/feat+42-x.repo-deny.json"
+ */
+export function noteFile(commonDir: string, branch: string): string {
+  return `${sessionFile(commonDir, branch)}.repo-deny.json`;
+}
+
+/**
+ * Forgets a branch's session id (and its `--no-repo-deny` note), once its work is gone.
  * @param commonDir - The shared `.git`.
  * @param branch - The branch.
  * @example forgetSession("/repo/.git", "feat/42-x")
  */
 export function forgetSession(commonDir: string, branch: string): void {
   rmSync(sessionFile(commonDir, branch), { force: true });
+  rmSync(noteFile(commonDir, branch), { force: true });
 }
 
 /** What opening Claude needs. */
