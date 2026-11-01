@@ -218,7 +218,8 @@ test("teardown --path of a worktree already gone frees its Docker", () => {
 
 test("ports prints the worktree's block, keeps it, and --next moves it", () => {
   const s = startSandbox();
-  flow(s, { ports: { start: 42000, blockSize: 2, blocks: 4 } });
+  // NOTE: its own range: adapter.test.mjs listens on 42000-42007 while the files run in parallel.
+  flow(s, { ports: { start: 43000, blockSize: 2, blocks: 4 } });
   const dir = worktree(s, "feat/1-x");
   const none = startSandbox();
 
@@ -228,10 +229,10 @@ test("ports prints the worktree's block, keeps it, and --next moves it", () => {
   const off = none.cli(["worktree", "ports"]);
 
   assert.equal(first.status, 0, first.err);
-  assert.match(first.out, /^4200[0246]\n$/);
+  assert.match(first.out, /^4300[0246]\n$/);
   assert.equal(again.out, first.out);
   assert.notEqual(moved.out, first.out);
-  assert.match(moved.err, /the worktree moves to block 4200[0246]/);
+  assert.match(moved.err, /the worktree moves to block 4300[0246]/);
   assert.equal(off.status, 1);
   assert.match(off.err, /this repo has no ports for worktrees/);
 });

@@ -88,7 +88,8 @@ export function ownFlags(command: string, flags: Flags): void {
  */
 function permissionsOf(flags: Flags): Permissions {
   if (flags["ask-permissions"] && flags.free) throw new UsageError("use --ask-permissions or --free, not both.");
-  if (flags.free) return "free";
+  if (flags["no-repo-deny"] && !flags.free) throw new UsageError("--no-repo-deny goes with --free.");
+  if (flags.free) return flags["no-repo-deny"] ? "free-no-repo-deny" : "free";
   return flags["ask-permissions"] ? "ask" : "default";
 }
 
@@ -104,19 +105,19 @@ function startArgs(flags: Flags, rest: string[]): number {
   if (text === undefined || extra.length > 0 || !NUMBER.test(text))
     throw new UsageError("issue start needs one issue number.");
   if (flags.resume !== undefined && flags.new) throw new UsageError("--resume does not go with --new.");
-  const conflicting = flags.branch || flags["dry-run"] || flags.yes || flags.resume !== undefined || flags.new;
+  const conflicting = flags.branch || flags["dry-run"] || flags.yes || flags.resume !== undefined || flags.new || flags["no-repo-deny"];
   if (flags.plan && conflicting)
-    throw new UsageError("--plan does not go with --branch, --dry-run, --yes, --resume nor --new.");
+    throw new UsageError("--plan does not go with --branch, --dry-run, --yes, --resume, --new nor --no-repo-deny.");
   cloudArgs(flags);
   return Number(text);
 }
 
 /** The flags that do not go together with each way of starting, besides each other. */
 const EXCLUSIVE: Record<"cloud" | "here" | "teleport" | "adopt", (keyof Flags)[]> = {
-  cloud: ["branch", "plan", "ask-permissions", "free"],
-  here: ["branch", "plan", "ask-permissions", "free"],
+  cloud: ["branch", "plan", "ask-permissions", "free", "no-repo-deny"],
+  here: ["branch", "plan", "ask-permissions", "free", "no-repo-deny"],
   teleport: ["plan", "new", "no-launch"],
-  adopt: ["branch", "plan", "resume", "new", "ask-permissions", "free"],
+  adopt: ["branch", "plan", "resume", "new", "ask-permissions", "free", "no-repo-deny"],
 };
 
 /**

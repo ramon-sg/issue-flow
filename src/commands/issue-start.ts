@@ -17,7 +17,8 @@ import { inPath, launchSession, permissionArgs, teleportSession } from "../launc
 import { emitJson, type Output, warn } from "../output.js";
 import { findOpenPlan, findPlan, type PlanQuery } from "../plan-doc.js";
 import { proposeBranches } from "../propose.js";
-import { lockWorktree, unlockWorktree } from "../session-lock.js";
+import { liftRepoDeny, restoreRepoDeny } from "../repo-deny.js";
+import { type Lock, lockWorktree, unlockWorktree } from "../session-lock.js";
 import { afterSession, choosePlace, copyWorktreeIncludes, prepareBranch, publish } from "../start-place.js";
 import {
   chooseAdopted,
@@ -268,6 +269,28 @@ function question(state: StartState): { text: string; declined: string } {
 }
 
 /**
+ * Before opening Claude: puts back the repo's deny rules a session whose terminal was
+ * closed left out, and with `--free --no-repo-deny` takes them out for this one. With
+ * another session in the worktree it touches nothing, as it may be using them.
+ * @param state - The start.
+ * @param lock - The worktree lock.
+ * @returns Whether the rules were taken out, and so must be put back.
+ */
+function liftForSession(state: StartState, lock: Lock): boolean {
+  const { out, commonDir, branch } = state;
+  const wanted = state.options.permissions === "free-no-repo-deny";
+  if (lock.shared) {
+    if (wanted) warn(out, "another session uses this worktree: the repo's deny rules stay.");
+    return false;
+  }
+  const leftover = restoreRepoDeny(commonDir, branch);
+  if (leftover !== null) warn(out, leftover);
+  if (!wanted) return false;
+  out.stdout(`${liftRepoDeny(state.workDir, commonDir, branch)}\n`);
+  return true;
+}
+
+/**
  * Opens Claude in the place, locking a worktree meanwhile, and then offers the cleanup.
  * Without `claude` or with `--no-launch`, says how to open it.
  * @param state - The start.
@@ -286,6 +309,7 @@ async function openSession(state: StartState): Promise<number> {
   process.once("exit", release);
   forgetTypedAhead();
   const permissions = permissionArgs(options.permissions, state.workDir, state.mainRoot).args;
+  const lifted = liftForSession(state, lock);
   if (options.teleport) {
     out.stdout(`Bringing the cloud session${state.cloudSession === null ? "" : ` (${state.cloudSession})`}. To resume it later: claude --resume\n`);
     teleportSession(state.workDir, permissions, state.cloudSession);
@@ -301,6 +325,10 @@ async function openSession(state: StartState): Promise<number> {
     },
     (text) => warn(out, text),
   );
+  if (lifted) {
+    const problem = restoreRepoDeny(state.commonDir, state.branch);
+    if (problem !== null) warn(out, problem);
+  }
   release();
   process.off("exit", release);
   await afterSession(state, lock);

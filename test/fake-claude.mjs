@@ -2,7 +2,8 @@
 // FAKE_CLAUDE_LOG, then prints FAKE_CLAUDE_OUTPUT and exits with FAKE_CLAUDE_EXIT (0 by
 // default). Like the real one, `--session-id <id>` saves the session under
 // CLAUDE_CONFIG_DIR. FAKE_CLAUDE_MERGE=<n> marks that PR merged in FAKE_GH_WORLD, as if it
-// was merged during the session.
+// was merged during the session. It also logs the folder's .claude/settings.json and git
+// status; FAKE_CLAUDE_SETTINGS=<text> writes that file, as a session that edits it.
 import { execFileSync } from "node:child_process";
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -16,7 +17,16 @@ try {
   const here = list.split("\n\n").find((entry) => entry.startsWith(`worktree ${process.cwd()}\n`));
   lock = /^locked ?(.*)$/m.exec(here ?? "")?.[1] ?? null;
 } catch {}
-appendFileSync(process.env.FAKE_CLAUDE_LOG, `${JSON.stringify({ args, input, cwd: process.cwd(), lock })}\n`);
+let settings = null;
+try {
+  settings = readFileSync(".claude/settings.json", "utf8");
+} catch {}
+let status = null;
+try {
+  status = execFileSync("git", ["status", "--porcelain"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+} catch {}
+appendFileSync(process.env.FAKE_CLAUDE_LOG, `${JSON.stringify({ args, input, cwd: process.cwd(), lock, settings, status })}\n`);
+if (process.env.FAKE_CLAUDE_SETTINGS && !args.includes("-p")) writeFileSync(".claude/settings.json", process.env.FAKE_CLAUDE_SETTINGS);
 const session = args.indexOf("--session-id");
 if (session !== -1 && process.env.CLAUDE_CONFIG_DIR) {
   mkdirSync(join(process.env.CLAUDE_CONFIG_DIR, "projects", "p"), { recursive: true });

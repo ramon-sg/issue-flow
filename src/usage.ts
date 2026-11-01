@@ -7,7 +7,7 @@ export const USAGE = `Usage:
   issue-flow issue branch <n>... [--namer claude|title] [--json] [-R owner/repo]
   issue-flow issue branch --missing [--limit <n>] [--namer claude|title] [--dry-run | --yes] [--json] [-R owner/repo]
   issue-flow issue start <n> [--branch] [--dry-run | --yes] [--resume <branch> | --new] [--no-launch]
-                             [--ask-permissions | --free] [--namer claude|title] [-R owner/repo]
+                             [--ask-permissions | --free [--no-repo-deny]] [--namer claude|title] [-R owner/repo]
   issue-flow issue start <n> --plan [--ask-permissions | --free] [--namer claude|title] [-R owner/repo]
   issue-flow issue start <n> --cloud | --here | --teleport | --adopt [...]
   issue-flow worktree setup [--only <step>]
@@ -30,8 +30,9 @@ and the branch from the repo's template (an older "Rama sugerida" block is used 
 issue start makes the branch in a worktree (or, with --branch, in this checkout), the
 start commit, the push, the draft PR and the assignment, after confirming, and opens
 Claude: in auto mode if the repo has claude-repo-guard, with your settings with
---ask-permissions, and with no sandbox nor questions with --free. --plan prints the branch
-and the prompt as JSON and changes nothing. issue start --help explains each flag.
+--ask-permissions, with no sandbox nor questions with --free, and also without the repo's
+deny rules with --free --no-repo-deny. --plan prints the branch and the prompt as JSON and
+changes nothing. issue start --help explains each flag.
 
 --cloud confirms here and opens a Claude cloud session that starts the issue there.
 --here, inside a cloud session, starts it in this checkout and opens nothing. --teleport
@@ -87,6 +88,23 @@ Permissions of the Claude it opens (one at most):
   (none)               auto mode if the repo has claude-repo-guard, else your settings
   --ask-permissions    your settings: Claude asks before what they do not allow
   --free               no sandbox and no questions, as claude:free
+  --no-repo-deny       with --free: also without the deny rules of the repo's settings
+
+What each one takes away, and what stays:
+  (none), --ask-permissions
+                       take nothing away: the sandbox, the questions your settings ask
+                       and every deny rule stay.
+  --free               takes away the sandbox and the questions. Every deny rule stays:
+                       yours (~/.claude), the repo's (.claude/settings.json) and the
+                       local ones (.claude/settings.local.json).
+  --free --no-repo-deny
+                       also takes the deny rules out of the worktree's
+                       .claude/settings.json while Claude runs, and puts them back when it
+                       exits; git does not see the change meanwhile. Your deny rules and the
+                       local ones stay, and so do the repo's hooks, attribution, CLAUDE.md,
+                       skills, agents and MCP servers. If Claude changes that file, the
+                       rules are not put back: it warns, and you add them again. If the
+                       terminal closes first, the next issue start of the issue puts them back.
 
 From the repo's scripts (issue:start, and issue:start:free, which adds --free):
   npm run issue:start:free 42           npm passes a number on as it is
@@ -97,7 +115,9 @@ From the repo's scripts (issue:start, and issue:start:free, which adds --free):
 A -- does no harm with any of them: issue-flow drops it.
 
 issue:start:free does not go with --ask-permissions, --cloud, --here nor --adopt: use
-issue:start for those.`;
+issue:start for those. --no-repo-deny goes after it, as any flag:
+  npm run issue:start:free -- 42 --no-repo-deny
+  pnpm issue:start:free 42 --no-repo-deny`;
 
 /** The usage text of each command that has its own, by its words. */
 const OWN_USAGE: Record<string, string> = { "issue start": START_USAGE };
