@@ -59,6 +59,7 @@ test("apply --yes sets an empty repo up: config, package.json and hooks, and run
   assert.equal(pkg.devDependencies["@ramon-sg/github-rest"], OWN.dependencies["@ramon-sg/github-rest"].replace(/^\^/, ""));
   assert.equal(pkg.devDependencies["@ramon-sg/issue-flow"], VERSION);
   assert.equal(pkg.scripts["issue:start"], "issue-flow issue start");
+  assert.equal(pkg.scripts["issue:start:free"], "issue-flow issue start --free");
   const settings = readRepoJson(s, ".claude/settings.json");
   assert.deepEqual(commandsOf(settings, "SessionStart"), [SESSION]);
   assert.deepEqual(commandsOf(settings, "WorktreeCreate"), [`npx --yes @ramon-sg/issue-flow@${VERSION} hook worktree-create`]);
@@ -112,6 +113,7 @@ test("apply keeps the repo's own hooks, scripts and github-rest, and drops claud
   const pkg = readRepoJson(s, "package.json");
   assert.equal(pkg.devDependencies["@ramon-sg/github-rest"], "0.1.0");
   assert.equal(pkg.scripts["issue:start"], "bash scripts/start-issue.sh");
+  assert.equal(pkg.scripts["issue:start:free"], undefined, "it would skip the repo's own issue:start");
   assert.match(r.err, /kept @ramon-sg\/github-rest 0\.1\.0 \(the skills need .* or newer: raise it\)/);
   assert.deepEqual(npxCalls(s), []);
 });
@@ -149,6 +151,17 @@ test("apply asks about recipes only the first time; --recipe adds one later, kee
   assert.deepEqual(worktrees.ports, { start: 30000, blockSize: 10, blocks: 10 });
   assert.deepEqual(worktrees.dockerProjects, ["main"]);
   assert.match(added.err, /kept the "deps" step of worktrees\.setup \(pnpm\)/);
+});
+
+test("apply notes an issue:start:free of the flow that skips the repo's own issue:start", () => {
+  const s = withNpx(startSandbox());
+  writeFileSync(join(s.main, "package.json"), JSON.stringify({ name: "shop", scripts: { "issue:start": "bash scripts/start-issue.sh", "issue:start:free": "issue-flow issue start --free" } }));
+
+  const r = s.cli(["apply", "--yes"], { env: npxEnv(s) });
+
+  assert.equal(r.status, 0, r.err);
+  assert.equal(readRepoJson(s, "package.json").scripts["issue:start:free"], "issue-flow issue start --free");
+  assert.match(r.err, /kept scripts: issue:start:free, which skips the repo's own issue:start: make it run that one with --free, or delete it/);
 });
 
 test("without a terminal nor --yes, apply writes nothing when the repo suggests recipes, and does not wait", () => {

@@ -66,6 +66,19 @@ test("pr worktree with .git/config locked and a local branch already tracking or
   assert.doesNotMatch(r.err, /track/);
 });
 
+test("pr worktree finds its command after --, with -R in front or with the -- pnpm passes on before the number", () => {
+  const s = startSandbox();
+  withPr(s);
+  const file = join(s.tmp, "where");
+
+  const repo = s.cli(["-R", "acme/widgets", "pr", "worktree", "7", "--", "sh", "-c", `pwd > "${file}"; exit 4`]);
+  const pnpm = s.cli(["pr", "worktree", "--", "7", "--", "sh", "-c", "exit 5"]);
+
+  assert.equal(repo.status, 4, repo.err);
+  assert.equal(readFileSync(file, "utf8").trim(), prPath(s));
+  assert.equal(pnpm.status, 5, pnpm.err);
+});
+
 test("pr worktree runs the setup but skips trusted steps, since the PR's code is not in main", () => {
   const s = startSandbox();
   flow(s, { worktrees: { setup: [{ ...logStep("deps"), trusted: true }, logStep("env")] } });

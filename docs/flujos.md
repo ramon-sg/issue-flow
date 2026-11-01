@@ -9,14 +9,27 @@ Por debajo, todas corren el mismo comando: `issue-flow issue start <n>`, con
 una opción distinta en cada caso.
 
 Los comandos usan los scripts que `issue-flow apply` agrega al `package.json`
-del repo: `issue:start`, `worktree:prune` y `pr:worktree`. Con `npm run`, lo
-que va después del script necesita `--` (`npm run issue:start -- 42
---branch`), porque sin él npm se queda con las opciones. Con pnpm o bun no
-hace falta: `pnpm issue:start 42 --branch`.
+del repo: `issue:start`, `issue:start:free` (con `--free`, sin sandbox ni
+preguntas), `worktree:prune` y `pr:worktree`. `issue-flow issue start --help`
+explica cada opción.
+
+<a id="administradores"></a>Cada administrador de paquetes le pasa los
+argumentos al script a su manera:
+
+| Administrador | Solo el número | Con opciones | Un `--` |
+|---|---|---|---|
+| npm | `npm run issue:start:free 42` | `npm run issue:start -- 42 --branch` | Necesario antes de las opciones: sin él, npm se las queda. |
+| pnpm | `pnpm issue:start:free 42` | `pnpm issue:start 42 --branch` | No hace falta. pnpm lo pasa tal cual, e issue-flow lo ignora. |
+| bun | `bun run issue:start:free 42` | `bun run issue:start 42 --branch` | No hace falta. bun lo quita. |
+| yarn | `yarn issue:start:free 42` | `yarn issue:start 42 --branch` | No hace falta. yarn lo quita. |
+
+Con `--` funciona en los cuatro, así que ante la duda se puede poner.
+`issue:start:free` ya trae `--free`, así que no va con `--ask-permissions`,
+`--cloud`, `--here` ni `--adopt`: para esas, `issue:start`.
 
 | Flujo | Se empieza con | Dónde queda el trabajo | Quién abre Claude |
 |---|---|---|---|
-| [1. Terminal](flujos/terminal.md) | `npm run issue:start -- <n>` | Un worktree nuevo, o esta carpeta con `--branch` | El script, en la misma terminal |
+| [1. Terminal](flujos/terminal.md) | `npm run issue:start <n>` | Un worktree nuevo, o esta carpeta con `--branch` | El script, en la misma terminal |
 | [2. Skill en una sesión](flujos/skill-en-sesion.md) | `/start-issue <n>` dentro de Claude | Un worktree nuevo, esta carpeta, o el worktree de `claude --worktree` | Nadie: ya estás en una sesión |
 | [3. Nube de Claude](flujos/nube.md) | `issue start <n> --cloud` o `/start-issue <n>` en la nube | El checkout de la sesión en la nube | `claude --cloud`, o tú en claude.ai |
 | [4. Orca y Paseo](flujos/orca-paseo.md) | Crear un worktree en Orca o Paseo | El worktree que creó la herramienta | La herramienta |

@@ -44,7 +44,7 @@ Por debajo pasa lo mismo que en la terminal (pasos 1 a 5 del
 final:
 
 - **Worktree nuevo:** la sesión actual no se mueve. Para trabajar ahí, desde
-  una terminal: `npm run issue:start -- 42`. Encuentra lo que
+  una terminal: `npm run issue:start 42`. Encuentra lo que
   se acaba de crear y abre Claude en el worktree.
 - **Esta carpeta o adoptar:** la sesión ya está en la rama. La skill sugiere
   `/rename <rama>` y sigue ahí.

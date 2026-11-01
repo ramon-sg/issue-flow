@@ -2,7 +2,7 @@
  * @file The `apply` and `doctor` commands of the CLI, and `init` and `upgrade`, which run
  * `apply` now and say so: their flags turned into options.
  */
-import type { Flags } from "./cli.js";
+import type { Flags } from "./cli-flags.js";
 import { apply } from "./commands/apply.js";
 import { doctor } from "./commands/doctor.js";
 import { type Output, UsageError, warn } from "./output.js";
