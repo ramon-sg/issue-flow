@@ -119,7 +119,7 @@ Lo propio de cada repo (instalar, armar la base, levantar Docker) son **pasos** 
 ```
 
 - **Cuándo corren:** `issue start` corre el `setup` en cada worktree nuevo, después de copiar `.worktreeinclude`. El hook `session` lo corre al abrir Claude en un worktree. El `teardown` corre antes de borrar un worktree, con `prune` o al limpiar después del merge.
-- **De dónde salen:** siempre de la config del checkout principal, nunca de la del worktree. Así una rama no puede sumar comandos a su propio setup. En la nube no hay otro checkout: ahí la config es la de la rama de la sesión.
+- **De dónde salen:** del `.agents/flow.json` de `origin/<base>`, nunca del worktree. Así una rama no puede sumar comandos a su propio setup, y un checkout principal que quedó atrás no deja al worktree sin su `install`. Si los pasos del checkout principal son otros, `issue-flow` lo avisa. Sin `origin/<base>`, o si ahí el archivo no es válido, usa los del checkout principal. Sin pasos, `worktree setup` e `issue start` dicen de qué archivo los leyeron. En la nube no hay otro checkout: ahí la config es la de la rama de la sesión. El teardown sigue usando la config del checkout principal.
 - **Pueden correr más de una vez:** `issue start` y el hook `session` corren el `setup` del mismo worktree, así que un paso sin `once` tiene que poder repetirse.
 - **`trusted`:** el paso corre solo si el código del worktree está en `origin/<base>` y no tiene cambios. Es para un install, que corre los scripts de `package.json` de esa rama. En la nube corre siempre, porque la máquina es descartable.
 - **`once`:** el paso no se repite una vez que funcionó (deja una marca en el git dir del worktree).

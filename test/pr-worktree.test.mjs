@@ -146,8 +146,9 @@ test("pr worktree -- runs the command in the worktree and exits with its code; w
 
 test("worktree-create makes the worktree from origin's base branch and prints only its path", () => {
   const s = startSandbox();
-  const developTip = s.pushBranch("develop", { commit: true });
   flow(s, { baseBranch: "develop", worktrees: { setup: [logStep("deps")] } });
+  // The steps come from origin/develop, so develop has the config too.
+  const developTip = s.pushBranch("develop", { commit: true });
 
   const r = hook(s, "worktree-create", { name: "bold-oak", cwd: s.main }, withLog(s));
 

@@ -76,7 +76,7 @@
           "default": ".claude/worktrees"
         },
         "setup": {
-          "description": "Steps that prepare a worktree, in order. They come from the main checkout's config, never the worktree's.",
+          "description": "Steps that prepare a worktree, in order. They come from this file in origin/<base> (the main checkout's if origin has none to read), never the worktree's.",
           "type": "array",
           "items": {
             "type": "object",

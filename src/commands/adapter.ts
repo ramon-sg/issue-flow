@@ -22,11 +22,11 @@ import { canonicalPath, dockerCleanup } from "../docker.js";
 import { checkoutRoot, currentBranch, locateRepo } from "../git.js";
 import { issueOfBranch } from "../issue-text.js";
 import { inPath } from "../launch.js";
-import { type Output, UsageError, warn } from "../output.js";
+import { type Output, warn } from "../output.js";
 import { releasePortClaims } from "../ports.js";
 import { copyWorktreeIncludes } from "../start-place.js";
 import { StartError } from "../start-state.js";
-import { runSetup, teardownWorktree } from "../worktree-steps.js";
+import { checkOnly, runSetup, teardownWorktree } from "../worktree-steps.js";
 import { issueStart } from "./issue-start.js";
 import { stepPlace } from "./worktree.js";
 
@@ -183,9 +183,7 @@ function linkedPlace(options: AdapterOptions, out: Output): ReturnType<typeof st
  * @example await adapterSetup(options, out)
  */
 export async function adapterSetup(options: AdapterOptions, out: Output): Promise<number> {
-  const names = options.config.worktrees.setup.map((step) => step.name);
-  if (options.only !== null && !names.includes(options.only))
-    throw new UsageError(`--only expects a setup step of .agents/flow.json (${names.join(", ") || "it has none"}): ${options.only}`);
+  checkOnly(stepPlace(options, out), options.only);
   const place = linkedPlace(options, out);
   if (place === null) return 0;
   copyWorktreeIncludes(place.mainRoot, place.root, out);

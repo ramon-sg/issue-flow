@@ -1,7 +1,9 @@
 /**
  * @file Runs the steps of `worktrees.setup` and `worktrees.teardown` in a worktree. The
- * steps come from the main checkout's config, not the worktree's, so a branch cannot add
- * commands to its own setup. A `trusted` step (an install, which runs the lifecycle scripts
+ * setup steps come from `.agents/flow.json` in `origin/<base>`, not from the worktree, so a
+ * branch cannot add commands to its own setup, and a main checkout nobody pulled does not
+ * leave a new worktree without its install. The teardown steps come from the main
+ * checkout's config. A `trusted` step (an install, which runs the lifecycle scripts
  * of `package.json`) runs only if the worktree's code is in `origin/<base>` and has no
  * changes; a `once` step leaves a mark when it works and is not repeated. Two setups of one
  * worktree at a time (the tool's and the session hook's) take turns with a lock. Each step
@@ -12,13 +14,14 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
-import type { FlowConfig } from "./config.js";
+import { CONFIG_PATH, isObject } from "./config-base.js";
+import { DEFAULT_CONFIG, type FlowConfig } from "./config.js";
 import { dockerCleanup, sanitizeLabel } from "./docker.js";
 import { git, isClean } from "./git.js";
-import { type Output, warn } from "./output.js";
+import { type Output, UsageError, warn } from "./output.js";
 import { claimPortBase, portBase, releasePortClaims, sha256 } from "./ports.js";
 import { stopApps } from "./stop-apps.js";
-import type { Step } from "./worktree-config.js";
+import { type Step, worktreesSection } from "./worktree-config.js";
 
 /** Folder, in the worktree's git dir, with a mark per `once` step that worked. */
 export const SETUP_MARKS_DIR = "issue-flow-setup";
@@ -99,6 +102,64 @@ function runStep(place: StepPlace, step: Step, env: Record<string, string>): boo
   return false;
 }
 
+/** The setup steps a worktree runs, and where they were read. */
+export interface SetupSteps {
+  steps: Step[];
+  source: string;
+  warning: string | null;
+}
+
+/**
+ * The setup steps: those of `.agents/flow.json` in `origin/<base>`, which a worktree made
+ * from it has; none if the file is not there. In a cloud session, without `origin/<base>`,
+ * or with a file there that is not valid, those of the checkout's config. The warning says
+ * when the main checkout's steps differ, or why they were used.
+ * @param place - Where.
+ * @returns The steps, where they come from and a warning, or null.
+ * @example setupSteps(place).source // "origin/main:.agents/flow.json"
+ */
+export function setupSteps(place: StepPlace): SetupSteps {
+  const local = place.config.worktrees.setup;
+  const ref = `origin/${place.base}`;
+  const fallback = { steps: local, source: `the main checkout's ${CONFIG_PATH}` };
+  // NOTE: a cloud session has no other checkout: its steps are those of the session's branch.
+  if (place.remote || !git(place.mainRoot, ["rev-parse", "-q", "--verify", `${ref}^{commit}`]).ok)
+    return { ...fallback, warning: null };
+  const source = `${ref}:${CONFIG_PATH}`;
+  const shown = git(place.mainRoot, ["show", source]);
+  let steps: Step[];
+  try {
+    if (!shown.ok) steps = DEFAULT_CONFIG.worktrees.setup;
+    else {
+      const raw: unknown = JSON.parse(shown.out);
+      steps = worktreesSection(isObject(raw) ? raw.worktrees : undefined, DEFAULT_CONFIG.worktrees).setup;
+    }
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    return { ...fallback, warning: `${source} is not valid: ${reason}; using the main checkout's steps.` };
+  }
+  const differ = JSON.stringify(steps) !== JSON.stringify(local);
+  return {
+    steps,
+    source,
+    warning: differ ? `the setup steps come from ${source}; the main checkout's differ (is it behind? pull it).` : null,
+  };
+}
+
+/**
+ * Checks that `--only` names one of the setup steps.
+ * @param place - Where.
+ * @param only - The step, or null.
+ * @throws UsageError if it names no step.
+ * @example checkOnly(place, "deps")
+ */
+export function checkOnly(place: StepPlace, only: string | null): void {
+  if (only === null) return;
+  const names = setupSteps(place).steps.map((step) => step.name);
+  if (!names.includes(only))
+    throw new UsageError(`--only expects a setup step of ${CONFIG_PATH} (${names.join(", ") || "it has none"}): ${only}`);
+}
+
 /**
  * Takes the setup's lock: a folder with the pid. A lock of a process that is gone is taken
  * over, and so is one without a pid that is some seconds old (its process died before
@@ -146,16 +207,21 @@ function alive(pid: number): boolean {
  * Prepares a worktree with the setup steps: one (`only`) or all, in order. In the main
  * checkout it does nothing, except in a cloud session, whose checkout is not a worktree. It
  * fixes the block of ports first, so the steps (and the apps after them) agree on it.
- * Never stops on a failed step: it says what to run and goes on.
+ * Never stops on a failed step: it says what to run and goes on. Without steps it says so,
+ * unless `quiet` (the session hooks, which run at every start).
  * @param place - Where.
  * @param only - The step to run, or null for all.
+ * @param quiet - True to say nothing when there are no steps.
  * @returns True if every step that ran worked.
  * @example await runSetup(place, null)
  */
-export async function runSetup(place: StepPlace, only: string | null): Promise<boolean> {
+export async function runSetup(place: StepPlace, only: string | null, quiet = false): Promise<boolean> {
   const { root, mainRoot, config, out } = place;
   if (root === mainRoot && !place.remote) return true;
-  const chosen = config.worktrees.setup.filter((step) => only === null || step.name === only);
+  const found = setupSteps(place);
+  if (found.warning !== null) warn(out, found.warning);
+  if (found.steps.length === 0 && !quiet) warn(out, `no setup steps in ${found.source}; nothing ran.`);
+  const chosen = found.steps.filter((step) => only === null || step.name === only);
   const ports = config.worktrees.ports;
   const port = ports === null ? null : await claimPortBase(ports, root, null);
   if (ports !== null && port === null) warn(out, "no block of ports is free on this machine; delete worktrees you no longer use.");
