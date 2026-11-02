@@ -524,10 +524,12 @@ test("--plan: resume for a branch in origin, new for an empty local one, and 1 i
 test("after the session: a merged PR, a clean worktree and a yes delete the worktree and the branch", () => {
   const s = startSandbox();
   s.run(["214", "--yes", "--no-launch"]);
+  const merged = s.advanceMain();
 
   const r = s.run(["214", "--yes"], { input: "y\n", env: { FAKE_CLAUDE_MERGE: "900" } });
 
   assert.equal(r.status, 0, r.err);
+  assert.equal(s.git(s.main, "rev-parse", "main"), merged);
   assert.match(r.err, /The PR was merged\. Delete the worktree \.claude\/worktrees\/feat\+214-odoo-refund-notice and the local branch feat\/214-odoo-refund-notice\?/);
   assert.equal(existsSync(join(s.main, WT)), false);
   assert.equal(s.git(s.main, "branch", "--list", BRANCH), "");
@@ -552,12 +554,29 @@ test("after the session: a merged PR with a commit not pushed, or changes, delet
   assert.doesNotMatch(`${notPushed.err}${changed.err}`, /Delete the worktree/);
 });
 
+test("after the session: a main checkout on main with changes keeps main where it was, and says so", () => {
+  const s = startSandbox();
+  s.run(["214", "--yes", "--no-launch"]);
+  const before = s.git(s.main, "rev-parse", "main");
+  s.advanceMain();
+  writeFileSync(join(s.main, ".worktreeinclude"), "edited\n");
+
+  const r = s.run(["214", "--yes"], { input: "y\n", env: { FAKE_CLAUDE_MERGE: "900" } });
+
+  assert.equal(r.status, 0, r.err);
+  assert.equal(existsSync(join(s.main, WT)), false);
+  assert.equal(s.git(s.main, "rev-parse", "main"), before);
+  assert.match(r.err, /main is checked out in .* with changes; it was not updated/);
+});
+
 test("--branch, after the session: a merged PR goes back to main and deletes the branch", () => {
   const s = startSandbox();
+  const merged = s.advanceMain();
 
   const r = s.run(["214", "--branch", "--yes"], { input: "y\n", env: { FAKE_CLAUDE_MERGE: "900" } });
 
   assert.equal(r.status, 0, r.err);
+  assert.equal(s.git(s.main, "rev-parse", "main"), merged);
   assert.equal(s.git(s.main, "rev-parse", "--abbrev-ref", "HEAD"), "main");
   assert.equal(s.git(s.main, "branch", "--list", BRANCH), "");
 });

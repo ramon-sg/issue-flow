@@ -11,7 +11,7 @@ import type { FlowConfig } from "../config.js";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { canonicalPath, dockerCleanup } from "../docker.js";
-import { checkoutRoot, git, isClean, locateRepo, safeToDelete, type WorktreeEntry, worktrees } from "../git.js";
+import { checkoutRoot, git, isClean, locateRepo, safeToDelete, updateBase, type WorktreeEntry, worktrees } from "../git.js";
 import { forgetSession } from "../launch.js";
 import { type Output, warn } from "../output.js";
 import { claimPortBase, nextPortBase, portBase } from "../ports.js";
@@ -219,7 +219,7 @@ async function pruneCandidates(options: WorktreeOptions, mainRoot: string, out: 
  * closed, after asking: their teardown, the folder, the local branch and the session id.
  * It never touches one with uncommitted changes, unpushed commits, or a lock (a live
  * session of `claude --worktree` or `issue start`, or by hand), and checks each again just
- * before deleting it.
+ * before deleting it. If it deleted one, it moves the local base forward to origin's.
  * @param options - The options.
  * @param out - Where to write.
  * @returns The exit code.
@@ -239,6 +239,7 @@ export async function worktreePrune(options: WorktreeOptions, out: Output): Prom
     return 0;
   }
   const { commonDir } = locateRepo(mainRoot) ?? { commonDir: "" };
+  let deleted = 0;
   for (const item of doomed) {
     if (!unchanged(mainRoot, item)) {
       out.stdout(`changed since the check, not deleted: ${item.path}\n`);
@@ -252,6 +253,9 @@ export async function worktreePrune(options: WorktreeOptions, out: Output): Prom
     if (!git(mainRoot, ["branch", "-q", "-D", item.branch]).ok) warn(out, `could not delete the local branch ${item.branch}.`);
     forgetSession(commonDir, item.branch);
     out.stdout(`deleted: ${item.path} (${item.branch})\n`);
+    deleted += 1;
   }
+  const stale = deleted === 0 ? null : updateBase(mainRoot, place.base);
+  if (stale !== null) warn(out, stale);
   return 0;
 }

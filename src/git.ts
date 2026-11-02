@@ -237,3 +237,32 @@ export function safeToDelete(cwd: string, branch: string, head: string): boolean
   if (git(cwd, ["rev-list", "--count", branch, "--not", "--remotes=origin"]).out === "0") return true;
   return head !== "" && git(cwd, ["merge-base", "--is-ancestor", branch, head]).ok;
 }
+
+/**
+ * Brings `origin/<base>` and moves the local base forward to it, if nothing is lost. A base
+ * not checked out anywhere moves as a ref only; one checked out is merged there with
+ * `--ff-only`, and only if that checkout has no changes. A base with commits that are not in
+ * origin is left alone.
+ * @param mainRoot - The main checkout.
+ * @param base - The base branch.
+ * @returns Null if it is up to date now (or there is no local base); else why it was not
+ *   moved.
+ * @example updateBase("/repo", "main") // null
+ */
+export function updateBase(mainRoot: string, base: string): string | null {
+  const remote = `refs/remotes/origin/${base}`;
+  const local = `refs/heads/${base}`;
+  if (!git(mainRoot, ["fetch", "-q", "origin", `+refs/heads/${base}:${remote}`]).ok)
+    return `could not fetch ${base} from origin; local ${base} was not updated.`;
+  if (!hasRef(mainRoot, local)) return null;
+  const from = git(mainRoot, ["rev-parse", local]).out;
+  const to = git(mainRoot, ["rev-parse", remote]).out;
+  if (from === to) return null;
+  if (!git(mainRoot, ["merge-base", "--is-ancestor", local, remote]).ok)
+    return `local ${base} has commits that are not in origin/${base}; it was not updated.`;
+  const at = checkedOutAt(mainRoot, base);
+  if (at === null)
+    return git(mainRoot, ["update-ref", local, to, from]).ok ? null : `could not move local ${base} to origin/${base}.`;
+  if (!isClean(at, false)) return `${base} is checked out in ${at} with changes; it was not updated. Run 'git pull --ff-only' there.`;
+  return git(at, ["merge", "-q", "--ff-only", remote]).ok ? null : `could not update ${base} in ${at}; run 'git pull --ff-only' there.`;
+}

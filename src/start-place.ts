@@ -9,7 +9,7 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync } from "node:f
 import { dirname, join, relative } from "node:path";
 import { assign, createPr, findPr, getPr, updatePr } from "@ramon-sg/github-rest";
 import { confirm } from "./ask.js";
-import { checkedOutAt, currentBranch, git, gitLines, hasLocal, isClean, onOrigin, safeToDelete, trackOrigin, untracked } from "./git.js";
+import { checkedOutAt, currentBranch, git, gitLines, hasLocal, isClean, onOrigin, safeToDelete, trackOrigin, untracked, updateBase } from "./git.js";
 import { bodyToPartOf, dirName, fill, prBody, type StartMode } from "./issue-text.js";
 import { forgetSession } from "./launch.js";
 import { type Output, warn } from "./output.js";
@@ -264,8 +264,8 @@ function keepReason(state: StartState, lock: Lock, head: string): string | null 
 
 /**
  * After Claude: if the PR was merged and nothing would be lost, offers to delete the
- * worktree and the branch (or, in the main checkout, to go back to the base); if not,
- * says how to resume.
+ * worktree and the branch (or, in the main checkout, to go back to the base), and then
+ * moves the local base forward to origin's; if not, says how to resume.
  * @param state - The start.
  * @param lock - The worktree lock (shared: another session uses it).
  * @example await afterSession(state, lock)
@@ -294,9 +294,9 @@ export async function afterSession(state: StartState, lock: Lock): Promise<void>
   } else {
     if (!(await confirm(out, `The PR was merged. Go back to ${base} and delete the local branch ${branch}?`))) return;
     mustGit(mainRoot, ["checkout", "-q", base], `could not check out ${base}`);
-    const updated = git(mainRoot, ["fetch", "-q", "origin"]).ok && git(mainRoot, ["merge", "-q", "--ff-only", `origin/${base}`]).ok;
-    if (!updated) warn(out, `could not update ${base}; do it by hand.`);
   }
   mustGit(mainRoot, ["branch", "-q", "-D", branch], `could not delete ${branch}`);
   forgetSession(commonDir, branch);
+  const stale = updateBase(mainRoot, base);
+  if (stale !== null) warn(out, stale);
 }

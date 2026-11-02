@@ -428,6 +428,41 @@ test("prune --only looks at that worktree alone", () => {
   assert.ok(existsSync(one));
 });
 
+test("prune moves main forward to origin's after deleting, even when main is not checked out", () => {
+  const s = startSandbox();
+  const merged = worktree(s, "feat/1-merged");
+  s.pull({ number: 10, branch: "feat/1-merged", state: "merged" });
+  s.git(s.main, "checkout", "-q", "-b", "other");
+  const tip = s.advanceMain();
+
+  const r = s.cli(["worktree", "prune", "--yes"]);
+
+  assert.equal(r.status, 0, r.err);
+  assert.equal(existsSync(merged), false);
+  assert.equal(s.git(s.main, "rev-parse", "main"), tip);
+  assert.equal(s.git(s.main, "rev-parse", "--abbrev-ref", "HEAD"), "other");
+});
+
+test("prune leaves a main with commits not in origin where it is, and says so; with nothing deleted it does not fetch", () => {
+  const s = startSandbox();
+  worktree(s, "feat/1-merged");
+  s.pull({ number: 10, branch: "feat/1-merged", state: "merged" });
+  s.git(s.main, "commit", "-q", "--allow-empty", "-m", "local only");
+  const local = s.git(s.main, "rev-parse", "main");
+  s.advanceMain();
+  const quiet = startSandbox();
+  quiet.advanceMain();
+
+  const r = s.cli(["worktree", "prune", "--yes"]);
+  const none = quiet.cli(["worktree", "prune", "--yes"]);
+
+  assert.equal(r.status, 0, r.err);
+  assert.equal(s.git(s.main, "rev-parse", "main"), local);
+  assert.match(r.err, /local main has commits that are not in origin\/main; it was not updated/);
+  assert.equal(none.status, 0, none.err);
+  assert.notEqual(quiet.git(quiet.main, "rev-parse", "main"), quiet.git(quiet.origin, "rev-parse", "main"));
+});
+
 // A program in the sandbox's PATH that logs its arguments and folder to $LOG, then runs `body`.
 function program(s, name, body = "") {
   const file = join(s.tmp, "bin", name);

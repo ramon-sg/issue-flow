@@ -222,7 +222,7 @@ lo usa tras su merge):
   branch" del PR, o `git push origin --delete <rama>`.
 - **Worktree:** `npx @ramon-sg/issue-flow worktree prune` borra los worktrees
   cuyo PR se mergeó, con su Docker y sus puertos, si no hay nada sin
-  commitear ni sin push.
+  commitear ni sin push, y adelanta la base local a la de origin.
 - **Checkout principal:** `git checkout <base> && git pull --ff-only &&
   git branch -d <rama>`. Si `-d` falla, nunca `-D`: algo quedó sin mergear.
 

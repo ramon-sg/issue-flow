@@ -99,7 +99,7 @@ issue-flow worktree setup --only deps  # uno solo
 issue-flow worktree teardown           # sus pasos de limpieza, sus puertos y su Docker
 issue-flow worktree ports [--next]     # el primer puerto de su bloque, o lo pasa al siguiente
 issue-flow worktree cleanup            # el Docker de los worktrees que ya no existen
-issue-flow worktree prune              # borra los worktrees cuyo PR se mergeó o se cerró
+issue-flow worktree prune              # borra los worktrees cuyo PR se mergeó o se cerró, y pone al día la base local
 ```
 
 Lo propio de cada repo (instalar, armar la base, levantar Docker) son **pasos** en `worktrees` de `.agents/flow.json`; `issue-flow` solo los corre:

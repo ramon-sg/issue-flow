@@ -46,7 +46,10 @@ npm run issue:start -- 42 --branch    # sin worktree, en esta carpeta
    - Mientras Claude corre, el worktree queda bloqueado para que `prune` no
      lo borre.
 7. **Al salir de Claude.** Si el PR se mergeó y no queda nada sin pushear,
-   ofrece borrar el worktree y la rama. Si no, dice cómo retomar.
+   ofrece borrar el worktree y la rama, y después adelanta la base local a
+   `origin/<base>`. No la mueve si tiene commits que no están en origin ni
+   si está abierta en un checkout con cambios: lo avisa. Si no, dice cómo
+   retomar.
 
 ## Opciones
 

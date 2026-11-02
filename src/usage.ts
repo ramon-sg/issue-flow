@@ -42,7 +42,9 @@ worktree another tool (Orca, Paseo) just made, without asking nor opening Claude
 worktree runs the steps of "worktrees" in .agents/flow.json: setup prepares this worktree,
 teardown cleans it before it goes (steps, ports, Docker), ports prints or moves its block
 of ports, cleanup deletes the Docker of deleted worktrees, and prune deletes the worktrees
-whose PR was merged or closed. session is the SessionStart hook of Claude Code.
+whose PR was merged or closed, then moves the local base forward to origin's (only if
+nothing is lost: not with changes where it is checked out, nor with commits not in
+origin). session is the SessionStart hook of Claude Code.
 
 pr worktree makes (or reuses) a worktree on a PR's own branch, to review and fix it; with
 --, it runs the command there (Claude if none). adapter is what Orca and Paseo run: setup

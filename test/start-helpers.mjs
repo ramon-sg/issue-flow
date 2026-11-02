@@ -117,6 +117,14 @@ export function startSandbox() {
       g(work, "push", "-q", "origin", name);
       return g(work, "rev-parse", "HEAD");
     },
+    // A new commit on main in origin, as a merge on GitHub; the local main stays behind.
+    advanceMain() {
+      const work = join(tmp, `push-${Math.random().toString(16).slice(2)}`);
+      g(tmp, "clone", "-q", origin, work);
+      g(work, "commit", "-q", "--allow-empty", "-m", "merged on GitHub");
+      g(work, "push", "-q", "origin", "main");
+      return g(work, "rev-parse", "HEAD");
+    },
     ghCalls: () => lines(files.gh),
     writes: () => lines(files.gh).filter((call) => call.method !== "GET"),
     claudeCalls: () => lines(files.claude),
