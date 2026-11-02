@@ -1,7 +1,7 @@
 /**
  * @file `issue-flow session`: the `SessionStart` hook of Claude Code. What it prints on
  * stdout reaches Claude as the session's context, so every warning goes there. Its steps:
- * in a cloud session, `claude-cloud session` (tools, Docker, the full history and the
+ * in a cloud session, `agent-cloud-kit session` (tools, Docker, the full history and the
  * repo's session steps); in a worktree (or the cloud's checkout), the setup steps; in a
  * local worktree whose issue branch is not published, a warning to run `start-issue`; the
  * cleanup of the Docker of deleted worktrees (Claude Code does not call `WorktreeRemove`
@@ -21,26 +21,26 @@ import type { Output } from "../output.js";
 import { runSetup } from "../worktree-steps.js";
 import { stepPlace } from "./worktree.js";
 
-/** Where the cloud environment's setup leaves the `claude-cloud` command. */
-export const CLAUDE_CLOUD_BIN = "/opt/claude-cloud/bin/claude-cloud";
+/** Where the cloud environment's setup leaves the `agent-cloud-kit` command. */
+export const AGENT_CLOUD_KIT_BIN = "/opt/agent-cloud-kit/bin/agent-cloud-kit";
 
 /** The package that prepares the cloud, for the message of what to set in claude.ai. */
-const CLAUDE_CLOUD_PACKAGE = "@ramon-sg/claude-cloud";
+const AGENT_CLOUD_KIT_PACKAGE = "agent-cloud-kit";
 
 /**
- * In a cloud session, runs `claude-cloud session` (`CLAUDE_CLOUD_BIN` changes where it is
+ * In a cloud session, runs `agent-cloud-kit session` (`AGENT_CLOUD_KIT_BIN` changes where it is
  * looked for). Its output goes to stderr, as its steps print their own.
  * @param root - The checkout.
  * @param say - Where a message for Claude goes.
  */
 function cloudSession(root: string, say: (text: string) => void): void {
-  const bin = process.env.CLAUDE_CLOUD_BIN ?? CLAUDE_CLOUD_BIN;
+  const bin = process.env.AGENT_CLOUD_KIT_BIN ?? AGENT_CLOUD_KIT_BIN;
   if (!existsSync(bin)) {
-    say(`the environment setup did not run (there is no ${bin}). In claude.ai, set the environment's setup script to: npx -y ${CLAUDE_CLOUD_PACKAGE}@1 setup. It applies to new sessions.`);
+    say(`the environment setup did not run (there is no ${bin}). In claude.ai, set the environment's setup script to: npx -y ${AGENT_CLOUD_KIT_PACKAGE}@1 setup. It applies to new sessions.`);
     return;
   }
   if (spawnSync(bin, ["session"], { cwd: root, stdio: ["ignore", 2, 2] }).status !== 0)
-    say(`claude-cloud session failed; run '${bin} session' in ${root} to see why.`);
+    say(`agent-cloud-kit session failed; run '${bin} session' in ${root} to see why.`);
 }
 
 /**

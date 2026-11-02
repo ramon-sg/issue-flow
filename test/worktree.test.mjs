@@ -487,18 +487,18 @@ test("session in a worktree runs the setup and tells Claude on stdout what faile
   assert.equal(main.out, "");
 });
 
-test("session in the cloud runs claude-cloud session and the setup in its checkout, or says how to set up the environment", () => {
+test("session in the cloud runs agent-cloud-kit session and the setup in its checkout, or says how to set up the environment", () => {
   const s = startSandbox();
   flow(s, { setup: [{ name: "deps", run: 'echo "setup $PWD" >> "$LOG"' }] });
-  const bin = program(s, "claude-cloud");
-  const cloud = { CLAUDE_CODE_REMOTE: "true", CLAUDE_CLOUD_BIN: bin };
+  const bin = program(s, "agent-cloud-kit");
+  const cloud = { CLAUDE_CODE_REMOTE: "true", AGENT_CLOUD_KIT_BIN: bin };
 
   const ran = s.cli(["session"], { env: withLog(s, cloud) });
-  const missing = s.cli(["session"], { env: withLog(s, { ...cloud, CLAUDE_CLOUD_BIN: join(s.tmp, "none") }) });
+  const missing = s.cli(["session"], { env: withLog(s, { ...cloud, AGENT_CLOUD_KIT_BIN: join(s.tmp, "none") }) });
 
   assert.equal(ran.status, 0);
-  assert.deepEqual(logged(s).slice(0, 2), [`claude-cloud session ${s.main}`, `setup ${s.main}`]);
-  assert.match(missing.out, /the environment setup did not run .* npx -y @ramon-sg\/claude-cloud@1 setup/);
+  assert.deepEqual(logged(s).slice(0, 2), [`agent-cloud-kit session ${s.main}`, `setup ${s.main}`]);
+  assert.match(missing.out, /the environment setup did not run .* npx -y agent-cloud-kit@1 setup/);
 });
 
 test("session warns of an issue worktree whose branch was never published", () => {
