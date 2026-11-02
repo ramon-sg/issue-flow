@@ -40,8 +40,8 @@ espera tu OK, como en el [flujo de la skill](skill-en-sesion.md).
 ## Qué pasa dentro de la sesión
 
 1. **Al abrir la sesión**, el hook `SessionStart` (`issue-flow session`)
-   corre `claude-cloud session` y los pasos de setup en el checkout de la
-   nube. Si falta `claude-cloud`, dice qué setup script poner en claude.ai.
+   corre `agent-cloud-kit session` y los pasos de setup en el checkout de la
+   nube. Si falta `agent-cloud-kit`, dice qué setup script poner en claude.ai.
 2. **La skill corre** `issue start 42 --yes --no-launch --here`:
    - Trae todas las ramas de origin (el clon de la nube trae solo una).
    - Deja este checkout en la rama: desde `origin/<base>`, o desde

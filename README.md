@@ -2,7 +2,7 @@
 
 Flujo de trabajo de issue a PR para cualquier repo, en local y en las sesiones de Claude en la nube: nombra la rama de cada issue, crea su worktree con puertos y Docker propios, abre el PR en draft y limpia cuando se mergea. Trae las skills que usan ese flujo.
 
-> **Instalar en un repo:** `npx agent-kitchen apply`, que instala este flujo con sus skills, las skills generales, `claude-cloud` y `claude-repo-guard`, y los actualiza ([agent-kitchen](https://github.com/ramon-sg/agent-kitchen)). El paquete es `@ramon-sg/issue-flow` y el comando, `issue-flow`; sin el scope, `issue-flow` en npm es otro paquete.
+> **Instalar en un repo:** `npx agent-kitchen apply`, que instala este flujo con sus skills, las skills generales, `agent-cloud-kit` y `claude-repo-guard`, y los actualiza ([agent-kitchen](https://github.com/ramon-sg/agent-kitchen)). El paquete es `@ramon-sg/issue-flow` y el comando, `issue-flow`; sin el scope, `issue-flow` en npm es otro paquete.
 
 ## Qué va a tener
 
@@ -13,7 +13,7 @@ Flujo de trabajo de issue a PR para cualquier repo, en local y en las sesiones d
 - **`issue-flow worktree setup|teardown|ports|cleanup|prune`:** prepara y limpia cada worktree con los pasos del repo, le da un bloque de puertos y borra los worktrees con el PR cerrado.
 - **`issue-flow pr worktree <n>`:** abre un PR en su propio worktree, en la rama del PR, para revisarlo sin soltar lo que estás haciendo.
 - **`issue-flow adapter setup|issue|archive`:** lo que corren Orca y Paseo al crear o borrar un worktree.
-- **`issue-flow session`:** el hook `SessionStart`; en la nube llama a [`claude-cloud`](https://github.com/ramon-sg/claude-cloud).
+- **`issue-flow session`:** el hook `SessionStart`; en la nube llama a [`agent-cloud-kit`](https://github.com/ramon-sg/agent-cloud-kit).
 - **`issue-flow hook worktree-create|worktree-remove`:** los hooks `WorktreeCreate` y `WorktreeRemove` de Claude Code, para `claude --worktree`.
 - **Skills:** `github-issues`, `start-issue`, `finish-pr`, `close-pr`, `pr-review-comments` y `pr-worktree`.
 
@@ -175,7 +175,7 @@ scripts:
 
 Es el hook `SessionStart` de Claude Code. Lo que imprime le llega a Claude como contexto, así que ahí van los avisos. Nunca hace fallar la sesión.
 
-1. En una sesión en la nube (`CLAUDE_CODE_REMOTE=true`), corre `claude-cloud session`. Si no está, dice qué setup script poner en claude.ai.
+1. En una sesión en la nube (`CLAUDE_CODE_REMOTE=true`), corre `agent-cloud-kit session`. Si no está, dice qué setup script poner en claude.ai.
 2. En un worktree (o en el checkout de la nube), corre los pasos de `setup`. La carpeta sale del `cwd` que manda Claude, que con `claude --worktree` es la del worktree, y si no viene, de `CLAUDE_PROJECT_DIR`.
 3. Si un worktree local está en la rama de una issue que no está en origin, avisa que la issue no quedó empezada.
 4. Borra el Docker de los worktrees que ya no existen: Claude Code no llama al hook `WorktreeRemove` de los worktrees que no hizo un hook `WorktreeCreate`.
@@ -197,7 +197,7 @@ npx @ramon-sg/issue-flow doctor                   # revisa que el repo esté com
 
 1. **`.agents/flow.json`:** si no existe, lo crea con el `$schema` de esta versión y, si el repo tiene `paseo.json`, con su plantilla de rama y sus tipos. Esa primera vez propone las recetas que sugieren los archivos del repo (con `--yes`, todas; sin terminal y sin `--yes`, no escribe nada y lo dice). Si ya existe, no pregunta: corre las migraciones de esta versión, mueve el `$schema` y suma las recetas de `--recipe`.
 2. **`package.json`:** `@ramon-sg/issue-flow` en esta versión, exacta. `@ramon-sg/github-rest` y los scripts `issue:start`, `issue:start:free`, `worktree:prune` y `pr:worktree` solo si faltan (`issue:start:free` no se agrega si el repo tiene su propio `issue:start`, que se saltaría): un `github-rest` que el repo ya tiene se queda, con un aviso si no llega a la versión que necesitan las skills.
-3. **`.claude/settings.json`:** los hooks `SessionStart`, `WorktreeCreate` y `WorktreeRemove`, fijados a esta versión y con 600 segundos. El de `SessionStart` corre `claude-cloud session` en la nube, así que un hook propio de `claude-cloud` se quita para que no corra dos veces.
+3. **`.claude/settings.json`:** los hooks `SessionStart`, `WorktreeCreate` y `WorktreeRemove`, fijados a esta versión y con 600 segundos. El de `SessionStart` corre `agent-cloud-kit session` en la nube, así que un hook propio de `agent-cloud-kit` se quita para que no corra dos veces.
 
 No consulta npm, y nunca baja de versión: si el repo ya tiene una issue-flow más nueva (por ejemplo, `package.json` subido a mano antes del `install`), o un rango como `^0.2.6`, se detiene y dice qué correr. `--json` da `{ version, changes, kept, written, next }`. Sale con 0 si aplicó o no había nada que hacer, y con 1 si se negó o tenía que preguntar y no pudo.
 

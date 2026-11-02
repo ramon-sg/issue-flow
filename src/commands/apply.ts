@@ -7,7 +7,7 @@
  * to this version. It changes no other version: who updates picks the version by picking
  * which one to run (`npx @ramon-sg/issue-flow@<version> apply`). It refuses when the repo
  * already has a newer issue-flow, or a range, since the hooks need an exact one. The skills,
- * `claude-cloud` and `claude-repo-guard` are `agent-kitchen`'s, which runs this command.
+ * `agent-cloud-kit` and `claude-repo-guard` are `agent-kitchen`'s, which runs this command.
  */
 import { confirm } from "../ask.js";
 import { CONFIG_PATH, isObject } from "../config-base.js";

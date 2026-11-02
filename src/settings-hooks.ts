@@ -3,8 +3,8 @@
  * (`issue-flow session`) and `WorktreeCreate` and `WorktreeRemove` (`issue-flow hook …`), each
  * pinned to this package's version. They are found again by their command, so running
  * `apply` twice changes nothing, and a new version only moves the version. The `SessionStart`
- * command names `claude-cloud session`, which `issue-flow session` runs in the cloud: that
- * way `claude-cloud init` sees it and does not add its own, and a hook of `claude-cloud`
+ * command names `agent-cloud-kit session`, which `issue-flow session` runs in the cloud: that
+ * way `agent-cloud-kit init` sees it and does not add its own, and a hook of `agent-cloud-kit`
  * already there is dropped, so it does not run twice.
  */
 import { isObject } from "./config-base.js";
@@ -13,8 +13,8 @@ import { PACKAGE, SETTINGS_FILE, SetupError } from "./setup-files.js";
 /** Seconds each hook may take: the setup steps can install dependencies. */
 const HOOK_TIMEOUT_SECONDS = 600;
 
-/** What `claude-cloud init` looks for in a `SessionStart` command. */
-const CLOUD_MARKER = "claude-cloud session";
+/** What `agent-cloud-kit init` looks for in a `SessionStart` command. */
+const CLOUD_MARKER = "agent-cloud-kit session";
 
 /** The subcommand of each hook, and what follows it. */
 const HOOK_COMMANDS: Record<string, { sub: string; note: string }> = {
@@ -80,7 +80,7 @@ function hooksOf(entry: Record<string, unknown>): Hook[] {
 
 /**
  * Registers our hooks at a version: moves the version of the ones already there and adds
- * the missing ones. In `SessionStart` it drops a `claude-cloud session` hook that is not
+ * the missing ones. In `SessionStart` it drops an `agent-cloud-kit session` hook that is not
  * ours.
  * @param settings - The settings, or null if there is no file.
  * @param version - This package's version.

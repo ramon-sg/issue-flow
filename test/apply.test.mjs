@@ -12,7 +12,7 @@ import { npxCalls, npxEnv, readRepoJson, withNpx } from "./init-helpers.mjs";
 
 const OWN = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const VERSION = OWN.version;
-const SESSION = `npx --yes @ramon-sg/issue-flow@${VERSION} session # runs claude-cloud session in the cloud`;
+const SESSION = `npx --yes @ramon-sg/issue-flow@${VERSION} session # runs agent-cloud-kit session in the cloud`;
 
 const CLI = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 
@@ -95,11 +95,11 @@ test("every setup step of a recipe is trusted: they run the worktree's code, whi
   assert.match(r.err, /kept the "deps" step of worktrees\.setup \(pnpm\)/);
 });
 
-test("apply keeps the repo's own hooks, scripts and github-rest, and drops claude-cloud's SessionStart hook", () => {
+test("apply keeps the repo's own hooks, scripts and github-rest, and drops agent-cloud-kit's SessionStart hook", () => {
   const s = withNpx(startSandbox());
   mkdirSync(join(s.main, ".claude"));
   const own = { type: "command", command: "echo mine" };
-  const cloud = { type: "command", command: "/opt/claude-cloud/bin/claude-cloud session || true", timeout: 600 };
+  const cloud = { type: "command", command: "/opt/agent-cloud-kit/bin/agent-cloud-kit session || true", timeout: 600 };
   writeFileSync(join(s.main, ".claude", "settings.json"), JSON.stringify({ model: "opus", hooks: { SessionStart: [{ hooks: [own] }, { hooks: [cloud] }] } }));
   writeFileSync(join(s.main, "package.json"), JSON.stringify({ name: "shop", devDependencies: { "@ramon-sg/github-rest": "0.1.0" }, scripts: { "issue:start": "bash scripts/start-issue.sh" } }));
 
@@ -109,7 +109,7 @@ test("apply keeps the repo's own hooks, scripts and github-rest, and drops claud
   const settings = readRepoJson(s, ".claude/settings.json");
   assert.equal(settings.model, "opus");
   assert.deepEqual(commandsOf(settings, "SessionStart"), ["echo mine", SESSION]);
-  assert.match(r.out, /dropped the claude-cloud session SessionStart hook/);
+  assert.match(r.out, /dropped the agent-cloud-kit session SessionStart hook/);
   const pkg = readRepoJson(s, "package.json");
   assert.equal(pkg.devDependencies["@ramon-sg/github-rest"], "0.1.0");
   assert.equal(pkg.scripts["issue:start"], "bash scripts/start-issue.sh");

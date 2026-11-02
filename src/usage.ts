@@ -56,7 +56,7 @@ apply leaves the repo as this version needs it: .agents/flow.json (the first tim
 the recipes its files suggest), issue-flow at this version and github-rest and the scripts
 if missing in package.json, and the hooks; it changes no other version, and refuses a newer
 issue-flow or a range. doctor checks them. npx agent-kitchen apply runs apply at the version
-it picks, along with the skills, claude-cloud and claude-repo-guard. init and upgrade still
+it picks, along with the skills, agent-cloud-kit and claude-repo-guard. init and upgrade still
 run apply, with a warning, until 0.4.0.
 
 labels sync makes in GitHub the labels the flow wants ("labels" in .agents/flow.json: the
