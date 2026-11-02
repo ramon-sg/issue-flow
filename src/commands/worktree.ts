@@ -13,11 +13,11 @@ import { resolve } from "node:path";
 import { canonicalPath, dockerCleanup } from "../docker.js";
 import { checkoutRoot, git, isClean, locateRepo, safeToDelete, type WorktreeEntry, worktrees } from "../git.js";
 import { forgetSession } from "../launch.js";
-import { type Output, UsageError, warn } from "../output.js";
+import { type Output, warn } from "../output.js";
 import { claimPortBase, nextPortBase, portBase } from "../ports.js";
 import { isStale, LOCK_REASON } from "../session-lock.js";
 import { StartError } from "../start-state.js";
-import { runSetup, type StepPlace, teardownWorktree } from "../worktree-steps.js";
+import { checkOnly, runSetup, type StepPlace, teardownWorktree } from "../worktree-steps.js";
 
 /** The reason `claude --worktree` locks the worktrees it makes while its session lives. */
 const CLAUDE_LOCK_REASON = "claude session";
@@ -71,10 +71,9 @@ export function stepPlace(options: Pick<WorktreeOptions, "config" | "cwd">, out:
  * @example await worktreeSetup(options, out)
  */
 export async function worktreeSetup(options: WorktreeOptions, out: Output): Promise<number> {
-  const names = options.config.worktrees.setup.map((step) => step.name);
-  if (options.only !== null && !names.includes(options.only))
-    throw new UsageError(`--only expects a setup step of .agents/flow.json (${names.join(", ") || "it has none"}): ${options.only}`);
-  return (await runSetup(stepPlace(options, out), options.only)) ? 0 : 1;
+  const place = stepPlace(options, out);
+  checkOnly(place, options.only);
+  return (await runSetup(place, options.only)) ? 0 : 1;
 }
 
 /**

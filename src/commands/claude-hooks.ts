@@ -113,7 +113,7 @@ export async function worktreeCreate(input: Record<string, unknown>, config: Flo
     if (!add.ok) throw new StartError(`could not make the worktree ${path}: ${add.err}`);
     copyWorktreeIncludes(mainRoot, path, stderrOnly);
   }
-  await runSetup({ root: path, mainRoot, base, config, out: stderrOnly, remote: false }, null);
+  await runSetup({ root: path, mainRoot, base, config, out: stderrOnly, remote: false }, null, true);
   out.stdout(`${path}\n`);
   return 0;
 }

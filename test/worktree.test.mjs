@@ -125,6 +125,59 @@ test("the steps come from the main checkout's config, never from the worktree's"
   assert.deepEqual(logged(s).map((line) => line.split(" ")[0]), ["deps"]);
 });
 
+// Leaves the main checkout one commit behind origin/main, as a checkout nobody pulled.
+const behind = (s) => s.git(s.main, "reset", "-q", "--hard", "HEAD~1");
+
+test("with the main checkout behind origin/main, setup runs origin/main's steps and says the checkout differs", () => {
+  const s = startSandbox();
+  flow(s, { setup: [logStep("deps")] });
+  behind(s);
+  const dir = worktree(s, "feat/1-x");
+
+  const one = s.cli(["worktree", "setup", "--only", "deps"], { cwd: dir, env: withLog(s) });
+
+  assert.equal(one.status, 0, one.err);
+  assert.deepEqual(logged(s).map((line) => line.split(" ")[0]), ["deps"]);
+  assert.match(one.err, /the setup steps come from origin\/main:\.agents\/flow\.json; the main checkout's differ/);
+});
+
+test("issue start runs origin/main's steps when the main checkout is behind", () => {
+  const s = startSandbox();
+  flow(s, { setup: [{ name: "deps", run: `echo deps >> "$LOG"` }] });
+  behind(s);
+
+  const r = s.run(["214", "--yes", "--no-launch"], { env: withLog(s) });
+
+  assert.equal(r.status, 0, r.err);
+  assert.deepEqual(logged(s), ["deps"]);
+});
+
+test("setup without steps says so and where it read them", () => {
+  const s = startSandbox();
+  const dir = worktree(s, "feat/1-x");
+
+  const r = s.cli(["worktree", "setup"], { cwd: dir, env: withLog(s) });
+
+  assert.equal(r.status, 0, r.err);
+  assert.match(r.err, /no setup steps in origin\/main:\.agents\/flow\.json; nothing ran/);
+});
+
+test("an invalid config in origin/main falls back to the main checkout's steps, with a warning", () => {
+  const s = startSandbox();
+  flow(s, { setup: [logStep("deps")] });
+  writeFileSync(join(s.main, ".agents", "flow.json"), "{ not json");
+  s.git(s.main, "commit", "-q", "-am", "broken");
+  s.git(s.main, "push", "-q", "origin", "main");
+  s.git(s.main, "checkout", "-q", "HEAD~1", "--", ".agents/flow.json");
+  const dir = worktree(s, "feat/1-x");
+
+  const r = s.cli(["worktree", "setup"], { cwd: dir, env: withLog(s) });
+
+  assert.equal(r.status, 0, r.err);
+  assert.deepEqual(logged(s).map((line) => line.split(" ")[0]), ["deps"]);
+  assert.match(r.err, /origin\/main:\.agents\/flow\.json is not valid: .*; using the main checkout's steps/);
+});
+
 test("a setup lock without a pid, some seconds old, is taken over", () => {
   const s = startSandbox();
   flow(s, { setup: [logStep("deps")] });

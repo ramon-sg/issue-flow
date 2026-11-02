@@ -93,7 +93,7 @@ export async function session(options: { config: FlowConfig; cwd: string }, out:
   }
   const { root, mainRoot, remote } = place;
   if (remote) cloudSession(root, say);
-  if (root !== mainRoot || remote) await runSetup(place, null);
+  if (root !== mainRoot || remote) await runSetup(place, null, true);
   const unstarted = !remote && root !== mainRoot ? unstartedIssue(root) : null;
   if (unstarted !== null)
     say(`issue #${unstarted} was not started: its branch is not published and has no draft PR. Before working, run the start-issue skill (${unstarted}).`);
