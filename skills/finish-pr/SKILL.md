@@ -145,15 +145,21 @@ npx @ramon-sg/github-rest pr edit <n> --body-file <archivo>
 Deja el cuerpo al día: qué cambia y cómo se probó, con el comando y su
 salida. Conserva `Closes`, la URL de la issue y la marca del Paso 4.
 
-Sacar de draft solo existe en GraphQL: no tiene ruta REST. Se hace con
-`gh pr ready` solo si estás en local y hay `gh`:
+Mira primero si sigue en draft (`pr view` lo lee por REST, también en la
+nube):
+
+```bash
+npx @ramon-sg/github-rest pr view <n> | jq .isDraft
+```
+
+Si es `false`, ya está listo: no hay nada que hacer, sigue al Paso 6.
+
+Si es `true`: sacar de draft solo existe en GraphQL, no tiene ruta REST.
+Se hace con `gh pr ready` solo si estás en local y hay `gh`:
 
 ```bash
 [ "${CLAUDE_CODE_REMOTE:-}" != "true" ] && command -v gh >/dev/null && gh pr ready <n>
 ```
-
-Si ya estaba listo, falla con `is already "ready for review"`: es lo
-esperado, se sigue.
 
 **Si no se puede, se pide a mano.** Pasa en tres casos:
 
@@ -172,7 +178,6 @@ usuario con la razón en una línea, para que no parezca un error de la skill:
 ```text
 El PR #<n> queda en draft: <razón>.
 Hazlo tú en un clic: <url> → botón "Ready for review", al final del PR.
-Si ya no está en draft, no hay nada que hacer.
 ```
 
 La `<razón>`, según el caso:
@@ -183,8 +188,9 @@ La `<razón>`, según el caso:
 - `gh pr ready` falló: `<el error, en una línea>`
 
 Avísale que muchos bots no revisan drafts: hasta que lo saque, no van a
-llegar sus comentarios. Sigue con el Paso 6 (CI sí corre). Si al llegar al
-reporte no confirmó, el link va en `Pendiente:` del Paso 8.
+llegar sus comentarios. Sigue con el Paso 6 (CI sí corre). Antes del
+reporte mira `isDraft` otra vez: si sigue en `true`, el link va en
+`Pendiente:` del Paso 8.
 
 ## Paso 6: Revisión y CI
 
