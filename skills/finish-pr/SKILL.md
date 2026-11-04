@@ -53,9 +53,9 @@ echo "${CLAUDE_CODE_REMOTE:-}"
   && echo "checkout principal" || echo "worktree"
 ```
 
-En la nube (`CLAUDE_CODE_REMOTE` es `true`) sacar de draft necesita `gh` en
-local: en el Paso 5 le pides al usuario que lo saque de draft y sigues con
-los Pasos 6 y 7, que van por REST.
+En la nube (`CLAUDE_CODE_REMOTE` es `true`), o sin `gh`, no se puede sacar
+de draft: en el Paso 5 le das al usuario el link del PR para que lo haga en
+GitHub, y los Pasos 6 y 7 siguen por REST.
 
 **¿Ya se auditó antes?** El cuerpo del PR puede traer la marca que deja el
 Paso 4, con el último SHA auditado:
@@ -145,15 +145,46 @@ npx @ramon-sg/github-rest pr edit <n> --body-file <archivo>
 Deja el cuerpo al día: qué cambia y cómo se probó, con el comando y su
 salida. Conserva `Closes`, la URL de la issue y la marca del Paso 4.
 
-Sacar de draft no tiene ruta REST. En local:
+Sacar de draft solo existe en GraphQL: no tiene ruta REST. Se hace con
+`gh pr ready` solo si estás en local y hay `gh`:
 
 ```bash
-gh pr ready <n>
+[ "${CLAUDE_CODE_REMOTE:-}" != "true" ] && command -v gh >/dev/null && gh pr ready <n>
 ```
 
 Si ya estaba listo, falla con `is already "ready for review"`: es lo
-esperado, se sigue. En la nube, pídele al usuario que lo haga en GitHub
-(botón "Ready for review") y sigue.
+esperado, se sigue.
+
+**Si no se puede, se pide a mano.** Pasa en tres casos:
+
+- **En la nube** (`CLAUDE_CODE_REMOTE` es `true`): no lo intentes. El proxy
+  de GitHub de la nube de Claude responde 403 a todo GraphQL, con cualquier
+  token.
+- **No hay `gh`** en el `PATH`.
+- **`gh pr ready` falla** por otra cosa (sin sesión, sin permisos, el
+  sandbox lo bloquea).
+
+No lo reintentes de otra forma (`gh api graphql`, otro token). Toma el link
+de `pr view` (`jq -r .url pr.json`; sin eso,
+`https://github.com/<owner>/<repo>/pull/<n>` del `origin`). Díselo al
+usuario con la razón en una línea, para que no parezca un error de la skill:
+
+```text
+El PR #<n> queda en draft: <razón>.
+Hazlo tú en un clic: <url> → botón "Ready for review", al final del PR.
+Si ya no está en draft, no hay nada que hacer.
+```
+
+La `<razón>`, según el caso:
+
+- desde la nube de Claude no se puede (GitHub solo lo permite por GraphQL,
+  y la nube lo bloquea)
+- no encontré `gh`, y sacar de draft solo se puede con `gh` o en GitHub
+- `gh pr ready` falló: `<el error, en una línea>`
+
+Avísale que muchos bots no revisan drafts: hasta que lo saque, no van a
+llegar sus comentarios. Sigue con el Paso 6 (CI sí corre). Si al llegar al
+reporte no confirmó, el link va en `Pendiente:` del Paso 8.
 
 ## Paso 6: Revisión y CI
 
@@ -211,8 +242,9 @@ Después:    <cómo limpiar, abajo>
 ```
 
 Por qué puede faltar algo: no hay review aprobado, un check falla o sigue
-corriendo, la base avanzó, o en la nube el PR sigue en draft. Correr la
-skill de nuevo sigue desde donde quedó.
+corriendo, la base avanzó, o el PR sigue en draft porque no se pudo sacar (Paso 5).
+En ese último caso, `Pendiente:` dice `sacar de draft en GitHub: <url>
+(<razón corta>)` y `Quién:` eres tú. Correr la skill de nuevo sigue desde donde quedó.
 
 **Cómo limpiar después de mergear** (va en `Después:`; `close-pr` también
 lo usa tras su merge):
