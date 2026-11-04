@@ -36,7 +36,8 @@ test("pr worktree makes a worktree on the PR's branch, tracking origin, and leav
   assert.equal(readFileSync(join(dir, ".local", "credentials"), "utf8"), "ID=x\n");
   assert.equal(s.git(s.main, "rev-parse", "--abbrev-ref", "HEAD"), "main");
   assert.equal(s.git(s.main, "status", "--porcelain"), "?? local-work.txt");
-  assert.match(r.out, /Ready\. To go in: cd .*\/\.claude\/worktrees\/pr-7\n/);
+  assert.match(r.out, /^ {2}\[ok\] Ready - PR #7$/m);
+  assert.match(r.out, /^ {2}To go in:\n {4}cd .*\/\.claude\/worktrees\/pr-7$/m);
   assert.deepEqual(s.writes(), []);
 });
 

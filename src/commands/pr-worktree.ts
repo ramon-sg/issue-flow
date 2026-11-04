@@ -12,6 +12,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { getPr } from "@ramon-sg/github-rest";
+import { show } from "../banner.js";
 import type { FlowConfig } from "../config.js";
 import { canonicalPath } from "../docker.js";
 import { checkedOutAt, git, hasLocal, locateRepo, trackOrigin, untracked, worktrees } from "../git.js";
@@ -112,7 +113,8 @@ export async function prWorktree(options: PrWorktreeOptions, out: Output): Promi
   const place = { root: path, mainRoot, base: baseBranch(options.config, mainRoot), config: options.config, out, remote: false };
   if (options.setup) await runSetup(place, null);
   if (options.command === null) {
-    out.stdout(`Ready. To go in: cd ${path}\n`);
+    const say = out.t.start.say;
+    show(out, { mood: "ok", title: say.readyPr(pr.number), rows: [[say.branchLabel, pr.branch]], next: { label: say.goIn, command: `cd ${path}` } }, options.config);
     return 0;
   }
   const [command, ...args] = options.command.length > 0

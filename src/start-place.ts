@@ -9,6 +9,7 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync } from "node:f
 import { dirname, join, relative } from "node:path";
 import { assign, createPr, findPr, getPr, updatePr } from "@ramon-sg/github-rest";
 import { confirm } from "./ask.js";
+import { show } from "./banner.js";
 import { checkedOutAt, currentBranch, git, gitLines, hasLocal, isClean, onOrigin, safeToDelete, trackOrigin, untracked, updateBase } from "./git.js";
 import { bodyToPartOf, dirName, fill, prBody, type StartMode } from "./issue-text.js";
 import { forgetSession } from "./launch.js";
@@ -272,27 +273,30 @@ function keepReason(state: StartState, lock: Lock, head: string): string | null 
 export async function afterSession(state: StartState, lock: Lock): Promise<void> {
   const { out, mainRoot, branch, commonDir, base } = state;
   const t = out.t.start;
+  const { config, number } = state.options;
   const pr = await findPr(state.options.repo, branch).catch(() => null);
   if (pr?.state !== "MERGED") {
-    out.stdout(t.say.saved(again(state.options)));
+    show(out, { mood: "ok", title: t.say.saved(number), next: { label: t.say.resume, command: again(state.options) } }, config);
     return;
   }
   if (!hasLocal(mainRoot, branch)) {
     forgetSession(commonDir, branch);
-    out.stdout(t.say.branchGone(branch));
+    show(out, { mood: "ok", title: t.say.merged(number), lines: [t.say.branchGone(branch)] }, config);
     return;
   }
   const reason = keepReason(state, lock, pr.head);
-  if (reason !== null) return out.stdout(`${reason}\n`);
+  if (reason !== null) return show(out, { mood: "ok", title: t.say.merged(number), lines: [reason] }, config);
   if (state.mode === "worktree") {
     const where = relative(mainRoot, state.workDir);
     const lost = ignoredFiles(state.workDir);
-    const also = lost.length === 0 ? "" : t.say.ignoredToo(`${lost.slice(0, MAX_LISTED).join(", ")}${lost.length > MAX_LISTED ? ", …" : ""}`);
-    if (!(await confirm(out, t.say.deleteWorktree(where, branch, also)))) return;
+    const also = lost.length === 0 ? [] : [t.say.ignoredToo(`${lost.slice(0, MAX_LISTED).join(", ")}${lost.length > MAX_LISTED ? ", …" : ""}`)];
+    show(out, { mood: "question", title: t.say.merged(number), rows: [[t.say.worktreeLabel, where], [t.say.branchLabel, branch]], lines: also }, config);
+    if (!(await confirm(out, t.say.deleteWorktree))) return;
     await teardownWorktree(stepPlaceOf(state));
     mustGit(mainRoot, ["worktree", "remove", state.workDir], t.error.deleteWorktreeFailed(where));
   } else {
-    if (!(await confirm(out, t.say.backToBase(base, branch)))) return;
+    show(out, { mood: "question", title: t.say.merged(number), rows: [[t.say.baseLabel, base], [t.say.branchLabel, branch]] }, config);
+    if (!(await confirm(out, t.say.backToBase(base)))) return;
     mustGit(mainRoot, ["checkout", "-q", base], t.error.baseCheckoutFailed(base));
   }
   mustGit(mainRoot, ["branch", "-q", "-D", branch], t.error.deleteBranchFailed(branch));

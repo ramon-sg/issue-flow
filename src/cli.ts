@@ -17,6 +17,7 @@ import { ConfigError } from "./config-base.js";
 import { type FlowConfig, loadConfig, type Namer } from "./config.js";
 import type { Permissions } from "./launch.js";
 import { LangError, resolveLang } from "./lang.js";
+import { show } from "./banner.js";
 import { launchOf } from "./launch-as.js";
 import { messages } from "./messages/index.js";
 import { type Output, processOutput, UsageError } from "./output.js";
@@ -357,6 +358,33 @@ function langFlagOf(argv: string[]): string | undefined {
   return typeof values.lang === "string" ? values.lang : undefined;
 }
 
+/**
+ * Whether the words name a command whose failures go out as a block: `issue start` and
+ * `pr worktree`.
+ * @param words - The command's words.
+ * @returns True for those two.
+ */
+function isStartCommand(words: string[]): boolean {
+  return (words[0] === "issue" && words[1] === "start") || (words[0] === "pr" && words[1] === "worktree");
+}
+
+/**
+ * Writes an error as a block on stderr: the first line of the message is the title and
+ * the rest goes under it. The repo's config is read if it can be, so `art: false` also
+ * silences Kuro here.
+ * @param error - What was thrown.
+ */
+function showError(error: unknown): void {
+  let config: FlowConfig | null = null;
+  try {
+    config = loadConfig(process.cwd());
+  } catch {
+    // NOTE: an unreadable config only means the defaults.
+  }
+  const [title = "", ...rest] = (error instanceof Error ? error.message : String(error)).split("\n");
+  show(out, { mood: "error", title, ...(rest.length > 0 ? { lines: rest } : {}) }, config, "stderr");
+}
+
 const argv = process.argv.slice(2);
 let lang;
 try {
@@ -374,6 +402,11 @@ main(argv, out, process.cwd()).then(
   (error: unknown) => {
     const usage = error instanceof UsageError;
     const config = error instanceof ConfigError;
+    if (!usage && !config && isStartCommand(commandWords(argv))) {
+      showError(error);
+      process.exitCode = 1;
+      return;
+    }
     out.stderr(`issue-flow: ${error instanceof Error ? error.message : String(error)}\n${usage ? `${usageOf(commandWords(argv), out.t)}\n` : ""}`);
     process.exitCode = usage || config ? 2 : 1;
   },

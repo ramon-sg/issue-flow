@@ -82,6 +82,18 @@ export function banner(block: Block, opts: { art: boolean; color: boolean }): st
 }
 
 /**
+ * Writes a block to a stream of the output, with Kuro and color only on a terminal.
+ * @param out - Where the command writes.
+ * @param block - What to say.
+ * @param config - The repo's config, or null without one.
+ * @param stream - The stream, stdout by default.
+ * @example show(out, { mood: "ok", title: "Done" }, config)
+ */
+export function show(out: Output, block: Block, config: FlowConfig | null, stream: "stdout" | "stderr" = "stdout"): void {
+  out[stream](banner(block, blockOpts(out, stream, config)));
+}
+
+/**
  * The options of a block for one stream: Kuro and color only on a terminal.
  * @param out - Where the command writes.
  * @param stream - The stream the block goes to.

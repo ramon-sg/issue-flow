@@ -10,6 +10,7 @@
 import { existsSync } from "node:fs";
 import { readWork, resolveRepo, viewIssue } from "@ramon-sg/github-rest";
 import { ask, confirm, forgetTypedAhead } from "../ask.js";
+import { show } from "../banner.js";
 import { branchType } from "../branch-name.js";
 import { checkedOutAt, checkoutRoot, git, gitLines, locateRepo, onOrigin, ownCommits } from "../git.js";
 import { fill, issueColor, nextBranch } from "../issue-text.js";
@@ -32,6 +33,7 @@ import {
   prCloudSession,
   prepareHere,
   readAdopted,
+  readyHere,
   renameAdopted,
   withoutFresh,
 } from "../start-modes.js";
@@ -309,7 +311,8 @@ function liftForSession(state: StartState, lock: Lock): Lifted | null {
 async function openSession(state: StartState): Promise<number> {
   const { options, out } = state;
   if (!options.launch || !inPath("claude")) {
-    out.stdout(out.t.start.say.ready(again(options)));
+    const say = out.t.start.say;
+    show(out, { mood: "ok", title: say.ready(options.number), next: { label: say.openClaude, command: again(options) } }, options.config);
     return 0;
   }
   const lock = state.mode === "worktree"
@@ -321,7 +324,9 @@ async function openSession(state: StartState): Promise<number> {
   const permissions = permissionArgs(options.permissions, state.workDir, state.mainRoot, out.t.start.permissions).args;
   const lifted = liftForSession(state, lock);
   if (options.teleport) {
-    out.stdout(out.t.start.say.teleporting(state.cloudSession ?? ""));
+    const say = out.t.start.say;
+    const id = state.cloudSession ?? "";
+    show(out, { mood: "ok", title: say.teleporting(options.number), ...(id === "" ? {} : { rows: [[say.sessionLabel, id]] as [string, string][] }), next: { label: say.resumeLater, command: "claude --resume" } }, options.config);
     teleportSession(state.workDir, permissions, state.cloudSession);
   } else launchSession(
     {
@@ -387,7 +392,7 @@ export async function issueStart(options: StartOptions, out: Output): Promise<nu
     return 0;
   }
   if (state.adopted !== null) {
-    out.stdout(`${out.t.start.say.readyHere(options.number, branch)}\n${plan === null ? "" : out.t.start.say.openPlan(plan)}`);
+    readyHere({ out, options, branch }, plan);
     return 0;
   }
   if (state.mode === "worktree") {
