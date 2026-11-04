@@ -10,7 +10,8 @@ import { dirname, join, relative } from "node:path";
 import { assign, createPr, findPr, getPr, updatePr } from "@ramon-sg/github-rest";
 import { confirm } from "./ask.js";
 import { show } from "./banner.js";
-import { checkedOutAt, currentBranch, git, gitLines, hasLocal, isClean, onOrigin, safeToDelete, trackOrigin, untracked, updateBase } from "./git.js";
+import { fromOrigin } from "./credentials.js";
+import { checkedOutAt, currentBranch, failure, git, gitLines, hasLocal, isClean, onOrigin, safeToDelete, trackOrigin, untracked, updateBase } from "./git.js";
 import { bodyToPartOf, dirName, fill, prBody, type StartMode } from "./issue-text.js";
 import { forgetSession } from "./launch.js";
 import type { Messages } from "./messages/index.js";
@@ -144,8 +145,10 @@ export async function publish(state: StartState): Promise<number> {
     const message = fill(options.config.start.commitMessage, { number: String(options.number) });
     mustGit(workDir, ["commit", "-q", "--allow-empty", "--only", "-m", message], t.error.commitFailed);
   }
-  if (commit || !onOrigin(workDir, branch))
-    mustGit(workDir, ["push", "-q", "origin", branch], t.error.pushFailed(branch));
+  if (commit || !onOrigin(workDir, branch)) {
+    const push = await fromOrigin(state.out, options.config, workDir, ["push", "-q", "origin", branch]);
+    if (!push.ok) throw new StartError(failure(t.error.pushFailed(branch), push, state.out.t));
+  }
   if (!trackOrigin(workDir, branch)) warn(state.out, untracked(branch, state.out.t));
   let number = state.pr?.number ?? null;
   if (number === null) {
@@ -303,6 +306,6 @@ export async function afterSession(state: StartState, lock: Lock): Promise<void>
   }
   mustGit(mainRoot, ["branch", "-q", "-D", branch], t.error.deleteBranchFailed(branch));
   forgetSession(commonDir, branch);
-  const stale = updateBase(mainRoot, base, out.t);
+  const stale = await updateBase(mainRoot, base, out.t, (args) => fromOrigin(out, config, mainRoot, args));
   if (stale !== null) warn(out, stale);
 }

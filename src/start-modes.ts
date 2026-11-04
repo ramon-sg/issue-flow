@@ -10,7 +10,9 @@ import { spawnSync } from "node:child_process";
 import { getPr, updatePr } from "@ramon-sg/github-rest";
 import { forgetTypedAhead } from "./ask.js";
 import { show } from "./banner.js";
-import { checkedOutAt, currentBranch, git, hasLocal, isClean, onOrigin, ownCommits } from "./git.js";
+import type { FlowConfig } from "./config.js";
+import { fromOrigin } from "./credentials.js";
+import { checkedOutAt, currentBranch, git, type GitResult, hasLocal, isClean, onOrigin, ownCommits } from "./git.js";
 import { cloudSessionOf, fill, issueOfBranch, sameCloudSession, type StartMode, withCloudSession } from "./issue-text.js";
 import { inPath } from "./launch.js";
 import type { Messages } from "./messages/index.js";
@@ -29,11 +31,13 @@ const ALL_HEADS = "+refs/heads/*:refs/remotes/origin/*";
  * the refspec: without it neither the base nor the issue's branch would come.
  * @param mainRoot - The main checkout.
  * @param here - Whether it runs with `--here`.
- * @returns True if it worked.
- * @example fetchOrigin(root, false)
+ * @param out - Where to write and ask, if git has no credentials.
+ * @param config - The config.
+ * @returns The fetch's result.
+ * @example (await fetchOrigin(root, false, out, config)).ok
  */
-export function fetchOrigin(mainRoot: string, here: boolean): boolean {
-  return git(mainRoot, ["fetch", "-q", "--prune", "origin", ...(here ? [ALL_HEADS] : [])]).ok;
+export function fetchOrigin(mainRoot: string, here: boolean, out: Output, config: FlowConfig): Promise<GitResult> {
+  return fromOrigin(out, config, mainRoot, ["fetch", "-q", "--prune", "origin", ...(here ? [ALL_HEADS] : [])]);
 }
 
 /**

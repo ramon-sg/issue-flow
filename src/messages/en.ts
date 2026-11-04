@@ -246,7 +246,7 @@ issue:start for those. --no-repo-deny goes after it, as any flag:
       notOnGithub: "not on GitHub",
       noIssue: (number, repo) => `issue #${number} does not exist in ${repo}.`,
       issueNotOpen: (number, state) => `issue #${number} is ${state}; not starting it.`,
-      fetchFailed: "could not fetch origin.",
+      fetchFailed: "could not fetch origin",
       claudeBranch: (branches) => `the issue has a 'claude --worktree' branch (${branches}): open that session instead.`,
       noPropose: "could not propose a branch.",
       notHers: (branch, number, list) => `branch ${branch} is not one of issue #${number}'s. Its branches: ${list}`,
@@ -348,6 +348,20 @@ issue:start for those. --no-repo-deny goes after it, as any flag:
       goIn: "To go in:",
     },
   },
+  credentials: {
+    title: "git has no GitHub credentials",
+    why: [
+      "It needs them to talk to origin (fetch and push).",
+      "issue-flow does not let git ask for a username and password: GitHub no longer takes passwords.",
+    ],
+    fixLabel: "To make git use your gh session (once):",
+    runNow: "Run it now?",
+    noGh: "gh is not installed",
+    installGh: "Install it from https://cli.github.com and try again.",
+    failed: "gh auth setup-git did not work",
+    loginLabel: "If gh is not logged in, log in and try again:",
+    done: "Done: git uses your gh session. Trying again.",
+  },
   git: {
     untracked: (branch) =>
       `could not make ${branch} track origin/${branch} (is .git/config read-only, as in a sandbox?); push with 'git push origin HEAD'.`,
@@ -357,6 +371,7 @@ issue:start for those. --no-repo-deny goes after it, as any flag:
     updateDirty: (base, at) =>
       `${base} is checked out in ${at} with changes; it was not updated. Run 'git pull --ff-only' there.`,
     updateMerge: (base, at) => `could not update ${base} in ${at}; run 'git pull --ff-only' there.`,
+    noCredentials: "git has no GitHub credentials: run 'gh auth setup-git' and try again.",
   },
   denyRepo: {
     noFile: (file) => `the repo has no ${file}: there are no deny rules to take out.`,

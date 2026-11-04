@@ -79,6 +79,8 @@ What it does, in order:
 
 **Permissions:** if the repo has [`claude-repo-guard`](https://github.com/ramon-sg/claude-repo-guard), Claude opens in auto mode with its context (the same as `claude:auto`). With `--ask-permissions` it opens with your settings, with `--free` without sandbox or prompts (like `claude:free`), and with `--free --no-repo-deny` also without the `deny` rules of the repo's `.claude/settings.json`, which come back when you leave ([what each mode removes](docs/flujos/terminal.md#opciones)). Without `claude-repo-guard`, it opens with your settings. `--plan` returns those same arguments in `claudeArgs`. The shortcut is `npm run issue:start:free 42`. With npm, the options go after `--` (`npm run issue:start -- 42 --free`); with pnpm, bun or yarn it is not needed. The table for each package manager is in [Flujos](docs/flujos.md#administradores). `issue-flow issue start --help` explains every option.
 
+**git credentials:** fetch and push never ask for a username and password on the terminal. If git has no GitHub credentials, `issue-flow` says so and, on a terminal, offers to run `gh auth setup-git` (git then uses your `gh` session) and tries again. The cloud does not need it: its proxy authenticates git.
+
 ### With the cloud and other tools
 
 ```sh

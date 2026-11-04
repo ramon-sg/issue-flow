@@ -14,20 +14,50 @@ export interface GitResult {
   err: string;
 }
 
+/** What git says when origin asked for credentials it does not have. */
+const NO_CREDENTIALS = /terminal prompts disabled|could not read (username|password)|authentication failed|invalid username or (password|token)/i;
+
 /**
- * Runs git and returns whether it worked, with its output trimmed at the end.
+ * Runs git and returns whether it worked, with its output trimmed at the end. It never asks
+ * for a username and password: without credentials, a fetch or push fails instead (see
+ * `failure`).
  * @param cwd - Where to run it.
  * @param args - The arguments.
  * @returns The result.
  * @example git("/repo", ["rev-parse", "HEAD"]).out
  */
 export function git(cwd: string, args: string[]): GitResult {
-  const run = spawnSync("git", args, { cwd, encoding: "utf8" });
+  const env = { ...process.env, GIT_TERMINAL_PROMPT: "0", GCM_INTERACTIVE: "never" };
+  const run = spawnSync("git", args, { cwd, encoding: "utf8", env });
   return {
     ok: run.status === 0,
     out: (run.stdout ?? "").trimEnd(),
     err: (run.stderr ?? "").trim(),
   };
+}
+
+/**
+ * Whether a git command failed because origin asked for credentials git does not have.
+ * @param result - The failed command.
+ * @returns True if so.
+ * @example lacksCredentials(git(root, ["fetch", "origin"]))
+ */
+export function lacksCredentials(result: GitResult): boolean {
+  return NO_CREDENTIALS.test(result.err);
+}
+
+/**
+ * What failed and why: what to run if origin asked for credentials git does not have, else
+ * git's own message, if it has one.
+ * @param what - What failed.
+ * @param result - The failed command.
+ * @param t - The messages.
+ * @returns The message.
+ * @example failure("could not fetch origin", git(root, ["fetch", "origin"]), t)
+ */
+export function failure(what: string, result: GitResult, t: Messages): string {
+  const why = lacksCredentials(result) ? t.git.noCredentials : result.err || result.out;
+  return why === "" ? what : `${what}: ${why}`;
 }
 
 /**
@@ -248,15 +278,22 @@ export function safeToDelete(cwd: string, branch: string, head: string): boolean
  * @param mainRoot - The main checkout.
  * @param base - The base branch.
  * @param t - The messages.
+ * @param fetch - Runs the fetch (git by default; `fromOrigin` to offer credentials).
  * @returns Null if it is up to date now (or there is no local base); else why it was not
  *   moved.
- * @example updateBase("/repo", "main", t) // null
+ * @example await updateBase("/repo", "main", t) // null
  */
-export function updateBase(mainRoot: string, base: string, t: Messages): string | null {
+export async function updateBase(
+  mainRoot: string,
+  base: string,
+  t: Messages,
+  fetch: (args: string[]) => Promise<GitResult> = async (args) => git(mainRoot, args),
+): Promise<string | null> {
   const remote = `refs/remotes/origin/${base}`;
   const local = `refs/heads/${base}`;
-  if (!git(mainRoot, ["fetch", "-q", "origin", `+refs/heads/${base}:${remote}`]).ok)
-    return t.git.updateFetch(base);
+  const fetched = await fetch(["fetch", "-q", "origin", `+refs/heads/${base}:${remote}`]);
+  if (!fetched.ok)
+    return lacksCredentials(fetched) ? `${t.git.updateFetch(base)} ${t.git.noCredentials}` : t.git.updateFetch(base);
   if (!hasRef(mainRoot, local)) return null;
   const from = git(mainRoot, ["rev-parse", local]).out;
   const to = git(mainRoot, ["rev-parse", remote]).out;

@@ -14,9 +14,11 @@ import { join } from "node:path";
 import { getPr } from "@ramon-sg/github-rest";
 import { show } from "../banner.js";
 import type { FlowConfig } from "../config.js";
+import { fromOrigin } from "../credentials.js";
 import { canonicalPath } from "../docker.js";
-import { checkedOutAt, git, hasLocal, locateRepo, trackOrigin, untracked, worktrees } from "../git.js";
+import { checkedOutAt, failure, git, hasLocal, locateRepo, trackOrigin, untracked, worktrees } from "../git.js";
 import { permissionArgs } from "../launch.js";
+import type { Messages } from "../messages/index.js";
 import { type Output, warn } from "../output.js";
 import { copyWorktreeIncludes } from "../start-place.js";
 import { StartError } from "../start-state.js";
@@ -50,11 +52,12 @@ export function prWorktreePath(mainRoot: string, config: FlowConfig, number: num
  * @param cwd - Where.
  * @param args - The arguments.
  * @param message - What failed, for the error.
+ * @param t - The messages.
  * @throws StartError if git fails.
  */
-function mustGit(cwd: string, args: string[], message: string): void {
+function mustGit(cwd: string, args: string[], message: string, t: Messages): void {
   const result = git(cwd, args);
-  if (!result.ok) throw new StartError(`${message}: ${result.err || result.out}`);
+  if (!result.ok) throw new StartError(failure(message, result, t));
 }
 
 /**
@@ -63,18 +66,20 @@ function mustGit(cwd: string, args: string[], message: string): void {
  * @param mainRoot - The main checkout.
  * @param branch - The PR's branch.
  * @param path - The worktree.
- * @param out - Where a warning goes.
+ * @param out - Where a warning or a question goes.
+ * @param config - The config.
  * @throws StartError if git cannot make it, or the branch is checked out somewhere else.
  */
-function addWorktree(mainRoot: string, branch: string, path: string, out: Output): void {
-  mustGit(mainRoot, ["fetch", "-q", "origin", `+refs/heads/${branch}:refs/remotes/origin/${branch}`], out.t.pr.fetchFailed(branch));
+async function addWorktree(mainRoot: string, branch: string, path: string, out: Output, config: FlowConfig): Promise<void> {
+  const fetched = await fromOrigin(out, config, mainRoot, ["fetch", "-q", "origin", `+refs/heads/${branch}:refs/remotes/origin/${branch}`]);
+  if (!fetched.ok) throw new StartError(failure(out.t.pr.fetchFailed(branch), fetched, out.t));
   const elsewhere = checkedOutAt(mainRoot, branch);
   if (elsewhere !== null) throw new StartError(out.t.pr.elsewhere(branch, elsewhere));
   // NOTE: the tracking goes apart, after the worktree: it writes .git/config, which Claude
   // Code's sandbox forbids, and the worktree is still useful without it.
   const local = hasLocal(mainRoot, branch);
   const args = local ? [path, branch] : ["--no-track", "-b", branch, path, `origin/${branch}`];
-  mustGit(mainRoot, ["worktree", "add", "-q", ...args], out.t.pr.makeFailed(branch));
+  mustGit(mainRoot, ["worktree", "add", "-q", ...args], out.t.pr.makeFailed(branch), out.t);
   if (!trackOrigin(path, branch)) warn(out, untracked(branch, out.t));
   if (local && !git(path, ["merge", "-q", "--ff-only", `origin/${branch}`]).ok)
     warn(out, out.t.pr.noFastForward(branch));
@@ -106,7 +111,7 @@ export async function prWorktree(options: PrWorktreeOptions, out: Output): Promi
     throw new StartError(out.t.pr.wrongBranch(path, existing.branch ?? out.t.pr.detached, pr.branch));
   if (existing === undefined && existsSync(path)) throw new StartError(out.t.pr.notWorktree(path));
   if (existing === undefined) {
-    addWorktree(mainRoot, pr.branch, path, out);
+    await addWorktree(mainRoot, pr.branch, path, out, options.config);
     copyWorktreeIncludes(mainRoot, path, out);
     out.stdout(`${out.t.pr.created(pr.branch)}\n`);
   } else out.stdout(`${out.t.pr.reusing}\n`);

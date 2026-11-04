@@ -8,6 +8,7 @@
 import { findPr } from "@ramon-sg/github-rest";
 import { confirm } from "../ask.js";
 import type { FlowConfig } from "../config.js";
+import { fromOrigin } from "../credentials.js";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { canonicalPath, dockerCleanup } from "../docker.js";
@@ -257,7 +258,7 @@ export async function worktreePrune(options: WorktreeOptions, out: Output): Prom
     out.stdout(`${out.t.worktree.deleted(`${item.path} (${item.branch})`)}\n`);
     deleted += 1;
   }
-  const stale = deleted === 0 ? null : updateBase(mainRoot, place.base, out.t);
+  const stale = deleted === 0 ? null : await updateBase(mainRoot, place.base, out.t, (args) => fromOrigin(out, options.config, mainRoot, args));
   if (stale !== null) warn(out, stale);
   return 0;
 }

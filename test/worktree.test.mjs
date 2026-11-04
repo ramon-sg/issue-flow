@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { dockerProject } from "../dist/docker.js";
-import { startSandbox } from "./start-helpers.mjs";
+import { originWithoutCredentials, startSandbox } from "./start-helpers.mjs";
 
 // Writes .agents/flow.json in the main checkout with that `worktrees` section, committed and
 // pushed, so worktrees from origin/main have it too.
@@ -461,6 +461,62 @@ test("prune leaves a main with commits not in origin where it is, and says so; w
   assert.match(r.err, /local main has commits that are not in origin\/main; it was not updated/);
   assert.equal(none.status, 0, none.err);
   assert.notEqual(quiet.git(quiet.main, "rev-parse", "main"), quiet.git(quiet.origin, "rev-parse", "main"));
+});
+
+test("prune without GitHub credentials does not ask for a password: Kuro says to run gh auth setup-git", async () => {
+  const s = startSandbox();
+  const merged = worktree(s, "feat/1-merged");
+  s.pull({ number: 10, branch: "feat/1-merged", state: "merged" });
+  const origin = await originWithoutCredentials(s);
+  try {
+    const r = s.cli(["worktree", "prune", "--yes"]);
+
+    assert.equal(r.status, 0, r.err);
+    assert.equal(existsSync(merged), false);
+    assert.match(r.err, /\[!\] git has no GitHub credentials\n[\s\S]*To make git use your gh session \(once\):\n {4}gh auth setup-git\n/);
+    assert.match(r.err, /could not fetch main from origin; local main was not updated\.\n/);
+    assert.deepEqual(s.ghCalls().filter((call) => call.method === "auth"), []);
+  } finally {
+    origin.stop();
+  }
+});
+
+test("prune without GitHub credentials, on a terminal: a yes runs gh auth setup-git and fetches again", async () => {
+  const s = startSandbox();
+  worktree(s, "feat/1-merged");
+  s.pull({ number: 10, branch: "feat/1-merged", state: "merged" });
+  const tip = s.advanceMain();
+  const origin = await originWithoutCredentials(s);
+  try {
+    const r = await s.tty(["worktree", "prune", "--yes"], { answer: "y", env: { FAKE_GH_SETUP_GIT: origin.restore } });
+
+    assert.equal(r.status, 0, r.out);
+    assert.match(r.out, /Run it now\? \[y\/N\]/);
+    assert.match(r.out, /Done: git uses your gh session\. Trying again\./);
+    assert.deepEqual(s.ghCalls().filter((call) => call.method === "auth"), [{ method: "auth", path: "setup-git" }]);
+    assert.equal(s.git(s.main, "rev-parse", "main"), tip);
+  } finally {
+    origin.stop();
+  }
+});
+
+test("prune without GitHub credentials, on a terminal: a no leaves gh alone and main where it was", async () => {
+  const s = startSandbox();
+  worktree(s, "feat/1-merged");
+  s.pull({ number: 10, branch: "feat/1-merged", state: "merged" });
+  const before = s.git(s.main, "rev-parse", "main");
+  s.advanceMain();
+  const origin = await originWithoutCredentials(s);
+  try {
+    const r = await s.tty(["worktree", "prune", "--yes"], { answer: "n", env: { FAKE_GH_SETUP_GIT: origin.restore } });
+
+    assert.equal(r.status, 0, r.out);
+    assert.match(r.out, /could not fetch main from origin; local main was not updated/);
+    assert.deepEqual(s.ghCalls().filter((call) => call.method === "auth"), []);
+    assert.equal(s.git(s.main, "rev-parse", "main"), before);
+  } finally {
+    origin.stop();
+  }
 });
 
 // A program in the sandbox's PATH that logs its arguments and folder to $LOG, then runs `body`.
