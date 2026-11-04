@@ -206,7 +206,7 @@ issue:start para esos. --no-repo-deny va después, como cualquier flag:
       pr: (number: number, state: string) => `PR #${number}, ${state}`,
       worktree: (where: string) => `worktree en ${where}`,
     },
-    round: (next: number, prs: string) => `${next} (ya integrada: PR ${prs})`,
+    round: (next: number, prs: string) => `${next} (ya integrado: ${prs})`,
     mode: {
       adopted: (dir: string) => `worktree adoptado en ${dir}`,
       here: "esta sesión (--here)",
@@ -231,7 +231,7 @@ issue:start para esos. --no-repo-deny va después, como cualquier flag:
     question: {
       continue: "¿Seguir con este trabajo?",
       another: "¿Crear otra rama para la issue?",
-      round: (prs: string) => `La issue ya tiene el PR ${prs} integrado. ¿Empezar una ronda nueva?`,
+      round: (prs: string) => `La issue ya tiene integrado: ${prs}. ¿Empezar una ronda nueva?`,
       start: "¿Empezar la issue?",
     },
     declined: "no se hizo nada.",

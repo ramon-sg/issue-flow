@@ -72,14 +72,13 @@ export async function ask(out: Output, question: string): Promise<string> {
 
 /**
  * Asks a yes or no question; anything but a yes, an empty answer included, is no. The
- * mark is `[y/N]` in English and `[s/N]` in Spanish, where `s`, `si` and `sí` are a yes
- * too (`y` and `yes` stay one, so a habit does not skip the question's point).
+ * mark is `[y/N]` in English and `[s/N]` in Spanish; both languages accept the same
+ * answers (`y`, `yes`, `s`, `si`, `sí`).
  * @param out - Where the question goes.
  * @param question - The question, without the `[y/N]` mark.
  * @returns True if the answer is yes.
  * @example await confirm(out, "Start the issue?")
  */
 export async function confirm(out: Output, question: string): Promise<boolean> {
-  const yes = out.lang === "es" ? /^(s|si|sí|y|yes)$/i : /^(y|yes)$/i;
-  return yes.test(await ask(out, `${question} ${out.t.ask.yesNo} `));
+  return /^(y|yes|s|si|sí)$/i.test(await ask(out, `${question} ${out.t.ask.yesNo} `));
 }

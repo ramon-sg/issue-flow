@@ -585,6 +585,20 @@ test("in Spanish the question is [s/N] and an s, si or sí answers yes", () => {
   assert.equal(existsSync(join(s.main, WT)), true);
 });
 
+test("confirm takes the same answers in both languages: s in en and y in es are a yes", () => {
+  for (const [lang, answer, mark] of [["en", "s", "[y/N]"], ["es", "y", "[s/N]"]]) {
+    const s = startSandbox();
+    s.run(["214", "--yes", "--no-launch"]);
+    s.advanceMain();
+
+    const r = s.run(["214", "--yes"], { input: `${answer}\n`, env: { ISSUE_FLOW_LANG: lang, FAKE_CLAUDE_MERGE: "900" } });
+
+    assert.equal(r.status, 0, r.err);
+    assert.ok(r.err.includes(mark), `${lang}: ${r.err}`);
+    assert.equal(existsSync(join(s.main, WT)), false, lang);
+  }
+});
+
 test("after the session: a merged PR with a commit not pushed, or changes, deletes nothing", () => {
   const unpushed = startSandbox();
   unpushed.run(["214", "--yes", "--no-launch"]);
