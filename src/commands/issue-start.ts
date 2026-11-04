@@ -179,7 +179,7 @@ async function chooseExisting(context: Context, proposed: () => string): Promise
   if (work.candidates.length <= 1) return work.candidates[0] ?? null;
   const count = work.candidates.length;
   if (options.plan || options.dryRun) {
-    note(context, (t) => t.start.warn.manyDry(count, list, again(options.number, "--resume <branch>")));
+    note(context, (t) => t.start.warn.manyDry(count, list, again(options, "--resume <branch>")));
     return null;
   }
   if (options.yes) throw new StartError(error.manyYes(count, list));
@@ -244,7 +244,7 @@ function promptFor(context: Pick<Context, "options" | "issue">, plan: string | n
  */
 function printPlan(context: Context, found: string | null, branch: string, pr: StartState["pr"]): number {
   const at = checkedOutAt(context.mainRoot, branch);
-  if (at !== null) throw new StartError(context.out.t.start.error.checkedOut(branch, at, again(context.options.number)));
+  if (at !== null) throw new StartError(context.out.t.start.error.checkedOut(branch, at, again(context.options)));
   const empty = found !== null && pr === null && !onOrigin(context.mainRoot, branch) && ownCommits(context.mainRoot, branch, context.base) === 0;
   const resumed = found !== null && !empty;
   const plan = resumed
@@ -309,7 +309,7 @@ function liftForSession(state: StartState, lock: Lock): Lifted | null {
 async function openSession(state: StartState): Promise<number> {
   const { options, out } = state;
   if (!options.launch || !inPath("claude")) {
-    out.stdout(out.t.start.say.ready(again(options.number)));
+    out.stdout(out.t.start.say.ready(again(options)));
     return 0;
   }
   const lock = state.mode === "worktree"
@@ -360,14 +360,14 @@ export async function issueStart(options: StartOptions, out: Output): Promise<nu
   const propose = (): string => (proposed ??= proposeNew(context));
   const chosen = context.adopted === null
     ? { found: await chooseExisting(context, propose), named: null }
-    : chooseAdopted(context.mainRoot, context.work, context.adopted, options.number, out.t);
+    : chooseAdopted(context.mainRoot, context.work, context.adopted, options, out.t);
   const { found } = chosen;
   const branch = found ?? chosen.named ?? propose();
   const pr = found === null ? null : resumedPr(context, branch);
   const kind = context.work.candidates.some((other) => other !== branch) ? "part" : "closes";
   if (options.plan) return printPlan(context, found, branch, pr);
   if (options.teleport && found === null)
-    throw new StartError(out.t.start.error.teleportNoBranch(options.number, again(options.number, "--cloud")));
+    throw new StartError(out.t.start.error.teleportNoBranch(options.number, again(options, "--cloud")));
   const plan = found !== null
     ? findPlan(planQuery(context), branch, pr?.number ?? null)
     : findOpenPlan(planQuery(context), context.work.mergedPrs);
@@ -409,7 +409,7 @@ export async function issueStart(options: StartOptions, out: Output): Promise<nu
 function placeOf(context: Context, branch: string, found: string | null): Pick<StartState, "mode" | "workDir"> {
   const { options, mainRoot, adopted } = context;
   if (adopted !== null) return placeAdopted({ branch, startRoot: context.startRoot, adopted, t: context.out.t });
-  if (options.here) return placeHere(mainRoot, context.startRoot, branch, options.number, context.out.t);
-  if (options.cloud) return placeCloud(mainRoot, branch, found, options.number, context.out.t);
+  if (options.here) return placeHere(mainRoot, context.startRoot, branch, options, context.out.t);
+  if (options.cloud) return placeCloud(mainRoot, branch, found, options, context.out.t);
   return choosePlace(mainRoot, branch, options.branchMode, options.config.worktrees.dir, context.out.t);
 }

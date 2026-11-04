@@ -17,6 +17,7 @@ import { ConfigError } from "./config-base.js";
 import { type FlowConfig, loadConfig, type Namer } from "./config.js";
 import type { Permissions } from "./launch.js";
 import { LangError, resolveLang } from "./lang.js";
+import { launchOf } from "./launch-as.js";
 import { messages } from "./messages/index.js";
 import { type Output, processOutput, UsageError } from "./output.js";
 import type { Messages } from "./messages/index.js";
@@ -320,6 +321,7 @@ async function runIssue(group: string | undefined, command: string | undefined, 
         teleport: flags.teleport ?? false,
         adopt: flags.adopt ?? false,
         remoteSession: process.env.CLAUDE_CODE_REMOTE_SESSION_ID || null,
+        launchedAs: launchOf(process.env, flags),
       },
       out,
     );

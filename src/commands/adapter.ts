@@ -130,6 +130,7 @@ function adopt(options: AdapterOptions, number: number, out: Output): Promise<nu
       teleport: false,
       adopt: true,
       remoteSession: null,
+      launchedAs: { manager: null, script: null, flags: [] },
     },
     out,
   );

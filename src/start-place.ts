@@ -90,7 +90,7 @@ export function prepareBranch(state: StartState): void {
     const args = found === null ? ["--no-track", "-b", branch, `origin/${base}`] : hasLocal(mainRoot, branch) ? [branch] : ["--no-track", "-b", branch, `origin/${branch}`];
     const result = git(mainRoot, ["worktree", "add", "-q", state.workDir, ...args]);
     if (!result.ok)
-      throw new StartError(t.worktreeFailed(result.err, again(state.options.number, "--yes")));
+      throw new StartError(t.worktreeFailed(result.err, again(state.options, "--yes")));
     return;
   }
   if (currentBranch(mainRoot) === branch) return;
@@ -274,7 +274,7 @@ export async function afterSession(state: StartState, lock: Lock): Promise<void>
   const t = out.t.start;
   const pr = await findPr(state.options.repo, branch).catch(() => null);
   if (pr?.state !== "MERGED") {
-    out.stdout(t.say.saved(again(state.options.number)));
+    out.stdout(t.say.saved(again(state.options)));
     return;
   }
   if (!hasLocal(mainRoot, branch)) {

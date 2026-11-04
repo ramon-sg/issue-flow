@@ -14,7 +14,7 @@ import { cloudSessionOf, fill, issueOfBranch, sameCloudSession, type StartMode, 
 import { inPath } from "./launch.js";
 import type { Messages } from "./messages/index.js";
 import { type Output, warn } from "./output.js";
-import { type Adopted, again, StartError, type StartState } from "./start-state.js";
+import { type Adopted, again, StartError, type StartOptions, type StartState } from "./start-state.js";
 import type { WorkState } from "./work-state.js";
 
 /** A branch name safe to put in the cloud session's prompt, which a skill may run. */
@@ -76,29 +76,29 @@ export function withoutFresh(work: WorkState, adopted: Adopted): WorkState {
  * @param mainRoot - The main checkout.
  * @param work - The issue's work.
  * @param adopted - The adopted branch.
- * @param number - The issue.
+ * @param options - The options of the run.
  * @param t - The messages.
  * @returns The branch resumed, or the new one already named, or neither (propose one).
  * @throws StartError if the issue has live branches elsewhere.
- * @example chooseAdopted(root, work, adopted, 214, messages("en")) // { found: null, named: "fix/214-x" }
+ * @example chooseAdopted(root, work, adopted, options, messages("en")) // { found: null, named: "fix/214-x" }
  */
 export function chooseAdopted(
   mainRoot: string,
   work: WorkState,
   adopted: Adopted,
-  number: number,
+  options: StartOptions,
   t: Messages,
 ): { found: string | null; named: string | null } {
   const { candidates } = work;
   if (candidates.includes(adopted.current)) return { found: adopted.current, named: null };
-  if (adopted.fresh && issueOfBranch(adopted.current) === number) return { found: null, named: adopted.current };
+  if (adopted.fresh && issueOfBranch(adopted.current) === options.number) return { found: null, named: adopted.current };
   const [only] = candidates;
   if (only === undefined) return { found: null, named: null };
   const error = t.start.error;
-  if (candidates.length > 1) throw new StartError(error.adoptMany(candidates.length, candidates.join(", "), again(number)));
+  if (candidates.length > 1) throw new StartError(error.adoptMany(candidates.length, candidates.join(", "), again(options)));
   const at = checkedOutAt(mainRoot, only);
   const where = at !== null ? error.adoptAt(at) : hasLocal(mainRoot, only) ? error.adoptLocal : error.adoptOrigin;
-  throw new StartError(error.adoptOne(only, where, again(number)));
+  throw new StartError(error.adoptOne(only, where, again(options)));
 }
 
 /**
@@ -145,21 +145,21 @@ export function renameAdopted(state: StartState): void {
  * @param mainRoot - The main checkout.
  * @param startRoot - The checkout where it runs.
  * @param branch - The branch.
- * @param number - The issue.
+ * @param options - The options of the run.
  * @param t - The messages.
  * @returns The mode and the folder.
  * @throws StartError if the place is taken.
- * @example placeHere(root, root, "feat/42-x", 42, messages("en"))
+ * @example placeHere(root, root, "feat/42-x", options, messages("en"))
  */
 export function placeHere(
   mainRoot: string,
   startRoot: string,
   branch: string,
-  number: number,
+  options: StartOptions,
   t: Messages,
 ): { mode: StartMode; workDir: string } {
   const at = checkedOutAt(mainRoot, branch);
-  if (at !== null && at !== startRoot) throw new StartError(t.start.error.hereTaken(branch, at, again(number)));
+  if (at !== null && at !== startRoot) throw new StartError(t.start.error.hereTaken(branch, at, again(options)));
   if (!isClean(startRoot, false)) throw new StartError(t.start.error.hereDirty);
   return { mode: "here", workDir: startRoot };
 }
@@ -171,21 +171,21 @@ export function placeHere(
  * @param mainRoot - The main checkout.
  * @param branch - The branch.
  * @param found - The branch being resumed, or null.
- * @param number - The issue.
+ * @param options - The options of the run.
  * @param t - The messages.
  * @returns The mode and the folder.
  * @throws StartError if the cloud cannot take the branch.
- * @example placeCloud(root, "feat/42-x", null, 42, messages("en"))
+ * @example placeCloud(root, "feat/42-x", null, options, messages("en"))
  */
 export function placeCloud(
   mainRoot: string,
   branch: string,
   found: string | null,
-  number: number,
+  options: StartOptions,
   t: Messages,
 ): { mode: StartMode; workDir: string } {
   const at = checkedOutAt(mainRoot, branch);
-  if (at !== null) throw new StartError(t.start.error.cloudTaken(branch, at, again(number)));
+  if (at !== null) throw new StartError(t.start.error.cloudTaken(branch, at, again(options)));
   if (found !== null && !onOrigin(mainRoot, branch)) throw new StartError(t.start.error.cloudLocal(branch));
   return { mode: "cloud", workDir: mainRoot };
 }
@@ -285,7 +285,7 @@ export function cloudFlags(state: StartState): string {
 export function launchCloud(state: StartState, out: Output): number {
   const { options, mainRoot, base } = state;
   if (!options.launch || !inPath("claude")) {
-    out.stdout(out.t.start.say.readyCloud(again(options.number, "--cloud")));
+    out.stdout(out.t.start.say.readyCloud(again(options, "--cloud")));
     return 0;
   }
   if (currentBranch(mainRoot) !== base) warn(out, out.t.start.warn.cloudBase(base));
@@ -293,6 +293,6 @@ export function launchCloud(state: StartState, out: Output): number {
   forgetTypedAhead();
   if (spawnSync("claude", ["--cloud", prompt], { cwd: mainRoot, stdio: "inherit" }).status !== 0)
     throw new StartError(out.t.start.error.cloudOpenFailed);
-  out.stdout(out.t.start.say.bringHere(again(options.number, "--teleport")));
+  out.stdout(out.t.start.say.bringHere(again(options, "--teleport")));
   return 0;
 }

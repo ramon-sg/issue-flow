@@ -206,7 +206,7 @@ function sessionLines(state: StartState): string[] {
   const saved = savedSession(state.commonDir, state.branch) !== null;
   const lines = [line(t.label.session, `${sessionName(state.branch, state.mode)}${saved ? t.session.resumed : ""}`)];
   if (cloudSession !== null)
-    lines.push(line(t.label.cloud, t.session.cloudNote(cloudSessionUrl(cloudSession), again(options.number, "--teleport"))));
+    lines.push(line(t.label.cloud, t.session.cloudNote(cloudSessionUrl(cloudSession), again(options, "--teleport"))));
   return lines;
 }
 

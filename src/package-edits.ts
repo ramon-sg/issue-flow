@@ -105,8 +105,8 @@ export const KEPT = "kept ";
 export const GITHUB_REST = "@ramon-sg/github-rest";
 
 /** The script that starts an issue, and its shortcut with `--free`. */
-const START_SCRIPT = "issue:start";
-const FREE_SCRIPT = "issue:start:free";
+export const START_SCRIPT = "issue:start";
+export const FREE_SCRIPT = "issue:start:free";
 
 /** The scripts `apply` adds. */
 const FLOW_SCRIPTS: Record<string, string> = {
