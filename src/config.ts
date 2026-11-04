@@ -6,7 +6,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { locateRepo } from "./git.js";
-import { CONFIG_PATH, ConfigError, isObject, onlyKeys, text } from "./config-base.js";
+import { CONFIG_PATH, ConfigError, configError, isObject, onlyKeys, text } from "./config-base.js";
+import { type Messages, messages } from "./messages/index.js";
 import { type WorktreesConfig, worktreesSection } from "./worktree-config.js";
 
 /** Who proposes a branch name when the issue has none: Claude, or the title's slug. */
@@ -127,6 +128,7 @@ const TYPE = /^[a-z0-9][a-z0-9._-]*$/;
  * @param value - The value, or undefined.
  * @param where - Its path, for the error.
  * @param fallback - The default map.
+ * @param t - The messages.
  * @returns The map.
  * @throws ConfigError if it is not an object of valid types.
  */
@@ -134,15 +136,14 @@ function typeMap(
   value: unknown,
   where: string,
   fallback: Record<string, string>,
+  t: Messages,
 ): Record<string, string> {
   if (value === undefined) return fallback;
   if (!isObject(value))
-    throw new ConfigError(`${CONFIG_PATH}: "${where}" must be an object.`);
+    throw configError(t.config.mustBeObject(where));
   for (const [key, type] of Object.entries(value)) {
     if (typeof type !== "string" || !TYPE.test(type))
-      throw new ConfigError(
-        `${CONFIG_PATH}: "${where}.${key}" must be a lowercase branch type such as "feat".`,
-      );
+      throw configError(t.config.branchType(`${where}.${key}`));
   }
   return value as Record<string, string>;
 }
@@ -150,38 +151,38 @@ function typeMap(
 /**
  * The `branch` section, with its defaults.
  * @param value - The section, or undefined.
+ * @param t - The messages.
  * @returns The section.
  * @throws ConfigError if something is invalid.
  */
-function branchSection(value: unknown): FlowConfig["branch"] {
+function branchSection(value: unknown, t: Messages): FlowConfig["branch"] {
   const fallback = DEFAULT_CONFIG.branch;
   if (value === undefined) return fallback;
   if (!isObject(value))
-    throw new ConfigError(`${CONFIG_PATH}: "branch" must be an object.`);
-  onlyKeys(value, ["template", "namer", "claudeModel", "types"], "branch");
-  const template = text(value.template, "branch.template", fallback.template);
+    throw configError(t.config.mustBeObject("branch"));
+  onlyKeys(value, ["template", "namer", "claudeModel", "types"], "branch", t);
+  const template = text(value.template, "branch.template", fallback.template, t);
   const missing = TEMPLATE_PLACEHOLDERS.filter((part) => !template.includes(part));
   if (missing.length > 0)
-    throw new ConfigError(
-      `${CONFIG_PATH}: "branch.template" needs ${missing.join(" and ")}.`,
-    );
+    throw configError(t.config.templateNeeds(missing));
   const namer = value.namer ?? fallback.namer;
   if (namer !== "claude" && namer !== "title")
-    throw new ConfigError(`${CONFIG_PATH}: "branch.namer" must be "claude" or "title".`);
+    throw configError(t.config.namerChoice);
   const types = value.types;
   if (types !== undefined && !isObject(types))
-    throw new ConfigError(`${CONFIG_PATH}: "branch.types" must be an object.`);
-  if (types !== undefined) onlyKeys(types, ["labels", "titlePrefixes"], "branch.types");
+    throw configError(t.config.mustBeObject("branch.types"));
+  if (types !== undefined) onlyKeys(types, ["labels", "titlePrefixes"], "branch.types", t);
   return {
     template,
     namer,
-    claudeModel: text(value.claudeModel, "branch.claudeModel", fallback.claudeModel),
+    claudeModel: text(value.claudeModel, "branch.claudeModel", fallback.claudeModel, t),
     types: {
-      labels: typeMap(types?.labels, "branch.types.labels", fallback.types.labels),
+      labels: typeMap(types?.labels, "branch.types.labels", fallback.types.labels, t),
       titlePrefixes: typeMap(
         types?.titlePrefixes,
         "branch.types.titlePrefixes",
         fallback.types.titlePrefixes,
+        t,
       ),
     },
   };
@@ -192,6 +193,7 @@ function branchSection(value: unknown): FlowConfig["branch"] {
  * @param value - The section, or undefined.
  * @param name - Its key.
  * @param fallback - Its defaults.
+ * @param t - The messages.
  * @returns The section.
  * @throws ConfigError if something is invalid.
  */
@@ -199,14 +201,15 @@ function textSection<T extends Record<string, string>>(
   value: unknown,
   name: string,
   fallback: T,
+  t: Messages,
 ): T {
   if (value === undefined) return fallback;
   if (!isObject(value))
-    throw new ConfigError(`${CONFIG_PATH}: "${name}" must be an object.`);
-  onlyKeys(value, Object.keys(fallback), name);
+    throw configError(t.config.mustBeObject(name));
+  onlyKeys(value, Object.keys(fallback), name, t);
   const out: Record<string, string> = {};
   for (const [key, standard] of Object.entries(fallback))
-    out[key] = text(value[key], `${name}.${key}`, standard);
+    out[key] = text(value[key], `${name}.${key}`, standard, t);
   return out as T;
 }
 
@@ -214,20 +217,21 @@ function textSection<T extends Record<string, string>>(
  * The `plans` section: the folders where an issue's plan is looked for, in order of
  * preference.
  * @param value - The section, or undefined.
+ * @param t - The messages.
  * @returns The section.
  * @throws ConfigError if something is invalid.
  */
-function plansSection(value: unknown): FlowConfig["plans"] {
+function plansSection(value: unknown, t: Messages): FlowConfig["plans"] {
   if (value === undefined) return DEFAULT_CONFIG.plans;
-  if (!isObject(value)) throw new ConfigError(`${CONFIG_PATH}: "plans" must be an object.`);
-  onlyKeys(value, ["dirs"], "plans");
+  if (!isObject(value)) throw configError(t.config.mustBeObject("plans"));
+  onlyKeys(value, ["dirs"], "plans", t);
   const dirs = value.dirs ?? DEFAULT_CONFIG.plans.dirs;
   const valid =
     Array.isArray(dirs) &&
     dirs.length > 0 &&
     dirs.every((dir) => typeof dir === "string" && dir.trim() !== "" && !dir.startsWith("/"));
   if (!valid)
-    throw new ConfigError(`${CONFIG_PATH}: "plans.dirs" must be a non-empty list of folders relative to the repo.`);
+    throw configError(t.config.plansDirs);
   return { dirs: (dirs as string[]).map((dir) => dir.replace(/\/+$/, "")) };
 }
 
@@ -235,15 +239,16 @@ function plansSection(value: unknown): FlowConfig["plans"] {
  * The `colors` map: label prefix to session color. When the repo gives one, it replaces the
  * default whole.
  * @param value - The map, or undefined.
+ * @param t - The messages.
  * @returns The map.
  * @throws ConfigError if a color is not one Claude knows.
  */
-function colorsSection(value: unknown): Record<string, string> {
+function colorsSection(value: unknown, t: Messages): Record<string, string> {
   if (value === undefined) return DEFAULT_CONFIG.colors;
-  if (!isObject(value)) throw new ConfigError(`${CONFIG_PATH}: "colors" must be an object.`);
+  if (!isObject(value)) throw configError(t.config.mustBeObject("colors"));
   for (const [prefix, color] of Object.entries(value)) {
     if (typeof color !== "string" || !SESSION_COLORS.includes(color))
-      throw new ConfigError(`${CONFIG_PATH}: "colors.${prefix}" must be one of ${SESSION_COLORS.join(", ")}.`);
+      throw configError(t.config.colorOne(`colors.${prefix}`, SESSION_COLORS.join(", ")));
   }
   return value as Record<string, string>;
 }
@@ -263,32 +268,33 @@ const LABEL_DESCRIPTION_MAX = 100;
  * merges over the default, because a repo usually adds labels: a name replaces the default
  * of the same name (ignoring case, as GitHub does) and `null` drops it.
  * @param value - The map, or undefined.
+ * @param t - The messages.
  * @returns The labels.
  * @throws ConfigError if a label is invalid.
  * @example labelsSection({ spike: null, "area:api": { color: "1d76db" } })["area:api"].description // ""
  */
-function labelsSection(value: unknown): Record<string, LabelSpec> {
+function labelsSection(value: unknown, t: Messages): Record<string, LabelSpec> {
   if (value === undefined) return DEFAULT_CONFIG.labels;
-  if (!isObject(value)) throw new ConfigError(`${CONFIG_PATH}: "labels" must be an object.`);
+  if (!isObject(value)) throw configError(t.config.mustBeObject("labels"));
   // NOTE: a Map, so a "__proto__" key from JSON.parse stays a label and not the prototype.
   const labels = new Map(Object.entries(DEFAULT_CONFIG.labels));
   const seen = new Set<string>();
   for (const [name, spec] of Object.entries(value)) {
     const where = `labels.${name}`;
     if (!LABEL_NAME.test(name) || [...name].length > LABEL_NAME_MAX)
-      throw new ConfigError(`${CONFIG_PATH}: "${where}" needs a name of 1 to ${LABEL_NAME_MAX} characters, without spaces at the ends.`);
+      throw configError(t.config.labelName(where, LABEL_NAME_MAX));
     const key = name.toLowerCase();
-    if (seen.has(key)) throw new ConfigError(`${CONFIG_PATH}: "labels" has "${name}" twice (names ignore case).`);
+    if (seen.has(key)) throw configError(t.config.labelTwice(name));
     seen.add(key);
     for (const known of [...labels.keys()]) if (known.toLowerCase() === key) labels.delete(known);
     if (spec === null) continue;
-    if (!isObject(spec)) throw new ConfigError(`${CONFIG_PATH}: "${where}" must be an object or null.`);
-    onlyKeys(spec, ["color", "description"], where);
+    if (!isObject(spec)) throw configError(t.config.labelObjectOrNull(where));
+    onlyKeys(spec, ["color", "description"], where, t);
     if (typeof spec.color !== "string" || !LABEL_COLOR.test(spec.color))
-      throw new ConfigError(`${CONFIG_PATH}: "${where}.color" must be six hex digits, without #, such as "1d76db".`);
+      throw configError(t.config.labelColor(where));
     const description = spec.description ?? "";
     if (typeof description !== "string" || [...description].length > LABEL_DESCRIPTION_MAX)
-      throw new ConfigError(`${CONFIG_PATH}: "${where}.description" must be a string of up to ${LABEL_DESCRIPTION_MAX} characters.`);
+      throw configError(t.config.labelDescription(where, LABEL_DESCRIPTION_MAX));
     labels.set(name, { color: spec.color, description });
   }
   return Object.fromEntries(labels);
@@ -297,39 +303,41 @@ function labelsSection(value: unknown): Record<string, LabelSpec> {
 /**
  * The `art` option: whether the final messages draw Kuro.
  * @param value - What the file says, or undefined.
+ * @param t - The messages.
  * @returns The value, or the default.
  * @throws ConfigError if it is not a boolean.
  * @example artSection(false) // false
  */
-function artSection(value: unknown): boolean {
+function artSection(value: unknown, t: Messages): boolean {
   if (value === undefined) return DEFAULT_CONFIG.art;
-  if (typeof value !== "boolean") throw new ConfigError(`${CONFIG_PATH}: "art" must be true or false.`);
+  if (typeof value !== "boolean") throw configError(t.config.mustBeBoolean("art"));
   return value;
 }
 
 /**
  * Validates a parsed config and fills in the defaults.
  * @param raw - The parsed JSON.
+ * @param t - The messages.
  * @returns The config.
  * @throws ConfigError if something is invalid.
  * @example parseConfig({ branch: { namer: "title" } }).branch.template // "{type}/{number}-{slug}"
  */
-export function parseConfig(raw: unknown): FlowConfig {
-  if (!isObject(raw)) throw new ConfigError(`${CONFIG_PATH} must be a JSON object.`);
-  onlyKeys(raw, ["repo", "baseBranch", "branch", "worktrees", "start", "plans", "colors", "labels", "art"], "");
-  const repo = text(raw.repo, "repo", null);
+export function parseConfig(raw: unknown, t: Messages = messages("en")): FlowConfig {
+  if (!isObject(raw)) throw new ConfigError(t.config.notJsonObject(CONFIG_PATH));
+  onlyKeys(raw, ["repo", "baseBranch", "branch", "worktrees", "start", "plans", "colors", "labels", "art"], "", t);
+  const repo = text(raw.repo, "repo", null, t);
   if (repo !== null && !REPO.test(repo))
-    throw new ConfigError(`${CONFIG_PATH}: "repo" must be owner/repo.`);
+    throw configError(t.config.repoFormat);
   return {
     repo,
-    baseBranch: text(raw.baseBranch, "baseBranch", null),
-    branch: branchSection(raw.branch),
-    worktrees: worktreesSection(raw.worktrees, DEFAULT_CONFIG.worktrees),
-    start: textSection(raw.start, "start", DEFAULT_CONFIG.start),
-    plans: plansSection(raw.plans),
-    colors: colorsSection(raw.colors),
-    labels: labelsSection(raw.labels),
-    art: artSection(raw.art),
+    baseBranch: text(raw.baseBranch, "baseBranch", null, t),
+    branch: branchSection(raw.branch, t),
+    worktrees: worktreesSection(raw.worktrees, DEFAULT_CONFIG.worktrees, t),
+    start: textSection(raw.start, "start", DEFAULT_CONFIG.start, t),
+    plans: plansSection(raw.plans, t),
+    colors: colorsSection(raw.colors, t),
+    labels: labelsSection(raw.labels, t),
+    art: artSection(raw.art, t),
   };
 }
 
@@ -349,11 +357,12 @@ export function repoRoot(cwd: string): string | null {
  * Reads the config of the main checkout of the repo that holds `cwd`. Outside git, or
  * without the file, every default applies.
  * @param cwd - A directory inside the checkout.
+ * @param t - The messages.
  * @returns The config.
  * @throws ConfigError if the file is not valid JSON or something in it is invalid.
  * @example loadConfig(process.cwd()).branch.namer // "claude"
  */
-export function loadConfig(cwd: string): FlowConfig {
+export function loadConfig(cwd: string, t: Messages = messages("en")): FlowConfig {
   const root = repoRoot(cwd);
   const file = root === null ? null : join(root, CONFIG_PATH);
   if (file === null || !existsSync(file)) return DEFAULT_CONFIG;
@@ -361,9 +370,7 @@ export function loadConfig(cwd: string): FlowConfig {
   try {
     raw = JSON.parse(readFileSync(file, "utf8"));
   } catch (error) {
-    throw new ConfigError(
-      `${CONFIG_PATH} is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    throw new ConfigError(t.config.notJson(CONFIG_PATH, error instanceof Error ? error.message : String(error)));
   }
-  return parseConfig(raw);
+  return parseConfig(raw, t);
 }

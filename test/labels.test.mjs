@@ -134,3 +134,17 @@ test("bad usage exits 2", () => {
   assert.equal(s.run(["labels", "sync", "extra"]).status, 2);
   assert.equal(s.run(["labels", "sync", "--yes"]).status, 2);
 });
+
+test("labels sync --json is the same under ISSUE_FLOW_LANG es and en", () => {
+  const run = (lang) => {
+    const s = sandbox();
+    s.route(LIST, GITHUB_DEFAULTS);
+    return s.run(["labels", "sync", "--json", "--dry-run"], { env: { ISSUE_FLOW_LANG: lang } });
+  };
+
+  const es = run("es");
+  const en = run("en");
+
+  assert.equal(es.status, 0, es.err);
+  assert.equal(es.out, en.out);
+});

@@ -7,6 +7,7 @@
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { isSlug, SLUG_MAX } from "./branch-name.js";
+import { type Messages, messages } from "./messages/index.js";
 
 /** What Claude is told about an issue. */
 export interface IssueToName {
@@ -137,6 +138,7 @@ export function parseNames(
  * @param types - The types Claude may pick.
  * @param model - The model (`haiku` by default in the config).
  * @param cwd - Where to run Claude.
+ * @param t - The messages.
  * @returns The valid names by number, or null with the reason if Claude did not answer.
  * @example nameWithClaude(issues, ["fix", "feat"], "haiku", process.cwd())
  */
@@ -145,6 +147,7 @@ export function nameWithClaude(
   types: string[],
   model: string,
   cwd: string,
+  t: Messages = messages("en"),
 ): { names: Map<number, ClaudeName> } | { error: string } {
   const run = spawnSync("claude", [...CLAUDE_ARGS, "--model", model], {
     cwd,
@@ -154,11 +157,11 @@ export function nameWithClaude(
     maxBuffer: MAX_OUTPUT,
   });
   const failed = run.error as NodeJS.ErrnoException | undefined;
-  if (failed?.code === "ENOENT") return { error: "claude is not in the PATH" };
-  if (failed !== undefined) return { error: `claude failed: ${failed.message}` };
+  if (failed?.code === "ENOENT") return { error: t.namer.notInPath };
+  if (failed !== undefined) return { error: t.namer.failed(failed.message) };
   if (run.status !== 0)
     return {
-      error: `claude exited with ${run.status ?? "a signal"}: ${(run.stderr || "no detail").trim().split("\n")[0]}`,
+      error: t.namer.exited(run.status === null ? t.namer.aSignal : String(run.status), (run.stderr || t.namer.noDetail).trim().split("\n")[0] ?? ""),
     };
   return { names: parseNames(run.stdout, issues, types) };
 }

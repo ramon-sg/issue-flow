@@ -115,7 +115,7 @@ async function pickRecipes(root: string, options: ApplyOptions, fresh: boolean, 
   if (options.yes || options.dryRun || suggested.length === 0) return suggested;
   if (!out.interactive) return null;
   const picked: Recipe[] = [];
-  for (const recipe of suggested) if (await confirm(out, t.apply.askRecipe(recipe.name, recipe.description))) picked.push(recipe);
+  for (const recipe of suggested) if (await confirm(out, t.apply.askRecipe(recipe.name, t.recipeDescription(recipe.name, recipe.description)))) picked.push(recipe);
   return picked;
 }
 
@@ -123,7 +123,7 @@ async function pickRecipes(root: string, options: ApplyOptions, fresh: boolean, 
  * Refuses to move the repo back, or to pin over a range: package.json must have an exact
  * issue-flow, and neither it nor any hook may be newer than this one.
  * @param root - The repo.
-* @param versions - This package's versions.
+ * @param versions - This package's versions.
  * @param t - The messages.
  * @throws SetupError if the repo has a newer issue-flow or one that is not exact.
  */
@@ -174,7 +174,7 @@ async function plan(root: string, versions: OwnVersions, options: ApplyOptions, 
     configChanges.push(...applied.changes.map((change) => `${recipe.name}: ${change}`));
     configKept.push(...applied.kept.map((change) => `${change} (${recipe.name})`));
   }
-  parseConfig(raw);
+  parseConfig(raw, t);
   const pkg = withFlowPackages(readJson(root, "package.json", t), versions, t);
   const hooks = registerHooks(readJson(root, SETTINGS_FILE, t), versions.issueFlow, t);
   const file = (path: string, value: Record<string, unknown>, changes: string[], kept: string[] = []): Planned => ({
@@ -202,7 +202,7 @@ function write(root: string, file: Planned, done: string[], t: Messages): void {
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     if (code !== "EPERM" && code !== "EACCES") throw error;
-    const already = done.length === 0 ? "" : t.apply.alreadyWrote(done.join(" and "));
+    const already = done.length === 0 ? "" : t.apply.alreadyWrote(done);
     throw new SetupError(t.apply.writeFailed(file.path, String(code), already));
   }
 }

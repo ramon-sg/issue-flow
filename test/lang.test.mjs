@@ -2,7 +2,7 @@
 // shape, and that --lang goes with any command without changing --json.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { startSandbox } from "./start-helpers.mjs";
 import { npxEnv, withNpx } from "./init-helpers.mjs";
@@ -136,4 +136,24 @@ test("worktree ports, doctor and apply --dry-run speak Spanish, and English with
   assert.match(dry.out, /escribiría:/);
   assert.doesNotMatch(dry.out, /would write/);
   assert.match(dryEn.out, /would write:/);
+});
+
+test("apply --dry-run --json is the same in both languages, and a bad config shows in the language", () => {
+  const s = withNpx(startSandbox());
+  writeFileSync(join(s.main, "pnpm-lock.yaml"), "");
+  mkdirSync(join(s.main, ".agents"), { recursive: true });
+  const es = s.cli(["apply", "--dry-run", "--json", "--recipe", "pnpm"], { env: npxEnv(s, { ISSUE_FLOW_LANG: "es" }) });
+  const en = s.cli(["apply", "--dry-run", "--json", "--recipe", "pnpm"], { env: npxEnv(s, { ISSUE_FLOW_LANG: "en" }) });
+
+  assert.equal(es.out, en.out);
+  assert.equal(es.err, en.err);
+
+  writeFileSync(join(s.main, ".agents", "flow.json"), JSON.stringify({ art: "no" }));
+  const bad = s.cli(["doctor"], { env: npxEnv(s, { ISSUE_FLOW_LANG: "es" }) });
+  const badEn = s.cli(["doctor"], { env: npxEnv(s, { ISSUE_FLOW_LANG: "en" }) });
+  const badJson = s.cli(["doctor", "--json"], { env: npxEnv(s, { ISSUE_FLOW_LANG: "es" }) });
+
+  assert.match(bad.out, /"art" debe ser true o false/);
+  assert.match(badEn.out, /"art" must be true or false/);
+  assert.match(badJson.out, /\\"art\\" must be true or false/);
 });

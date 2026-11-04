@@ -43,7 +43,7 @@ function fix(pinned: string | null, version: string, t: Messages): string {
  */
 function configCheck(root: string, hint: string, version: string, t: Messages): Check {
   try {
-    loadConfig(root);
+    loadConfig(root, t);
   } catch (error) {
     if (!(error instanceof ConfigError)) throw error;
     return { name: CONFIG_PATH, ok: false, detail: error.message };

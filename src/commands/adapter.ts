@@ -233,7 +233,7 @@ export async function adapterArchive(options: AdapterOptions, out: Output): Prom
   const main = process.env.ORCA_ROOT_PATH || process.env.PASEO_SOURCE_CHECKOUT_PATH || null;
   let config = DEFAULT_CONFIG;
   try {
-    if (main !== null && locateRepo(main) !== null) config = loadConfig(main);
+    if (main !== null && locateRepo(main) !== null) config = loadConfig(main, out.t);
   } catch {
     warn(out, out.t.adapter.badConfig);
   }

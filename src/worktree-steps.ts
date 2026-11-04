@@ -133,7 +133,7 @@ export function setupSteps(place: StepPlace): SetupSteps {
     if (!shown.ok) steps = DEFAULT_CONFIG.worktrees.setup;
     else {
       const raw: unknown = JSON.parse(shown.out);
-      steps = worktreesSection(isObject(raw) ? raw.worktrees : undefined, DEFAULT_CONFIG.worktrees).setup;
+      steps = worktreesSection(isObject(raw) ? raw.worktrees : undefined, DEFAULT_CONFIG.worktrees, t).setup;
     }
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);

@@ -217,7 +217,7 @@ export async function main(argv: string[], out: Output, cwd: string): Promise<nu
       if (rest.length > 0) throw new UsageError(t.cli.takesNoArguments(`hook ${sub}`));
       return runHook(sub, { out, cwd });
     }
-    return runAdapter(sub, flags, rest, { out, cwd, repo: () => repoOf(flags.repo, loadConfig(cwd), cwd, t) });
+    return runAdapter(sub, flags, rest, { out, cwd, repo: () => repoOf(flags.repo, loadConfig(cwd, t), cwd, t) });
   }
   return runIssue(group, sub, rest, flags, { out, cwd });
 }
@@ -236,7 +236,7 @@ async function runPr(sub: string | undefined, rest: string[], flags: Flags, run:
   ownFlags("pr worktree", flags, run.out.t);
   const [text, ...extra] = rest;
   if (text === undefined || extra.length > 0 || !NUMBER.test(text)) throw new UsageError(run.out.t.cli.prNeedsNumber);
-  const config = loadConfig(run.cwd);
+  const config = loadConfig(run.cwd, run.out.t);
   return prWorktree(
     { repo: repoOf(flags.repo, config, run.cwd, run.out.t), config, cwd: run.cwd, number: Number(text), setup: !(flags["no-setup"] ?? false), command: run.command },
     run.out,
@@ -256,7 +256,7 @@ async function runLabels(sub: string | undefined, rest: string[], flags: Flags, 
   if (sub !== "sync") throw new UsageError(run.out.t.cli.labelsExpects);
   ownFlags("labels sync", flags, run.out.t);
   if (rest.length > 0) throw new UsageError(run.out.t.cli.takesNoArguments("labels sync"));
-  const config = loadConfig(run.cwd);
+  const config = loadConfig(run.cwd, run.out.t);
   return labelsSync(
     { repo: repoOf(flags.repo, config, run.cwd, run.out.t), labels: config.labels, update: flags.update ?? false, dryRun: flags["dry-run"] ?? false, json: flags.json ?? false },
     run.out,
@@ -287,7 +287,7 @@ async function runIssue(group: string | undefined, command: string | undefined, 
       throw new UsageError(t.cli.groupExpects("worktree", WORKTREE_COMMANDS));
     ownFlags(`worktree ${command}`, flags, t);
     if (rest.length > 0) throw new UsageError(t.cli.takesNoArguments(`worktree ${command}`));
-    const config = loadConfig(cwd);
+    const config = loadConfig(cwd, t);
     return runWorktree(command, flags, { out, cwd, config, repo: () => repoOf(flags.repo, config, cwd, t) });
   }
   if (group !== "issue" || (command !== "branch" && command !== "start"))
@@ -298,7 +298,7 @@ async function runIssue(group: string | undefined, command: string | undefined, 
   if (command === "start") {
     const number = startArgs(flags, rest, t);
     const permissions = permissionsOf(flags, t);
-    const config = loadConfig(cwd);
+    const config = loadConfig(cwd, t);
     return issueStart(
       {
         repo: repoOf(flags.repo, config, cwd, t),
@@ -331,7 +331,7 @@ async function runIssue(group: string | undefined, command: string | undefined, 
     throw new UsageError(t.cli.branchNeeds);
   if (!flags.missing && (flags.yes || flags["dry-run"] || flags.limit !== undefined))
     throw new UsageError(t.cli.missingFlags);
-  const config = loadConfig(cwd);
+  const config = loadConfig(cwd, t);
   const options = {
     repo: repoOf(flags.repo, config, cwd, t),
     config,

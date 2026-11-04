@@ -126,7 +126,7 @@ export function proposeBranches(
   }));
   const answer =
     namer === "claude" && asked.length > 0
-      ? nameWithClaude(asked, typeNames(rules), config.branch.claudeModel, options.cwd)
+      ? nameWithClaude(asked, typeNames(rules), config.branch.claudeModel, options.cwd, t)
       : null;
   const prefixes = Object.keys(rules.titlePrefixes);
   for (const issue of pending) {

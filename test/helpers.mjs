@@ -118,7 +118,9 @@ export function sandbox() {
           out += chunk;
           if (!typed && out.includes(mark)) {
             typed = true;
-            child.stdin.end(`${answer}\r`);
+            // NOTE: the end of input comes later, so the answer is never read after an EOF.
+            child.stdin.write(`${answer}\r`);
+            setTimeout(() => child.stdin.end(), 300);
           }
         });
         child.on("error", reject);
