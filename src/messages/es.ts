@@ -2,6 +2,11 @@
  * @file The Spanish messages. Its shape is the shape of every catalog: `en.ts` must match.
  * Messages are strings or functions that build one.
  */
+/** A PR state of GitHub in Spanish. */
+function stateWord(state: string): string {
+  return state === "MERGED" ? "INTEGRADO" : state === "CLOSED" ? "CERRADO" : state;
+}
+
 export const es = {
   usage: {
     main: `Uso:
@@ -351,6 +356,222 @@ issue:start para esos. --no-repo-deny va después, como cualquier flag:
       goIn: "Para entrar:",
     },
   },
+  git: {
+    untracked: (branch: string): string =>
+      `no se pudo hacer que ${branch} siga a origin/${branch} (¿.git/config es de solo lectura, como en un sandbox?); haz push con 'git push origin HEAD'.`,
+    updateFetch: (base: string): string => `no se pudo traer ${base} de origin; ${base} local no se actualizó.`,
+    updateAhead: (base: string): string => `${base} local tiene commits que no están en origin/${base}; no se actualizó.`,
+    updateMove: (base: string): string => `no se pudo mover ${base} local a origin/${base}.`,
+    updateDirty: (base: string, at: string): string =>
+      `${base} está checked out en ${at} con cambios; no se actualizó. Ejecuta 'git pull --ff-only' ahí.`,
+    updateMerge: (base: string, at: string): string => `no se pudo actualizar ${base} en ${at}; ejecuta 'git pull --ff-only' ahí.`,
+  },
+  denyRepo: {
+    noFile: (file: string): string => `el repo no tiene ${file}: no hay reglas de denegación que quitar.`,
+    invalidJson: (file: string): string => `${file} no es un JSON válido: sus reglas de denegación se quedan.`,
+    noRules: (file: string): string => `${file} no tiene reglas de denegación: no hay nada que quitar.`,
+    lifted: (file: string): string => `se quitaron las reglas de denegación de ${file} para esta sesión; vuelven cuando Claude termine.`,
+    unreadable: (note: string, file: string): string => `no se pudo leer ${note}; revisa las reglas de denegación de ${file} con git diff.`,
+    brokenByClaude: (file: string): string =>
+      `Claude dejó ${file} como JSON inválido, así que no se pudieron devolver sus reglas de denegación: arréglalo y agrégalas antes de hacer commit (git diff ${file}).`,
+    changedByClaude: (file: string): string =>
+      `Claude cambió ${file} durante la sesión: sus reglas de denegación volvieron encima de ese cambio; revísalo con git diff ${file}.`,
+  },
+  propose: {
+    badSlug: (number: number, slug: string): string => `#${number}: "${slug}" en "Slug de rama" no es un slug válido; se propone otro.`,
+    problem: (number: number, problem: string): string => `#${number}: ${problem}; se propone otro.`,
+    prefixDiffers: (number: number, branch: string, type: string): string =>
+      `#${number}: la rama sugerida ${branch} no empieza con ${type}/, el tipo de la issue; se usa igual.`,
+    noValidName: (number: number): string => `#${number}: Claude no dio un nombre válido; se usa el título.`,
+    fromTitle: (error: string, count: number): string => `${error}; se nombran ${count} issue(s) desde el título.`,
+  },
+  setup: {
+    invalidJson: (path: string, detail: string): string => `${path} no es un JSON válido (${detail}); arréglalo y ejecuta de nuevo.`,
+    notObject: (path: string): string => `${path} no es un objeto JSON; arréglalo y ejecuta de nuevo.`,
+    hooksNotObject: (file: string): string => `${file}: "hooks" no es un objeto; arréglalo y ejecuta de nuevo.`,
+    hooksNotList: (file: string, event: string): string => `${file}: hooks.${event} no es una lista de entradas; arréglalo y ejecuta de nuevo.`,
+    movedHook: (event: string, from: string, to: string): string => `se movió el hook ${event} de ${from} a ${to}`,
+    droppedCloud: (marker: string): string => `se quitó el hook SessionStart de ${marker}: lo ejecuta issue-flow session`,
+    addedHook: (event: string): string => `se agregó el hook ${event}`,
+    keptRest: (name: string, version: string, needed: string): string =>
+      `se mantiene ${name} ${version} (las skills necesitan ${needed} o más reciente: súbelo)`,
+    keptFree: (free: string, start: string): string =>
+      `se mantiene scripts: ${free}, que se salta el ${start} del repo: haz que ejecute ese con --free, o bórralo`,
+  },
+  steps: {
+    onlyExpects: (config: string, names: string, only: string): string =>
+      `--only espera un paso de setup de ${config} (${names === "" ? "no tiene ninguno" : names}): ${only}`,
+    stepFailed: (name: string, code: number | null, run: string, root: string): string =>
+      `el paso "${name}" falló${code === null ? "" : ` (salida ${code})`}; ejecuta '${run}' en ${root}.`,
+    mainCheckoutConfig: (config: string): string => `el ${config} del checkout principal`,
+    sourceInvalid: (source: string, reason: string): string => `${source} no es válido: ${reason}; se usan los pasos del checkout principal.`,
+    sourceDiffers: (source: string): string => `los pasos de setup salen de ${source}; los del checkout principal difieren (¿está atrasado? haz pull).`,
+    waiting: "otro setup está preparando este worktree; se espera…",
+    noSteps: (source: string): string => `no hay pasos de setup en ${source}; no se ejecutó nada.`,
+    noFreeBlock: "no queda ningún bloque de puertos libre en esta máquina; borra worktrees que ya no uses.",
+    lockTimeout: (seconds: number, root: string): string =>
+      `otro setup lleva más de ${seconds} s en marcha; no se ejecutó nada. Ejecuta 'issue-flow worktree setup' en ${root} cuando termine.`,
+    skipped: (name: string, base: string, run: string, root: string): string =>
+      `se omite "${name}": este worktree tiene código que no está en origin/${base}. Revísalo y ejecuta '${run}' en ${root} si confías en él.`,
+    dockerOff: "Docker no está en marcha; los contenedores del worktree se quedan. Inicia Docker y ejecuta 'issue-flow worktree cleanup'.",
+    dockerFailed: (projects: string): string =>
+      `no se pudieron borrar los proyectos de Docker ${projects}; mira qué los retiene con 'docker ps -a --filter label=com.docker.compose.project=<proyecto>'.`,
+    stopping: (root: string): string => `se detienen las apps que corren en ${root}.`,
+  },
+  worktree: {
+    insideCheckout: "ejecuta esto dentro de un checkout del repo.",
+    teardownMain: "teardown es para worktrees, no para el checkout principal.",
+    notOfRepo: (root: string): string => `${root} no es un worktree de este repo.`,
+    noPorts: 'este repo no tiene puertos para worktrees: agrega "worktrees.ports" a .agents/flow.json.',
+    portsMain: "los puertos son para worktrees, no para el checkout principal.",
+    movedBlock: (base: number): string => `el worktree pasa al bloque ${base}: reinicia lo que corre en él.`,
+    dockerOff: "Docker no está en marcha; no se limpió nada. Inícialo y ejecuta 'issue-flow worktree cleanup'.",
+    deleted: (what: string): string => `borrado: ${what}`,
+    dockerStuck: (project: string): string =>
+      `no se pudo borrar ${project}; mira qué lo retiene con 'docker ps -a --filter label=com.docker.compose.project=${project}'.`,
+    lockedGone: (path: string): string =>
+      `bloqueado por una sesión de issue-flow que ya no existe, no se toca: ${path} (libéralo con: git worktree unlock ${path})`,
+    inUse: (path: string): string => `en uso por una sesión de Claude, no se toca: ${path}`,
+    locked: (lock: string, path: string): string => `bloqueado${lock === "" ? "" : ` (${lock})`}, no se toca: ${path}`,
+    notWorktree: (path: string): string => `${path} no es un worktree.`,
+    dirty: (state: string, path: string): string => `PR ${stateWord(state)}, pero con cambios sin commitear, no se borra: ${path}`,
+    unpushed: (state: string, path: string): string => `PR ${stateWord(state)}, pero con commits que no están en origin, no se borra: ${path}`,
+    candidate: (state: string, path: string, branch: string): string => `PR ${stateWord(state)}: ${path} (${branch})`,
+    unread: (branches: string): string => `no se pudieron leer de GitHub los PR de ${branches}; se dejaron como estaban.`,
+    none: "No hay worktrees que borrar.",
+    confirm: "¿Borrar los worktrees de arriba con su rama local y su Docker?",
+    deletedNothing: "No se borró nada.",
+    changed: (path: string): string => `cambió desde la revisión, no se borra: ${path}`,
+    removeFailed: (path: string): string =>
+      `no se pudo borrar ${path} (su teardown ya corrió: su Docker y sus puertos ya no están); mira 'git -C ${path} status'.`,
+    branchFailed: (branch: string): string => `no se pudo borrar la rama local ${branch}.`,
+  },
+  adapter: {
+    orcaFailed: (root: string): string =>
+      `no se pudo preguntar a Orca de qué issue viene este workspace. Si viene de una, ejecuta 'issue-flow adapter issue <url-de-la-issue>' en ${root}.`,
+    startFailed: (message: string): string => `no se pudo empezar la issue del workspace: ${message}`,
+    retry: (repo: string, number: number, root: string): string =>
+      `para reintentar, ejecuta 'issue-flow adapter issue https://github.com/${repo}/issues/${number}' en ${root}`,
+    notStarted: (number: number, message: string, retry: string): string => `la issue #${number} no se empezó (${message}); ${retry}.`,
+    notIssue: (url: string, repo: string): string => `${url} no es una issue de ${repo}; no se hizo nada.`,
+    mainCheckout: "una issue se empieza en un worktree, no en el checkout principal.",
+    badConfig: "el .agents/flow.json del checkout principal no es válido; se limpia el Docker sin sus prefijos.",
+    dockerFailed: (path: string): string => `no se pudo borrar el Docker de ${path}; ejecuta 'issue-flow worktree cleanup' más tarde.`,
+  },
+  hook: {
+    noName: "el hook no recibió un nombre de worktree.",
+    prName: (number: string, name: string): string => `para revisar un PR, ejecuta 'issue-flow pr worktree ${number}', no 'claude --worktree ${name}'.`,
+    badName: (name: string): string => `el worktree no puede llamarse '${name}'.`,
+    notCheckout: (dir: string): string => `${dir} no es un checkout de git.`,
+    fetchFailed: (base: string): string => `no se pudo traer ${base}; se usa el origin/${base} local.`,
+    noOrigin: (base: string): string => `no existe origin/${base}, y el worktree no se hace sobre otra base.`,
+    makeFailed: (path: string, detail: string): string => `no se pudo hacer el worktree ${path}: ${detail}`,
+    noPath: "el hook no recibió worktree_path; no se borra nada.",
+    mainNever: "el checkout principal nunca se borra.",
+    notOfRepo: (path: string): string => `${path} no es un worktree de este repo; no se borra nada.`,
+    uncommitted: (path: string): string => `${path} tiene cambios sin commitear; se conserva. Míralos con 'git -C ${path} status'.`,
+    deleteFailed: (path: string, detail: string): string => `no se pudo borrar ${path} (su teardown ya corrió): ${detail}`,
+    keptBranch: (branch: string): string => `se conserva la rama ${branch}: tiene commits que no están en origin.`,
+  },
+  session: {
+    noCloudKit: (bin: string, pkg: string): string =>
+      `no corrió el setup del entorno (no existe ${bin}). En claude.ai, pon como script de setup del entorno: npx -y ${pkg}@1 setup. Vale para las sesiones nuevas.`,
+    cloudFailed: (bin: string, root: string): string => `agent-cloud-kit session falló; ejecuta '${bin} session' en ${root} para ver por qué.`,
+    direnvFailed: "no se pudo cargar el .envrc con direnv; la sesión se queda con el entorno que heredó.",
+    unstarted: (number: number): string =>
+      `la issue #${number} no se empezó: su rama no está publicada y no tiene PR en borrador. Antes de trabajar, ejecuta la skill start-issue (${number}).`,
+    dockerFailed: (projects: string): string =>
+      `no se pudo borrar el Docker de los worktrees borrados (${projects}); ejecuta 'issue-flow worktree cleanup' para ver por qué.`,
+  },
+  pr: {
+    fetchFailed: (branch: string): string => `no se pudo traer ${branch} de origin`,
+    elsewhere: (branch: string, where: string): string =>
+      `${branch} está checked out en ${where}; revísala ahí, o cambia ese checkout a otra rama.`,
+    makeFailed: (branch: string): string => `no se pudo hacer el worktree de ${branch}`,
+    noFastForward: (branch: string): string => `la ${branch} local no avanza hasta origin/${branch}: ves otros commits que los del PR.`,
+    noPr: (repo: string, number: number): string => `${repo} no tiene el PR #${number}.`,
+    fork: (number: number): string =>
+      `el PR #${number} viene de un fork y su rama no está en origin; haz checkout a mano en un worktree con 'gh pr checkout ${number}'.`,
+    title: (number: number, url: string): string => `PR #${number}: ${url}`,
+    notOpen: (state: string): string => `el PR está ${state === "closed" ? "cerrado" : state === "merged" ? "integrado" : state}.`,
+    detached: "un HEAD suelto",
+    wrongBranch: (path: string, current: string, branch: string): string =>
+      `${path} está en ${current}, no en la rama del PR ${branch}; bórralo con 'git worktree remove ${path}'.`,
+    notWorktree: (path: string): string => `${path} existe y no es un worktree de este repo.`,
+    created: (branch: string): string => `Worktree en ${branch}: lo que hagas commit y push actualiza el PR.`,
+    reusing: "El worktree ya existe; se reutiliza.",
+    runFailed: (command: string, message: string): string => `no se pudo ejecutar ${command}: ${message}`,
+  },
+  apply: {
+    unknownRecipe: (name: string, names: string): string => `receta desconocida ${name}; las que hay son ${names}.`,
+    askRecipe: (name: string, description: string): string => `Receta ${name}: ${description} ¿Agregarla?`,
+    notExact: (pinned: string, example: string, pkg: string): string =>
+      `package.json tiene issue-flow ${pinned}, no una versión exacta: los hooks necesitan una. Fija una (como ${example}) y ejecuta 'npx ${pkg}@<esa versión> apply'.`,
+    hookOf: (file: string): string => `un hook de ${file}`,
+    newer: (where: string, found: string, ours: string, pkg: string): string =>
+      `${where} tiene issue-flow ${found}, más reciente que este ${ours}; ejecuta 'npx ${pkg}@${found} apply', o instala primero si se subió package.json a mano.`,
+    schemaAt: (version: string): string => `$schema en v${version}`,
+    freshNew: "nuevo",
+    freshPaseo: "nuevo, con las reglas de rama de paseo.json",
+    keptKey: (key: string, now: string, says: string): string => `se mantiene ${key} ${now} (la receta dice ${says})`,
+    keptStep: (name: string, key: string): string => `se mantiene el paso "${name}" de worktrees.${key}`,
+    addedStep: (key: string, name: string): string => `worktrees.${key}: se agregó "${name}"`,
+    writeFailed: (path: string, code: string, already: string): string =>
+      `no se pudo escribir ${path} (${code}): dentro de una sesión de Claude el sandbox lo bloquea; ejecuta apply desde tu terminal.${already}`,
+    alreadyWrote: (done: string): string => ` Ya escribió ${done}; ejecutarlo de nuevo termina el resto.`,
+    insideCheckout: "ejecuta apply dentro de un checkout del repo.",
+    mainCheckout: (root: string): string => `ejecuta apply en el checkout principal, ${root}, no en un worktree.`,
+    nothingWritten: "no se escribió nada: los archivos del repo sugieren recetas; pasa --yes para tomarlas, o --recipe para elegir.",
+    passYes: "pasa --yes o --recipe",
+    reviewCommit: "revisa el diff y haz commit",
+    already: (version: string): string => `Ya está en issue-flow ${version}.`,
+    writes: (version: string): string => `issue-flow ${version}:`,
+    wouldWrite: (version: string): string => `issue-flow ${version} escribiría:`,
+    next: (command: string | null): string => `Siguiente: ${command === null ? "" : `ejecuta '${command}', `}revisa el diff y haz commit.`,
+  },
+  doctor: {
+    insideCheckout: "ejecuta doctor dentro de un checkout del repo.",
+    filesName: "archivos",
+    runAgentKitchen: "ejecuta npx agent-kitchen apply",
+    runApply: (pkg: string): string => `ejecuta npx ${pkg} apply`,
+    valid: "válido",
+    staleSchema: (version: string, hint: string): string => `válido, pero su $schema no está en v${version}: ${hint}`,
+    restMissing: (hint: string): string => `no está en package.json, y las skills lo llaman: ${hint}`,
+    restOld: (found: string, needed: string): string => `${found}, y las skills necesitan ${needed} o más reciente: súbelo en package.json`,
+    flowMissing: (hint: string): string => `no está en package.json: ${hint}`,
+    flowOther: (found: string, ours: string, hint: string): string => `package.json tiene ${found}, esta es ${ours}: ${hint}`,
+    hookName: (event: string): string => `hook ${event}`,
+    hookMissing: (file: string, hint: string): string => `no está en ${file}: ${hint}`,
+    hookAt: (found: string, ours: string, hint: string): string => `en ${found}, esta es ${ours}: ${hint}`,
+  },
+  labels: {
+    status: {
+      created: "creada",
+      updated: "actualizada",
+      ok: "ok",
+      differs: "difiere",
+      toCreate: "por crear",
+      toUpdate: "por actualizar",
+      failed: "falló",
+    },
+    differs: (found: string, wanted: string): string => `tiene ${found}, el flow quiere ${wanted} (--update lo arregla)`,
+    appeared: "apareció en GitHub mientras tanto: ejecuta labels sync de nuevo",
+    truncated: (repo: string): string => `no se pudieron leer todas las etiquetas de ${repo}; no se escribió nada, así no se crea ninguna dos veces.`,
+  },
+  branch: {
+    noIssue: (number: number, repo: string): string => `la issue #${number} no existe en ${repo}.`,
+    addBlock: (count: number): string => `¿Agregar el bloque "Slug de rama" a ${count} issue(s)?`,
+    nothingWritten: "no se escribió nada: pasa --yes para agregar los bloques.",
+    moreIssues: "GitHub tiene más issues de las que se leyeron; ejecútalo de nuevo después de esto.",
+    jsonNeeds: "--missing --json necesita --dry-run o --yes: no hay terminal donde confirmar.",
+    noType: (number: number): string => `#${number}: no tiene etiqueta de tipo, así que su rama no tiene tipo hasta que la tenga.`,
+    leftAlone: (number: number): string => `#${number}: recibió un bloque de rama o se borró mientras tanto; se deja como está.`,
+    added: (number: number): string => `#${number}: bloque agregado.`,
+  },
+  cantTellRepo:
+    'no se sabe de qué repo se trata: ejecuta dentro de un checkout cuyo origin esté en GitHub, pasa -R owner/repo, o define GH_REPO o "repo" en .agents/flow.json.',
+  initNowApply: (command: string): string => `${command} ahora es apply: ejecuta 'issue-flow apply'. ${command} desaparece en la 0.4.0.`,
+  goingOn: (message: string): string => `${message}; se sigue con los valores por defecto.`,
   lang: {
     invalid: (source: string, value: string): string => `${source} espera es o en: ${value}`,
   },

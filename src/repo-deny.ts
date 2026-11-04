@@ -15,6 +15,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { dirname, join } from "node:path";
 import { git } from "./git.js";
 import { noteFile } from "./launch.js";
+import type { Messages } from "./messages/index.js";
 
 /** The repo's Claude settings, relative to the checkout. */
 export const REPO_SETTINGS = ".claude/settings.json";
@@ -71,27 +72,28 @@ export function withDeny(text: string, original: string): string {
  * @param workDir - The worktree.
  * @param commonDir - The shared `.git`.
  * @param branch - The branch.
+ * @param t - The messages.
  * @returns What happened, for the person, and what to put back (null if nothing was taken).
- * @example liftRepoDeny(wt, "/repo/.git", "feat/42-x").message
+ * @example liftRepoDeny(wt, "/repo/.git", "feat/42-x", t).message
  */
-export function liftRepoDeny(workDir: string, commonDir: string, branch: string): { message: string; saved: Lifted | null } {
+export function liftRepoDeny(workDir: string, commonDir: string, branch: string, t: Messages): { message: string; saved: Lifted | null } {
   const file = join(workDir, REPO_SETTINGS);
-  if (!existsSync(file)) return { message: `the repo has no ${REPO_SETTINGS}: there are no deny rules to take out.`, saved: null };
+  if (!existsSync(file)) return { message: t.denyRepo.noFile(REPO_SETTINGS), saved: null };
   const original = readFileSync(file, "utf8");
   let lifted: string | null;
   try {
     lifted = withoutDeny(original);
   } catch {
-    return { message: `${REPO_SETTINGS} is not valid JSON: its deny rules stay.`, saved: null };
+    return { message: t.denyRepo.invalidJson(REPO_SETTINGS), saved: null };
   }
-  if (lifted === null) return { message: `${REPO_SETTINGS} has no deny rules: nothing to take out.`, saved: null };
+  if (lifted === null) return { message: t.denyRepo.noRules(REPO_SETTINGS), saved: null };
   const saved: Lifted = { original, lifted };
   const note = noteFile(commonDir, branch);
   mkdirSync(dirname(note), { recursive: true });
   writeFileSync(note, `${JSON.stringify(saved)}\n`);
   writeFileSync(file, lifted);
   git(workDir, ["update-index", "--skip-worktree", REPO_SETTINGS]);
-  return { message: `took out the deny rules of ${REPO_SETTINGS} for this session; they come back when Claude exits.`, saved };
+  return { message: t.denyRepo.lifted(REPO_SETTINGS), saved };
 }
 
 /**
@@ -103,10 +105,11 @@ export function liftRepoDeny(workDir: string, commonDir: string, branch: string)
  * @param branch - The branch.
  * @param workDir - The worktree, never taken from the note.
  * @param saved - What liftRepoDeny returned, or null to read the note.
+ * @param t - The messages.
  * @returns A warning, or null if there was nothing to say.
- * @example restoreRepoDeny("/repo/.git", "feat/42-x", wt, null) // null
+ * @example restoreRepoDeny("/repo/.git", "feat/42-x", wt, null, t) // null
  */
-export function restoreRepoDeny(commonDir: string, branch: string, workDir: string, saved: Lifted | null): string | null {
+export function restoreRepoDeny(commonDir: string, branch: string, workDir: string, saved: Lifted | null, t: Messages): string | null {
   const note = noteFile(commonDir, branch);
   let from = saved;
   if (from === null) {
@@ -115,7 +118,7 @@ export function restoreRepoDeny(commonDir: string, branch: string, workDir: stri
       from = JSON.parse(readFileSync(note, "utf8")) as Lifted;
     } catch {
       rmSync(note, { force: true });
-      return `could not read ${note}; check the deny rules of ${REPO_SETTINGS} with git diff.`;
+      return t.denyRepo.unreadable(note, REPO_SETTINGS);
     }
   }
   rmSync(note, { force: true });
@@ -130,7 +133,7 @@ export function restoreRepoDeny(commonDir: string, branch: string, workDir: stri
   try {
     writeFileSync(file, withDeny(now, from.original));
   } catch {
-    return `Claude left ${REPO_SETTINGS} as invalid JSON, so its deny rules could not be put back: fix it and add them before committing (git diff ${REPO_SETTINGS}).`;
+    return t.denyRepo.brokenByClaude(REPO_SETTINGS);
   }
-  return `Claude changed ${REPO_SETTINGS} during the session: its deny rules are back on top of that change; review it with git diff ${REPO_SETTINGS}.`;
+  return t.denyRepo.changedByClaude(REPO_SETTINGS);
 }

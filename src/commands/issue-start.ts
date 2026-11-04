@@ -130,6 +130,7 @@ function proposeNew(context: Context): string {
   const info = { number: issue.number, title: issue.title, body: issue.body, labels: context.labels };
   const { proposals, warnings } = proposeBranches([info], options.config, {
     cwd: context.mainRoot,
+    t: context.out.t,
     ...(options.namer === undefined ? {} : { namer: options.namer }),
   });
   const [proposal] = proposals;
@@ -294,10 +295,10 @@ function liftForSession(state: StartState, lock: Lock): Lifted | null {
     if (wanted) warn(out, out.t.start.warn.denyShared);
     return null;
   }
-  const leftover = restoreRepoDeny(commonDir, branch, state.workDir, null);
+  const leftover = restoreRepoDeny(commonDir, branch, state.workDir, null, out.t);
   if (leftover !== null) warn(out, leftover);
   if (!wanted) return null;
-  const { message, saved } = liftRepoDeny(state.workDir, commonDir, branch);
+  const { message, saved } = liftRepoDeny(state.workDir, commonDir, branch, out.t);
   out.stdout(`${message}\n`);
   return saved;
 }
@@ -342,7 +343,7 @@ async function openSession(state: StartState): Promise<number> {
     out.t,
   );
   if (lifted !== null) {
-    const problem = restoreRepoDeny(state.commonDir, state.branch, state.workDir, lifted);
+    const problem = restoreRepoDeny(state.commonDir, state.branch, state.workDir, lifted, state.out.t);
     if (problem !== null) warn(out, problem);
   }
   release();

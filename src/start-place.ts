@@ -146,7 +146,7 @@ export async function publish(state: StartState): Promise<number> {
   }
   if (commit || !onOrigin(workDir, branch))
     mustGit(workDir, ["push", "-q", "origin", branch], t.error.pushFailed(branch));
-  if (!trackOrigin(workDir, branch)) warn(state.out, untracked(branch));
+  if (!trackOrigin(workDir, branch)) warn(state.out, untracked(branch, state.out.t));
   let number = state.pr?.number ?? null;
   if (number === null) {
     const created = await createPr(options.repo, {
@@ -301,6 +301,6 @@ export async function afterSession(state: StartState, lock: Lock): Promise<void>
   }
   mustGit(mainRoot, ["branch", "-q", "-D", branch], t.error.deleteBranchFailed(branch));
   forgetSession(commonDir, branch);
-  const stale = updateBase(mainRoot, base);
+  const stale = updateBase(mainRoot, base, out.t);
   if (stale !== null) warn(out, stale);
 }

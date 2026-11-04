@@ -6,6 +6,7 @@
  * and `doctor` says when it falls short of what the flow needs. A script the repo already
  * has with another value stays as it is.
  */
+import type { Messages } from "./messages/index.js";
 import { type OwnVersions, PACKAGE } from "./setup-files.js";
 
 /** A version: X.Y.Z, with an optional pre-release and build. */
@@ -98,9 +99,6 @@ export function reaches(current: string, tested: string): boolean {
   return top === null || compare(wanted, top) < 0;
 }
 
-/** How a change that keeps what the repo had starts. */
-export const KEPT = "kept ";
-
 /** The package the skills call, which the repo gets if it lacks it. */
 export const GITHUB_REST = "@ramon-sg/github-rest";
 
@@ -148,13 +146,19 @@ export function dependencyVersion(pkg: Record<string, unknown> | null, name: str
  * note if it falls short of the version the flow needs.
  * @param pkg - The package.json, or null if there is none.
  * @param versions - This package's versions.
- * @returns The new package.json and what changed or was kept.
- * @example withFlowPackages(null, versions).changes // ["devDependencies: @ramon-sg/issue-flow 0.1.0", …]
+ * @param t - The messages, for the changes.
+ * @returns The new package.json, what changed and what was kept.
+ * @example withFlowPackages(null, versions, t).changes // ["devDependencies: @ramon-sg/issue-flow 0.1.0", …]
  */
-export function withFlowPackages(pkg: Record<string, unknown> | null, versions: OwnVersions): { pkg: Record<string, unknown>; changes: string[] } {
+export function withFlowPackages(
+  pkg: Record<string, unknown> | null,
+  versions: OwnVersions,
+  t: Messages,
+): { pkg: Record<string, unknown>; changes: string[]; kept: string[] } {
   const next: Record<string, unknown> = pkg === null ? { private: true } : { ...pkg };
   const scripts = { ...((next.scripts as Record<string, string> | undefined) ?? {}) };
   const changes: string[] = [];
+  const kept: string[] = [];
   const pin = (name: string, version: string, field: string, from: string | null): void => {
     next[field] = { ...((next[field] as Record<string, string> | undefined) ?? {}), [name]: version };
     changes.push(`${field}: ${name} ${from === null ? "" : `${from} → `}${version}`);
@@ -164,17 +168,17 @@ export function withFlowPackages(pkg: Record<string, unknown> | null, versions: 
   const rest = dependencyOf(next, GITHUB_REST);
   if (rest === null) pin(GITHUB_REST, versions.githubRest, "devDependencies", null);
   else if (!reaches(rest.version, versions.githubRest))
-    changes.push(`${KEPT}${GITHUB_REST} ${rest.version} (the skills need ${versions.githubRest} or newer: raise it)`);
+    kept.push(t.setup.keptRest(GITHUB_REST, rest.version, versions.githubRest));
   // NOTE: with its own issue:start (a wrapper), issue:start:free would skip it: it is not
   // added, and the flow's one gets a note.
   const ownStart = scripts[START_SCRIPT] !== undefined && scripts[START_SCRIPT] !== FLOW_SCRIPTS[START_SCRIPT];
   if (ownStart && scripts[FREE_SCRIPT] === FLOW_SCRIPTS[FREE_SCRIPT])
-    changes.push(`${KEPT}scripts: ${FREE_SCRIPT}, which skips the repo's own ${START_SCRIPT}: make it run that one with --free, or delete it`);
+    kept.push(t.setup.keptFree(FREE_SCRIPT, START_SCRIPT));
   for (const [name, command] of Object.entries(FLOW_SCRIPTS)) {
     if (scripts[name] !== undefined || (name === FREE_SCRIPT && ownStart)) continue;
     scripts[name] = command;
     changes.push(`scripts: ${name}`);
   }
   next.scripts = scripts;
-  return { pkg: next, changes };
+  return { pkg: next, changes, kept };
 }

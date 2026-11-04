@@ -81,7 +81,7 @@ function orcaIssue(root: string, repo: string, out: Output): number | null | und
     worktree = undefined;
   }
   if (worktree === undefined) {
-    warn(out, `could not ask Orca which issue this workspace came from. If it came from one, run 'issue-flow adapter issue <issue-url>' in ${root}.`);
+    warn(out, out.t.adapter.orcaFailed(root));
     return undefined;
   }
   const item = worktree.linkedWorkItem;
@@ -149,16 +149,16 @@ async function linkedIssue(options: AdapterOptions, root: string, out: Output): 
   try {
     repo = options.repo();
   } catch (error) {
-    warn(out, `could not start the workspace's issue: ${error instanceof Error ? error.message : String(error)}`);
+    warn(out, out.t.adapter.startFailed(error instanceof Error ? error.message : String(error)));
     return;
   }
   const number = paseo ? issueOfBranch(currentBranch(root) ?? "") : orcaIssue(root, repo, out);
   if (number === null || number === undefined) return;
-  const retry = `to retry, run 'issue-flow adapter issue https://github.com/${repo}/issues/${number}' in ${root}`;
+  const retry = out.t.adapter.retry(repo, number, root);
   try {
     await adopt(options, number, out);
   } catch (error) {
-    warn(out, `issue #${number} was not started (${error instanceof Error ? error.message : String(error)}); ${retry}.`);
+    warn(out, out.t.adapter.notStarted(number, error instanceof Error ? error.message : String(error), retry));
   }
 }
 
@@ -208,8 +208,8 @@ export async function adapterIssue(options: AdapterOptions, out: Output): Promis
     return 0;
   }
   const number = issueOfUrl(options.url, options.repo());
-  if (number === null) throw new StartError(`${options.url} is not an issue of ${options.repo()}; nothing done.`);
-  if (place === null) throw new StartError("an issue starts in a worktree, not in the main checkout.");
+  if (number === null) throw new StartError(out.t.adapter.notIssue(options.url, options.repo()));
+  if (place === null) throw new StartError(out.t.adapter.mainCheckout);
   return adopt(options, number, out);
 }
 
@@ -235,10 +235,10 @@ export async function adapterArchive(options: AdapterOptions, out: Output): Prom
   try {
     if (main !== null && locateRepo(main) !== null) config = loadConfig(main);
   } catch {
-    warn(out, "the main checkout's .agents/flow.json is not valid; cleaning the Docker without its prefixes.");
+    warn(out, out.t.adapter.badConfig);
   }
   releasePortClaims(path, null);
   const docker = dockerCleanup(config.worktrees.dockerProjects, path);
-  if (docker.failed.length > 0) warn(out, `could not delete the Docker of ${path}; run 'issue-flow worktree cleanup' later.`);
+  if (docker.failed.length > 0) warn(out, out.t.adapter.dockerFailed(path));
   return 0;
 }

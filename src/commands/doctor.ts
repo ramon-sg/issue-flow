@@ -9,6 +9,7 @@
 import { CONFIG_PATH, ConfigError } from "../config-base.js";
 import { loadConfig } from "../config.js";
 import { locateRepo } from "../git.js";
+import { type Messages, messages } from "../messages/index.js";
 import type { Output } from "../output.js";
 import { dependencyVersion, GITHUB_REST, reaches } from "../package-edits.js";
 import { hookVersions } from "../settings-hooks.js";
@@ -21,20 +22,15 @@ interface Check {
   detail: string;
 }
 
-/** What fixes a repo at another version: it runs apply at the right one and moves the skills. */
-const RUN_AGENT_KITCHEN = "run npx agent-kitchen apply";
-
-/** What fixes the files of a repo already at this version. */
-const RUN_APPLY = `run npx ${PACKAGE} apply`;
-
 /**
  * What fixes a problem: `issue-flow apply` if the repo pins this version, else agent-kitchen.
  * @param pinned - The issue-flow the repo pins, or null.
  * @param version - This package's version.
+ * @param t - The messages.
  * @returns The hint.
  */
-function fix(pinned: string | null, version: string): string {
-  return pinned === version ? RUN_APPLY : RUN_AGENT_KITCHEN;
+function fix(pinned: string | null, version: string, t: Messages): string {
+  return pinned === version ? t.doctor.runApply(PACKAGE) : t.doctor.runAgentKitchen;
 }
 
 /**
@@ -42,17 +38,18 @@ function fix(pinned: string | null, version: string): string {
  * @param root - The repo.
  * @param hint - What fixes a stale `$schema`.
  * @param version - This package's version.
+ * @param t - The messages.
  * @returns The check.
  */
-function configCheck(root: string, hint: string, version: string): Check {
+function configCheck(root: string, hint: string, version: string, t: Messages): Check {
   try {
     loadConfig(root);
   } catch (error) {
     if (!(error instanceof ConfigError)) throw error;
     return { name: CONFIG_PATH, ok: false, detail: error.message };
   }
-  const stale = isStaleSchema(readJson(root, CONFIG_PATH)?.$schema, version);
-  return stale ? { name: CONFIG_PATH, ok: false, detail: `valid, but its $schema is not at v${version}: ${hint}` } : { name: CONFIG_PATH, ok: true, detail: "valid" };
+  const stale = isStaleSchema(readJson(root, CONFIG_PATH, t)?.$schema, version);
+  return stale ? { name: CONFIG_PATH, ok: false, detail: t.doctor.staleSchema(version, hint) } : { name: CONFIG_PATH, ok: true, detail: t.doctor.valid };
 }
 
 /**
@@ -60,16 +57,17 @@ function configCheck(root: string, hint: string, version: string): Check {
  * skills call, at the version the flow needs or newer.
  * @param root - The repo.
  * @param versions - This package's version and the lowest github-rest.
+ * @param t - The messages.
  * @returns The checks.
  */
-function packageChecks(root: string, versions: { issueFlow: string; githubRest: string }): Check[] {
-  const pkg = readJson(root, "package.json");
+function packageChecks(root: string, versions: { issueFlow: string; githubRest: string }, t: Messages): Check[] {
+  const pkg = readJson(root, "package.json", t);
   const flow = dependencyVersion(pkg, PACKAGE);
   const rest = dependencyVersion(pkg, GITHUB_REST);
   const version = versions.issueFlow;
-  const restDetail = rest === null ? `not in package.json, and the skills call it: ${fix(flow, version)}` : reaches(rest, versions.githubRest) ? rest : `${rest}, and the skills need ${versions.githubRest} or newer: raise it in package.json`;
+  const restDetail = rest === null ? t.doctor.restMissing(fix(flow, version, t)) : reaches(rest, versions.githubRest) ? rest : t.doctor.restOld(rest, versions.githubRest);
   return [
-    { name: PACKAGE, ok: flow === version, detail: flow === null ? `not in package.json: ${RUN_AGENT_KITCHEN}` : flow === version ? version : `package.json has ${flow}, this is ${version}: ${RUN_AGENT_KITCHEN}` },
+    { name: PACKAGE, ok: flow === version, detail: flow === null ? t.doctor.flowMissing(t.doctor.runAgentKitchen) : flow === version ? version : t.doctor.flowOther(flow, version, t.doctor.runAgentKitchen) },
     { name: GITHUB_REST, ok: rest !== null && reaches(rest, versions.githubRest), detail: restDetail },
   ];
 }
@@ -79,13 +77,14 @@ function packageChecks(root: string, versions: { issueFlow: string; githubRest: 
  * @param root - The repo.
  * @param version - This package's version.
  * @param hint - What fixes a missing or stale hook.
+ * @param t - The messages.
  * @returns The checks.
  */
-function hookChecks(root: string, version: string, hint: string): Check[] {
-  return Object.entries(hookVersions(readJson(root, SETTINGS_FILE))).map(([event, found]) => ({
-    name: `${event} hook`,
+function hookChecks(root: string, version: string, hint: string, t: Messages): Check[] {
+  return Object.entries(hookVersions(readJson(root, SETTINGS_FILE, t))).map(([event, found]) => ({
+    name: t.doctor.hookName(event),
     ok: found === version,
-    detail: found === null ? `not in ${SETTINGS_FILE}: ${hint}` : found === version ? version : `at ${found}, this is ${version}: ${hint}`,
+    detail: found === null ? t.doctor.hookMissing(SETTINGS_FILE, hint) : found === version ? version : t.doctor.hookAt(found, version, hint),
   }));
 }
 
@@ -99,17 +98,19 @@ function hookChecks(root: string, version: string, hint: string): Check[] {
  * @example doctor(process.cwd(), false, out)
  */
 export function doctor(cwd: string, json: boolean, out: Output): number {
+  // NOTE: --json is read by agent-kitchen, so its checks are always in English.
+  const t = json ? messages("en") : out.t;
   const located = locateRepo(cwd);
-  if (located === null) throw new SetupError("run doctor inside a checkout of the repo.");
+  if (located === null) throw new SetupError(t.doctor.insideCheckout);
   const root = located.mainRoot;
   const versions = ownVersions();
   let checks: Check[];
   try {
-    const hint = fix(dependencyVersion(readJson(root, "package.json"), PACKAGE), versions.issueFlow);
-    checks = [configCheck(root, hint, versions.issueFlow), ...packageChecks(root, versions), ...hookChecks(root, versions.issueFlow, hint)];
+    const hint = fix(dependencyVersion(readJson(root, "package.json", t), PACKAGE), versions.issueFlow, t);
+    checks = [configCheck(root, hint, versions.issueFlow, t), ...packageChecks(root, versions, t), ...hookChecks(root, versions.issueFlow, hint, t)];
   } catch (error) {
     if (!(error instanceof SetupError)) throw error;
-    checks = [{ name: "files", ok: false, detail: error.message }];
+    checks = [{ name: t.doctor.filesName, ok: false, detail: error.message }];
   }
   if (json) out.stdout(`${JSON.stringify(checks)}\n`);
   else for (const check of checks) out.stdout(`${check.ok ? "✓" : "✗"} ${check.name}: ${check.detail}\n`);

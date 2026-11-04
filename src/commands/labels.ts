@@ -7,6 +7,7 @@
  */
 import { createLabel, type Label, listLabels } from "@ramon-sg/github-rest";
 import type { LabelSpec } from "../config.js";
+import { type Messages, messages } from "../messages/index.js";
 import { emitJson, type Output } from "../output.js";
 
 /**
@@ -36,9 +37,6 @@ export interface LabelsSyncOptions {
   json: boolean;
 }
 
-/** Width of the status column in the text output. */
-const STATUS_WIDTH = 10;
-
 /**
  * Whether a label in GitHub has the wanted color and description (colors ignore case).
  * @param found - The label in GitHub.
@@ -67,29 +65,32 @@ export function planLabels(wanted: Record<string, LabelSpec>, existing: Label[],
   });
 }
 
-/** The word of each status in the text output. */
-const WORDS: Record<LabelStatus, string> = {
-  created: "created",
-  updated: "updated",
-  ok: "ok",
-  differs: "differs",
-  "to-create": "to create",
-  "to-update": "to update",
-  failed: "failed",
-};
+/**
+ * The word of each status in the text output.
+ * @param t - The messages.
+ * @returns The words.
+ */
+function words(t: Messages): Record<LabelStatus, string> {
+  const { status } = t.labels;
+  return { created: status.created, updated: status.updated, ok: status.ok, differs: status.differs, "to-create": status.toCreate, "to-update": status.toUpdate, failed: status.failed };
+}
 
 /**
  * One line of the text output.
  * @param result - The label.
+ * @param t - The messages.
  * @returns The line.
  */
-function line(result: LabelResult): string {
-  const head = `${WORDS[result.status].padEnd(STATUS_WIDTH)}${result.name}`;
+function line(result: LabelResult, t: Messages): string {
+  const all = words(t);
+  // NOTE: the status column is as wide as the longest word plus a space.
+  const width = Math.max(...Object.values(all).map((word) => word.length)) + 1;
+  const head = `${all[result.status].padEnd(width)}${result.name}`;
   if (result.error !== undefined) return `${head}: ${result.error}`;
   if (result.found === undefined) return head;
   const was = `${result.found.color} "${result.found.description}"`;
   const wanted = `${result.color} "${result.description}"`;
-  return result.status === "differs" ? `${head}: has ${was}, the flow wants ${wanted} (--update fixes it)` : `${head}: ${was} → ${wanted}`;
+  return result.status === "differs" ? `${head}: ${t.labels.differs(was, wanted)}` : `${head}: ${was} → ${wanted}`;
 }
 
 /**
@@ -97,16 +98,17 @@ function line(result: LabelResult): string {
  * was read fails without `--update`, with a message that says to run it again.
  * @param repo - `owner/repo`.
  * @param result - The label, as planned.
+ * @param t - The messages.
  * @returns The label with its final status.
  */
-async function write(repo: string, result: LabelResult): Promise<LabelResult> {
+async function write(repo: string, result: LabelResult, t: Messages): Promise<LabelResult> {
   try {
     await createLabel(repo, { name: result.name, color: result.color, description: result.description, force: result.status === "updated" });
     return result;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const appeared = result.status === "created" && message.includes("already exists");
-    return { ...result, status: "failed", error: appeared ? "it appeared in GitHub meanwhile: run labels sync again" : message };
+    return { ...result, status: "failed", error: appeared ? t.labels.appeared : message };
   }
 }
 
@@ -119,9 +121,11 @@ async function write(repo: string, result: LabelResult): Promise<LabelResult> {
  * @example await labelsSync({ repo: "acme/widgets", labels, update: false, dryRun: true, json: false }, out)
  */
 export async function labelsSync(options: LabelsSyncOptions, out: Output): Promise<number> {
+  // NOTE: --json carries the text of each failure, so it is always in English.
+  const t = options.json ? messages("en") : out.t;
   const { labels: existing, truncated } = await listLabels(options.repo);
   if (truncated) {
-    out.stderr(`issue-flow: could not read every label of ${options.repo}; nothing written, so no label is made twice.\n`);
+    out.stderr(`issue-flow: ${t.labels.truncated(options.repo)}\n`);
     return 1;
   }
   const results: LabelResult[] = [];
@@ -130,9 +134,9 @@ export async function labelsSync(options: LabelsSyncOptions, out: Output): Promi
     // NOTE: one at a time, as GitHub asks of writes, to stay clear of its secondary rate limit.
     if (!writes) results.push(item);
     else if (options.dryRun) results.push({ ...item, status: item.status === "created" ? "to-create" : "to-update" });
-    else results.push(await write(options.repo, item));
+    else results.push(await write(options.repo, item, t));
   }
   if (options.json) emitJson(out, { repo: options.repo, dryRun: options.dryRun, labels: results });
-  else out.stdout(`${results.map(line).join("\n")}\n`);
+  else out.stdout(`${results.map((result) => line(result, t)).join("\n")}\n`);
   return results.some((result) => result.status === "failed") ? 1 : 0;
 }

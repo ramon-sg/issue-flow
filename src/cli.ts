@@ -53,10 +53,7 @@ export function repoOf(flag: string | undefined, config: FlowConfig, cwd: string
     throw error;
   }
   if (repo === null)
-    throw new GitHubError(
-      "can't tell which repo this is: run inside a checkout whose origin is on GitHub, pass -R owner/repo, set GH_REPO or \"repo\" in .agents/flow.json.",
-      0,
-    );
+    throw new GitHubError(t.cantTellRepo, 0);
   return repo;
 }
 

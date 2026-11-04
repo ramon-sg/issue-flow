@@ -5,6 +5,7 @@
 import { spawnSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 import { dirname } from "node:path";
+import type { Messages } from "./messages/index.js";
 
 /** What a git command gave. */
 export interface GitResult {
@@ -70,10 +71,11 @@ export function trackOrigin(cwd: string, branch: string): boolean {
 /**
  * The warning when a branch cannot track origin's.
  * @param branch - The branch.
+ * @param t - The messages.
  * @returns The warning.
  */
-export function untracked(branch: string): string {
-  return `could not make ${branch} track origin/${branch} (is .git/config read-only, as in a sandbox?); push with 'git push origin HEAD'.`;
+export function untracked(branch: string, t: Messages): string {
+  return t.git.untracked(branch);
 }
 
 /**
@@ -245,24 +247,25 @@ export function safeToDelete(cwd: string, branch: string, head: string): boolean
  * origin is left alone.
  * @param mainRoot - The main checkout.
  * @param base - The base branch.
+ * @param t - The messages.
  * @returns Null if it is up to date now (or there is no local base); else why it was not
  *   moved.
- * @example updateBase("/repo", "main") // null
+ * @example updateBase("/repo", "main", t) // null
  */
-export function updateBase(mainRoot: string, base: string): string | null {
+export function updateBase(mainRoot: string, base: string, t: Messages): string | null {
   const remote = `refs/remotes/origin/${base}`;
   const local = `refs/heads/${base}`;
   if (!git(mainRoot, ["fetch", "-q", "origin", `+refs/heads/${base}:${remote}`]).ok)
-    return `could not fetch ${base} from origin; local ${base} was not updated.`;
+    return t.git.updateFetch(base);
   if (!hasRef(mainRoot, local)) return null;
   const from = git(mainRoot, ["rev-parse", local]).out;
   const to = git(mainRoot, ["rev-parse", remote]).out;
   if (from === to) return null;
   if (!git(mainRoot, ["merge-base", "--is-ancestor", local, remote]).ok)
-    return `local ${base} has commits that are not in origin/${base}; it was not updated.`;
+    return t.git.updateAhead(base);
   const at = checkedOutAt(mainRoot, base);
   if (at === null)
-    return git(mainRoot, ["update-ref", local, to, from]).ok ? null : `could not move local ${base} to origin/${base}.`;
-  if (!isClean(at, false)) return `${base} is checked out in ${at} with changes; it was not updated. Run 'git pull --ff-only' there.`;
-  return git(at, ["merge", "-q", "--ff-only", remote]).ok ? null : `could not update ${base} in ${at}; run 'git pull --ff-only' there.`;
+    return git(mainRoot, ["update-ref", local, to, from]).ok ? null : t.git.updateMove(base);
+  if (!isClean(at, false)) return t.git.updateDirty(base, at);
+  return git(at, ["merge", "-q", "--ff-only", remote]).ok ? null : t.git.updateMerge(base, at);
 }

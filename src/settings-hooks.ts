@@ -8,6 +8,7 @@
  * already there is dropped, so it does not run twice.
  */
 import { isObject } from "./config-base.js";
+import type { Messages } from "./messages/index.js";
 import { PACKAGE, SETTINGS_FILE, SetupError } from "./setup-files.js";
 
 /** Seconds each hook may take: the setup steps can install dependencies. */
@@ -59,13 +60,14 @@ function ourVersion(command: unknown, event: string): string | null {
  * The entries of an event in the settings, checked.
  * @param hooks - The `hooks` object.
  * @param event - The event.
+ * @param t - The messages.
  * @returns Its entries (a new array if there were none).
  * @throws SetupError if they are not a list of objects.
  */
-function entriesOf(hooks: Record<string, unknown>, event: string): Record<string, unknown>[] {
+function entriesOf(hooks: Record<string, unknown>, event: string, t: Messages): Record<string, unknown>[] {
   const entries = hooks[event] ?? [];
   if (!Array.isArray(entries) || !entries.every(isObject))
-    throw new SetupError(`${SETTINGS_FILE}: hooks.${event} is not a list of entries; fix it and run again.`);
+    throw new SetupError(t.setup.hooksNotList(SETTINGS_FILE, event));
   return entries;
 }
 
@@ -84,18 +86,19 @@ function hooksOf(entry: Record<string, unknown>): Hook[] {
  * ours.
  * @param settings - The settings, or null if there is no file.
  * @param version - This package's version.
+ * @param t - The messages, for the changes and the errors.
  * @returns The new settings and what changed, one line each.
  * @throws SetupError if `hooks` or an event of it is not what Claude Code expects.
- * @example registerHooks(null, "0.1.0").changes // ["added the SessionStart hook", …]
+ * @example registerHooks(null, "0.1.0", t).changes // ["added the SessionStart hook", …]
  */
-export function registerHooks(settings: Record<string, unknown> | null, version: string): { settings: Record<string, unknown>; changes: string[] } {
+export function registerHooks(settings: Record<string, unknown> | null, version: string, t: Messages): { settings: Record<string, unknown>; changes: string[] } {
   const next = { ...(settings ?? {}) };
   const hooks = next.hooks ?? {};
-  if (!isObject(hooks)) throw new SetupError(`${SETTINGS_FILE}: "hooks" is not an object; fix it and run again.`);
+  if (!isObject(hooks)) throw new SetupError(t.setup.hooksNotObject(SETTINGS_FILE));
   next.hooks = { ...hooks };
   const changes: string[] = [];
   for (const event of HOOK_EVENTS) {
-    const entries = entriesOf(hooks, event);
+    const entries = entriesOf(hooks, event, t);
     const command = hookCommand(event, version);
     let found = false;
     const kept = entries.map((entry) => {
@@ -104,11 +107,11 @@ export function registerHooks(settings: Record<string, unknown> | null, version:
         if (current !== null) {
           found = true;
           if (hook.command === command) return [hook];
-          changes.push(`moved the ${event} hook from ${current} to ${version}`);
+          changes.push(t.setup.movedHook(event, current, version));
           return [{ ...hook, command }];
         }
         if (event === "SessionStart" && typeof hook.command === "string" && hook.command.includes(CLOUD_MARKER)) {
-          changes.push(`dropped the ${CLOUD_MARKER} SessionStart hook: issue-flow session runs it`);
+          changes.push(t.setup.droppedCloud(CLOUD_MARKER));
           return [];
         }
         return [hook];
@@ -117,7 +120,7 @@ export function registerHooks(settings: Record<string, unknown> | null, version:
     }).filter((entry) => !Array.isArray(entry.hooks) || entry.hooks.length > 0);
     if (!found) {
       kept.push({ hooks: [{ type: "command", command, timeout: HOOK_TIMEOUT_SECONDS }] });
-      changes.push(`added the ${event} hook`);
+      changes.push(t.setup.addedHook(event));
     }
     (next.hooks as Record<string, unknown>)[event] = kept;
   }

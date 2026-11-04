@@ -98,7 +98,7 @@ export function stepEnv(place: StepPlace, port: number | null): Record<string, s
 function runStep(place: StepPlace, step: Step, env: Record<string, string>): boolean {
   const result = spawnSync("sh", ["-c", step.run], { cwd: place.root, env: { ...process.env, ...env }, stdio: ["ignore", 2, 2] });
   if (result.status === 0) return true;
-  warn(place.out, `step "${step.name}" failed${result.status === null ? "" : ` (exit ${result.status})`}; run '${step.run}' in ${place.root}.`);
+  warn(place.out, place.out.t.steps.stepFailed(step.name, result.status, step.run, place.root));
   return false;
 }
 
@@ -121,7 +121,8 @@ export interface SetupSteps {
 export function setupSteps(place: StepPlace): SetupSteps {
   const local = place.config.worktrees.setup;
   const ref = `origin/${place.base}`;
-  const fallback = { steps: local, source: `the main checkout's ${CONFIG_PATH}` };
+  const { t } = place.out;
+  const fallback = { steps: local, source: t.steps.mainCheckoutConfig(CONFIG_PATH) };
   // NOTE: a cloud session has no other checkout: its steps are those of the session's branch.
   if (place.remote || !git(place.mainRoot, ["rev-parse", "-q", "--verify", `${ref}^{commit}`]).ok)
     return { ...fallback, warning: null };
@@ -136,13 +137,13 @@ export function setupSteps(place: StepPlace): SetupSteps {
     }
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    return { ...fallback, warning: `${source} is not valid: ${reason}; using the main checkout's steps.` };
+    return { ...fallback, warning: t.steps.sourceInvalid(source, reason) };
   }
   const differ = JSON.stringify(steps) !== JSON.stringify(local);
   return {
     steps,
     source,
-    warning: differ ? `the setup steps come from ${source}; the main checkout's differ (is it behind? pull it).` : null,
+    warning: differ ? t.steps.sourceDiffers(source) : null,
   };
 }
 
@@ -157,7 +158,7 @@ export function checkOnly(place: StepPlace, only: string | null): void {
   if (only === null) return;
   const names = setupSteps(place).steps.map((step) => step.name);
   if (!names.includes(only))
-    throw new UsageError(`--only expects a setup step of ${CONFIG_PATH} (${names.join(", ") || "it has none"}): ${only}`);
+    throw new UsageError(place.out.t.steps.onlyExpects(CONFIG_PATH, names.join(", "), only));
 }
 
 /**
@@ -182,7 +183,7 @@ async function takeLock(lock: string, out: Output): Promise<boolean> {
         rmSync(lock, { recursive: true, force: true });
         continue;
       }
-      if (waited === 0) warn(out, "another setup is preparing this worktree; waiting for it…");
+      if (waited === 0) warn(out, out.t.steps.waiting);
       await sleep(1000);
     }
   }
@@ -220,15 +221,15 @@ export async function runSetup(place: StepPlace, only: string | null, quiet = fa
   if (root === mainRoot && !place.remote) return true;
   const found = setupSteps(place);
   if (found.warning !== null) warn(out, found.warning);
-  if (found.steps.length === 0 && !quiet) warn(out, `no setup steps in ${found.source}; nothing ran.`);
+  if (found.steps.length === 0 && !quiet) warn(out, out.t.steps.noSteps(found.source));
   const chosen = found.steps.filter((step) => only === null || step.name === only);
   const ports = config.worktrees.ports;
   const port = ports === null ? null : await claimPortBase(ports, root, null);
-  if (ports !== null && port === null) warn(out, "no block of ports is free on this machine; delete worktrees you no longer use.");
+  if (ports !== null && port === null) warn(out, out.t.steps.noFreeBlock);
   if (chosen.length === 0) return true;
   const lock = join(gitDir(root), LOCK_NAME);
   if (!(await takeLock(lock, out))) {
-    warn(out, `another setup has been running for over ${LOCK_WAIT_SECONDS} s; nothing ran. Run 'issue-flow worktree setup' in ${root} when it ends.`);
+    warn(out, out.t.steps.lockTimeout(LOCK_WAIT_SECONDS, root));
     return false;
   }
   try {
@@ -250,7 +251,7 @@ function setupStep(place: StepPlace, step: Step, env: Record<string, string>): b
   const mark = join(gitDir(place.root), SETUP_MARKS_DIR, step.name);
   if (step.once && existsSync(mark)) return true;
   if (step.trusted && !place.remote && !trustedCode(place.root, place.base)) {
-    warn(place.out, `skipped "${step.name}": this worktree has code that is not in origin/${place.base}. Check it and run '${step.run}' in ${place.root} if you trust it.`);
+    warn(place.out, place.out.t.steps.skipped(step.name, place.base, step.run, place.root));
     return true;
   }
   if (!runStep(place, step, env)) return false;
@@ -283,8 +284,8 @@ export async function teardownWorktree(place: StepPlace): Promise<boolean> {
   releasePortClaims(root, null);
   const docker = dockerCleanup(config.worktrees.dockerProjects, root);
   if (!docker.dockerRunning)
-    warn(out, "Docker is not running; the worktree's containers stay. Start Docker and run 'issue-flow worktree cleanup'.");
+    warn(out, out.t.steps.dockerOff);
   if (docker.failed.length > 0)
-    warn(out, `could not delete the Docker projects ${docker.failed.join(", ")}; see what holds them with 'docker ps -a --filter label=com.docker.compose.project=<project>'.`);
+    warn(out, out.t.steps.dockerFailed(docker.failed.join(", ")));
   return ok && docker.dockerRunning && docker.failed.length === 0;
 }

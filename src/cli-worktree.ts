@@ -84,7 +84,7 @@ export async function runSession(out: Output, cwd: string): Promise<number> {
   try {
     config = loadConfig(dir);
   } catch (error) {
-    out.stdout(`issue-flow session: ${error instanceof Error ? error.message : String(error)}; going on with the defaults.\n`);
+    out.stdout(`issue-flow session: ${out.t.goingOn(error instanceof Error ? error.message : String(error))}\n`);
   }
   return session({ config, cwd: dir }, out);
 }
@@ -111,7 +111,7 @@ export async function runAdapter(command: string, flags: Flags, rest: string[], 
     config = loadConfig(run.cwd);
   } catch (error) {
     if (command === "issue" && rest.length > 0) throw error;
-    run.out.stderr(`issue-flow: ${error instanceof Error ? error.message : String(error)}; going on with the defaults.\n`);
+    run.out.stderr(`issue-flow: ${run.out.t.goingOn(error instanceof Error ? error.message : String(error))}\n`);
   }
   const options: AdapterOptions = { config, cwd: run.cwd, only: flags.only ?? null, url: rest[0] ?? null, repo: run.repo };
   if (command === "setup") return adapterSetup(options, run.out);

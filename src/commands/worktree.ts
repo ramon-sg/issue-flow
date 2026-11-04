@@ -13,6 +13,7 @@ import { resolve } from "node:path";
 import { canonicalPath, dockerCleanup } from "../docker.js";
 import { checkoutRoot, git, isClean, locateRepo, safeToDelete, updateBase, type WorktreeEntry, worktrees } from "../git.js";
 import { forgetSession } from "../launch.js";
+import type { Messages } from "../messages/index.js";
 import { type Output, warn } from "../output.js";
 import { claimPortBase, nextPortBase, portBase } from "../ports.js";
 import { isStale, LOCK_REASON } from "../session-lock.js";
@@ -57,7 +58,7 @@ export function baseBranch(config: FlowConfig, mainRoot: string): string {
 export function stepPlace(options: Pick<WorktreeOptions, "config" | "cwd">, out: Output): StepPlace {
   const located = locateRepo(options.cwd);
   const root = checkoutRoot(options.cwd);
-  if (located === null || root === null) throw new StartError("run this inside a checkout of the repo.");
+  if (located === null || root === null) throw new StartError(out.t.worktree.insideCheckout);
   const { mainRoot } = located;
   return { root, mainRoot, base: baseBranch(options.config, mainRoot), config: options.config, out, remote: process.env.CLAUDE_CODE_REMOTE === "true" };
 }
@@ -89,9 +90,9 @@ export async function worktreeSetup(options: WorktreeOptions, out: Output): Prom
 export async function worktreeTeardown(options: WorktreeOptions, out: Output): Promise<number> {
   const place = stepPlace(options, out);
   const root = options.path === null ? place.root : canonicalPath(resolve(options.cwd, options.path));
-  if (root === place.mainRoot) throw new StartError("teardown is for worktrees, not the main checkout.");
+  if (root === place.mainRoot) throw new StartError(out.t.worktree.teardownMain);
   if (existsSync(root) && !worktrees(place.mainRoot).some((entry) => entry.path === root))
-    throw new StartError(`${root} is not a worktree of this repo.`);
+    throw new StartError(out.t.worktree.notOfRepo(root));
   return (await teardownWorktree({ ...place, root })) ? 0 : 1;
 }
 
@@ -106,13 +107,13 @@ export async function worktreeTeardown(options: WorktreeOptions, out: Output): P
  */
 export async function worktreePorts(options: WorktreeOptions, out: Output): Promise<number> {
   const ports = options.config.worktrees.ports;
-  if (ports === null) throw new StartError('this repo has no ports for worktrees: add "worktrees.ports" to .agents/flow.json.');
+  if (ports === null) throw new StartError(out.t.worktree.noPorts);
   const place = stepPlace(options, out);
-  if (place.root === place.mainRoot) throw new StartError("ports are for worktrees, not the main checkout.");
+  if (place.root === place.mainRoot) throw new StartError(out.t.worktree.portsMain);
   const start = options.next ? nextPortBase(ports, portBase(ports, place.root)) : null;
   const base = await claimPortBase(ports, place.root, start);
-  if (base === null) throw new StartError("no block of ports is free on this machine; delete worktrees you no longer use.");
-  if (options.next) warn(out, `the worktree moves to block ${base}: restart what runs in it.`);
+  if (base === null) throw new StartError(out.t.steps.noFreeBlock);
+  if (options.next) warn(out, out.t.worktree.movedBlock(base));
   out.stdout(`${base}\n`);
   return 0;
 }
@@ -128,28 +129,29 @@ export async function worktreePorts(options: WorktreeOptions, out: Output): Prom
 export function worktreeCleanup(options: WorktreeOptions, out: Output): number {
   const result = dockerCleanup(options.config.worktrees.dockerProjects, options.path);
   if (!result.dockerRunning) {
-    warn(out, "Docker is not running; nothing was cleaned. Start it and run 'issue-flow worktree cleanup'.");
+    warn(out, out.t.worktree.dockerOff);
     return 0;
   }
-  for (const project of result.removed) out.stdout(`deleted: ${project}\n`);
-  for (const project of result.failed) warn(out, `could not delete ${project}; see what holds it with 'docker ps -a --filter label=com.docker.compose.project=${project}'.`);
+  for (const project of result.removed) out.stdout(`${out.t.worktree.deleted(project)}\n`);
+  for (const project of result.failed) warn(out, out.t.worktree.dockerStuck(project));
   return result.failed.length === 0 ? 0 : 1;
 }
 
 /**
  * Why `prune` leaves a locked worktree alone, or null if it is not locked.
  * @param entry - The worktree.
+ * @param t - The messages.
  * @returns The message, or null.
  */
-function lockedReason(entry: WorktreeEntry): string | null {
+function lockedReason(entry: WorktreeEntry, t: Messages): string | null {
   const { lock, path } = entry;
   if (lock === null) return null;
   if (lock.startsWith(`${LOCK_REASON} `))
     return isStale(lock)
-      ? `locked by an issue-flow session that is gone, not touched: ${path} (free it with: git worktree unlock ${path})`
-      : `in use by a Claude session, not touched: ${path}`;
-  if (lock.startsWith(CLAUDE_LOCK_REASON)) return `in use by a Claude session, not touched: ${path}`;
-  return `locked${lock === "" ? "" : ` (${lock})`}, not touched: ${path}`;
+      ? t.worktree.lockedGone(path)
+      : t.worktree.inUse(path);
+  if (lock.startsWith(CLAUDE_LOCK_REASON)) return t.worktree.inUse(path);
+  return t.worktree.locked(lock, path);
 }
 
 /** A worktree `prune` can delete, with the tip of its branch when it was checked. */
@@ -183,13 +185,13 @@ function unchanged(mainRoot: string, doomed: Doomed): boolean {
  */
 async function pruneCandidates(options: WorktreeOptions, mainRoot: string, out: Output): Promise<Doomed[]> {
   const only = options.only === null ? null : checkoutRoot(options.only);
-  if (options.only !== null && only === null) throw new StartError(`${options.only} is not a worktree.`);
+  if (options.only !== null && only === null) throw new StartError(out.t.worktree.notWorktree(options.only));
   const found: Doomed[] = [];
   const unread: string[] = [];
   for (const entry of worktrees(mainRoot).slice(1)) {
     const { path, branch } = entry;
     if (branch === null || (only !== null && path !== only)) continue;
-    const locked = lockedReason(entry);
+    const locked = lockedReason(entry, out.t);
     if (locked !== null) {
       out.stdout(`${locked}\n`);
       continue;
@@ -200,17 +202,17 @@ async function pruneCandidates(options: WorktreeOptions, mainRoot: string, out: 
     });
     if (pr === null || (pr.state !== "MERGED" && pr.state !== "CLOSED")) continue;
     if (!isClean(path)) {
-      out.stdout(`PR ${pr.state}, but with uncommitted changes, not deleted: ${path}\n`);
+      out.stdout(`${out.t.worktree.dirty(pr.state, path)}\n`);
       continue;
     }
     if (!safeToDelete(mainRoot, branch, pr.head)) {
-      out.stdout(`PR ${pr.state}, but with commits that are not in origin, not deleted: ${path}\n`);
+      out.stdout(`${out.t.worktree.unpushed(pr.state, path)}\n`);
       continue;
     }
-    out.stdout(`PR ${pr.state}: ${path} (${branch})\n`);
+    out.stdout(`${out.t.worktree.candidate(pr.state, path, branch)}\n`);
     found.push({ path, branch, tip: git(mainRoot, ["rev-parse", `refs/heads/${branch}`]).out });
   }
-  if (unread.length > 0) warn(out, `could not read the PRs of ${unread.join(", ")} from GitHub; they were left alone.`);
+  if (unread.length > 0) warn(out, out.t.worktree.unread(unread.join(", ")));
   return found;
 }
 
@@ -231,31 +233,31 @@ export async function worktreePrune(options: WorktreeOptions, out: Output): Prom
   const { mainRoot } = place;
   const doomed = await pruneCandidates(options, mainRoot, out);
   if (doomed.length === 0) {
-    out.stdout("No worktrees to delete.\n");
+    out.stdout(`${out.t.worktree.none}\n`);
     return 0;
   }
-  if (!options.yes && !(await confirm(out, "Delete the worktrees above with their local branch and their Docker?"))) {
-    out.stdout("Deleted nothing.\n");
+  if (!options.yes && !(await confirm(out, out.t.worktree.confirm))) {
+    out.stdout(`${out.t.worktree.deletedNothing}\n`);
     return 0;
   }
   const { commonDir } = locateRepo(mainRoot) ?? { commonDir: "" };
   let deleted = 0;
   for (const item of doomed) {
     if (!unchanged(mainRoot, item)) {
-      out.stdout(`changed since the check, not deleted: ${item.path}\n`);
+      out.stdout(`${out.t.worktree.changed(item.path)}\n`);
       continue;
     }
     await teardownWorktree({ ...place, root: item.path });
     if (!git(mainRoot, ["worktree", "remove", item.path]).ok) {
-      warn(out, `could not delete ${item.path} (its teardown already ran: its Docker and ports are gone); see 'git -C ${item.path} status'.`);
+      warn(out, out.t.worktree.removeFailed(item.path));
       continue;
     }
-    if (!git(mainRoot, ["branch", "-q", "-D", item.branch]).ok) warn(out, `could not delete the local branch ${item.branch}.`);
+    if (!git(mainRoot, ["branch", "-q", "-D", item.branch]).ok) warn(out, out.t.worktree.branchFailed(item.branch));
     forgetSession(commonDir, item.branch);
-    out.stdout(`deleted: ${item.path} (${item.branch})\n`);
+    out.stdout(`${out.t.worktree.deleted(`${item.path} (${item.branch})`)}\n`);
     deleted += 1;
   }
-  const stale = deleted === 0 ? null : updateBase(mainRoot, place.base);
+  const stale = deleted === 0 ? null : updateBase(mainRoot, place.base, out.t);
   if (stale !== null) warn(out, stale);
   return 0;
 }

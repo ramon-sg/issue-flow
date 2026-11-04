@@ -17,6 +17,7 @@ import { dockerCleanup } from "../docker.js";
 import { currentBranch, onOrigin } from "../git.js";
 import { issueOfBranch } from "../issue-text.js";
 import { inPath } from "../launch.js";
+import type { Messages } from "../messages/index.js";
 import type { Output } from "../output.js";
 import { runSetup } from "../worktree-steps.js";
 import { stepPlace } from "./worktree.js";
@@ -32,15 +33,16 @@ const AGENT_CLOUD_KIT_PACKAGE = "agent-cloud-kit";
  * looked for). Its output goes to stderr, as its steps print their own.
  * @param root - The checkout.
  * @param say - Where a message for Claude goes.
+ * @param t - The messages.
  */
-function cloudSession(root: string, say: (text: string) => void): void {
+function cloudSession(root: string, say: (text: string) => void, t: Messages): void {
   const bin = process.env.AGENT_CLOUD_KIT_BIN ?? AGENT_CLOUD_KIT_BIN;
   if (!existsSync(bin)) {
-    say(`the environment setup did not run (there is no ${bin}). In claude.ai, set the environment's setup script to: npx -y ${AGENT_CLOUD_KIT_PACKAGE}@1 setup. It applies to new sessions.`);
+    say(t.session.noCloudKit(bin, AGENT_CLOUD_KIT_PACKAGE));
     return;
   }
   if (spawnSync(bin, ["session"], { cwd: root, stdio: ["ignore", 2, 2] }).status !== 0)
-    say(`agent-cloud-kit session failed; run '${bin} session' in ${root} to see why.`);
+    say(t.session.cloudFailed(bin, root));
 }
 
 /**
@@ -63,13 +65,14 @@ function unstartedIssue(root: string): number | null {
  * the earlier environment, which would take from the session what it inherited.
  * @param root - The checkout.
  * @param say - Where a message for Claude goes.
+ * @param t - The messages.
  */
-function direnvExport(root: string, say: (text: string) => void): void {
+function direnvExport(root: string, say: (text: string) => void, t: Messages): void {
   const file = process.env.CLAUDE_ENV_FILE;
   if (file === undefined || file === "" || !existsSync(join(root, ".envrc")) || !inPath("direnv")) return;
   const result = spawnSync("direnv", ["export", "bash"], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
   if (result.status !== 0) {
-    say("could not load the .envrc with direnv; the session keeps the environment it inherited.");
+    say(t.session.direnvFailed);
     return;
   }
   appendFileSync(file, `${result.stdout}\n`);
@@ -92,13 +95,13 @@ export async function session(options: { config: FlowConfig; cwd: string }, out:
     return 0;
   }
   const { root, mainRoot, remote } = place;
-  if (remote) cloudSession(root, say);
+  if (remote) cloudSession(root, say, out.t);
   if (root !== mainRoot || remote) await runSetup(place, null, true);
   const unstarted = !remote && root !== mainRoot ? unstartedIssue(root) : null;
   if (unstarted !== null)
-    say(`issue #${unstarted} was not started: its branch is not published and has no draft PR. Before working, run the start-issue skill (${unstarted}).`);
+    say(out.t.session.unstarted(unstarted));
   const docker = dockerCleanup(options.config.worktrees.dockerProjects, null);
-  if (docker.failed.length > 0) say(`could not delete the Docker of deleted worktrees (${docker.failed.join(", ")}); run 'issue-flow worktree cleanup' to see why.`);
-  direnvExport(root, say);
+  if (docker.failed.length > 0) say(out.t.session.dockerFailed(docker.failed.join(", ")));
+  direnvExport(root, say, out.t);
   return 0;
 }

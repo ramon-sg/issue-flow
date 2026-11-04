@@ -2,7 +2,10 @@
 // shape, and that --lang goes with any command without changing --json.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { startSandbox } from "./start-helpers.mjs";
+import { npxEnv, withNpx } from "./init-helpers.mjs";
 import { resolveLang } from "../dist/lang.js";
 import { messages } from "../dist/messages/index.js";
 
@@ -107,4 +110,30 @@ test("a usage error is in the language of the terminal, with its help", () => {
   assert.equal(es.status, 2);
   assert.match(es.err, /usa --ask-permissions o --free, no los dos\.\nUso: issue-flow issue start/);
   assert.match(en.err, /use --ask-permissions or --free, not both\.\nUsage: issue-flow issue start/);
+});
+
+// The rest of the commands: each one prints in Spanish by default and keeps the English text
+// with --lang en, without GitHub.
+test("worktree ports, doctor and apply --dry-run speak Spanish, and English with --lang en", () => {
+  const s = withNpx(startSandbox());
+  writeFileSync(join(s.main, "pnpm-lock.yaml"), "");
+  const es = { env: npxEnv(s, { ISSUE_FLOW_LANG: "es" }) };
+  const en = { env: npxEnv(s, { ISSUE_FLOW_LANG: "en" }) };
+
+  const ports = s.cli(["worktree", "ports"], es);
+  const portsEn = s.cli(["worktree", "ports"], en);
+  const doctor = s.cli(["doctor"], es);
+  const doctorEn = s.cli(["doctor"], en);
+  const dry = s.cli(["apply", "--dry-run"], es);
+  const dryEn = s.cli(["apply", "--dry-run"], en);
+
+  assert.match(ports.err, /este repo no tiene puertos para worktrees/);
+  assert.doesNotMatch(ports.err, /this repo has no ports/);
+  assert.match(portsEn.err, /this repo has no ports for worktrees/);
+  assert.match(doctor.out, /no está en package\.json/);
+  assert.doesNotMatch(doctor.out, /not in package\.json/);
+  assert.match(doctorEn.out, /not in package\.json/);
+  assert.match(dry.out, /escribiría:/);
+  assert.doesNotMatch(dry.out, /would write/);
+  assert.match(dryEn.out, /would write:/);
 });

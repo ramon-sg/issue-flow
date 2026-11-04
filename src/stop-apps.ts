@@ -122,7 +122,7 @@ export async function stopApps(ports: PortsConfig, base: number, root: string, o
     const group = processGroup(pid);
     return group === null || group === own || !inside(group, root) ? pid : -group;
   }))];
-  warn(out, `stopping the apps that run in ${root}.`);
+  warn(out, out.t.steps.stopping(root));
   signal(targets, "SIGTERM");
   for (let waited = 0; waited < GRACE_SECONDS && appPids(ports, base, root).length > 0; waited += 1) await sleep(1000);
   if (appPids(ports, base, root).length > 0) signal(targets, "SIGKILL");
