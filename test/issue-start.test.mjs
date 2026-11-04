@@ -64,7 +64,7 @@ test("a -- that pnpm passes on is dropped: issue start -- 214 --dry-run works as
 
 test("issue start --help names every flag issue start takes, and a usage error of issue start shows it", async () => {
   const { COMMAND_FLAGS } = await import("../dist/cli-flags.js");
-  const { START_USAGE } = await import("../dist/usage.js");
+  const START_USAGE = (await import("../dist/messages/index.js")).messages("en").usage.start;
   const s = startSandbox();
 
   const bad = s.cli(["-R", "acme/widgets", "issue", "start", "42", "--free", "--ask-permissions"]);

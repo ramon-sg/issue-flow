@@ -105,7 +105,7 @@ export const ADAPTER_COMMANDS = ["setup", "issue", "archive"];
  * @example await runAdapter("setup", {}, [], run)
  */
 export async function runAdapter(command: string, flags: Flags, rest: string[], run: Omit<WorktreeRun, "config">): Promise<number> {
-  if (rest.length > (command === "issue" ? 1 : 0)) throw new UsageError(`adapter ${command} takes ${command === "issue" ? "at most one URL" : "no arguments"}.`);
+  if (rest.length > (command === "issue" ? 1 : 0)) throw new UsageError(run.out.t.cli.adapterArguments(command));
   let config = DEFAULT_CONFIG;
   try {
     config = loadConfig(run.cwd);
