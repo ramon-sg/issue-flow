@@ -38,7 +38,7 @@ npx @ramon-sg/github-rest pr find "$(git rev-parse --abbrev-ref HEAD)"
 ## Paso 2: Traer comentarios y estado de CI
 
 ```bash
-npx @ramon-sg/github-rest pr view <n>        # estado, draft, rama y SHA del head
+npx @ramon-sg/github-rest pr view <n>        # estado, isDraft, SHA del head y URL
 npx @ramon-sg/github-rest pr reviews <n>     # aprobaciones y resúmenes de los bots
 npx @ramon-sg/github-rest pr comments <n>    # comentarios del diff, agrupados por hilo
 npx @ramon-sg/github-rest issue comments <n> # comentarios generales del PR
@@ -64,8 +64,10 @@ Los checks no son opcionales: uno en `fail` es una señal más dura que
 cualquier comentario (algo se rompió, no es una opinión), y uno en
 `pending` se anota para volver a mirarlo, no se da por bueno.
 
-**Si el PR es draft**, muchos bots no lo revisan: dilo y propón sacarlo de
-draft (`finish-pr`, Paso 5). No esperes comentarios que no van a llegar.
+**Si el PR es draft** (`isDraft` es `true` en `pr view`), muchos bots no lo
+revisan: dilo y propón sacarlo de draft (`finish-pr`, Paso 5, que lo hace
+con `gh` o te da el link para hacerlo en GitHub). No esperes comentarios
+que no van a llegar.
 
 ### Investigar un check que falla
 

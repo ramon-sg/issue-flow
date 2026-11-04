@@ -59,9 +59,10 @@ espera tu OK, como en el [flujo de la skill](skill-en-sesion.md).
 
 - No hay `gh pr` ni `gh issue`, porque el proxy bloquea GraphQL. Todo va por
   REST (`npx @ramon-sg/github-rest` o `gh api`).
-- Sacar el PR de draft y mergear necesitan `gh` en local. `finish-pr` te
-  pide sacarlo de draft en GitHub, y `close-pr` se detiene antes del merge
-  y te dice qué falta.
+- Sacar el PR de draft y mergear necesitan `gh` en local. GitHub solo deja
+  sacar de draft por GraphQL, y el proxy lo bloquea con cualquier token.
+  `finish-pr` te da el link del PR para hacerlo en un clic ("Ready for
+  review"), y `close-pr` se detiene antes del merge y te dice qué falta.
 
 ## Traer la sesión: `--teleport`
 
