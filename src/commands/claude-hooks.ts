@@ -89,14 +89,14 @@ function fetchBase(mainRoot: string, base: string): boolean {
  */
 export async function worktreeCreate(input: Record<string, unknown>, config: FlowConfig, cwd: string, out: Output): Promise<number> {
   const name = field(input, "name");
-  if (name === null) throw new StartError("the hook got no worktree name.");
+  if (name === null) throw new StartError(out.t.hook.noName);
   const pr = PR_NAME.exec(name);
-  if (pr !== null) throw new StartError(`to review a PR, run 'issue-flow pr worktree ${pr[1]}', not 'claude --worktree ${name}'.`);
+  if (pr !== null) throw new StartError(out.t.hook.prName(pr[1] ?? "", name));
   const slug = name.replaceAll("/", "+");
   if (!WORKTREE_NAME.test(name) || slug === "." || slug === ".." || slug.startsWith("-"))
-    throw new StartError(`the worktree name cannot be '${name}'.`);
+    throw new StartError(out.t.hook.badName(name));
   const located = locateRepo(field(input, "cwd") ?? cwd);
-  if (located === null) throw new StartError(`${field(input, "cwd") ?? cwd} is not a git checkout.`);
+  if (located === null) throw new StartError(out.t.hook.notCheckout(field(input, "cwd") ?? cwd));
   const { mainRoot } = located;
   const path = canonicalPath(join(mainRoot, config.worktrees.dir, slug));
   const branch = `worktree-${slug}`;
@@ -104,13 +104,13 @@ export async function worktreeCreate(input: Record<string, unknown>, config: Flo
   const stderrOnly: Output = { ...out, stdout: (text) => out.stderr(text) };
   if (!worktrees(mainRoot).some((entry) => entry.path === path)) {
     if (!fetchBase(mainRoot, base))
-      warn(out, `could not fetch ${base}; using the local origin/${base}.`);
+      warn(out, out.t.hook.fetchFailed(base));
     if (!git(mainRoot, ["rev-parse", "-q", "--verify", `origin/${base}^{commit}`]).ok)
-      throw new StartError(`there is no origin/${base}, and the worktree is not made on another base.`);
+      throw new StartError(out.t.hook.noOrigin(base));
     const add = hasLocal(mainRoot, branch)
       ? git(mainRoot, ["worktree", "add", "-q", path, branch])
       : git(mainRoot, ["worktree", "add", "-q", "--no-track", "-b", branch, path, `origin/${base}`]);
-    if (!add.ok) throw new StartError(`could not make the worktree ${path}: ${add.err}`);
+    if (!add.ok) throw new StartError(out.t.hook.makeFailed(path, add.err));
     copyWorktreeIncludes(mainRoot, path, stderrOnly);
   }
   await runSetup({ root: path, mainRoot, base, config, out: stderrOnly, remote: false }, null, true);
@@ -133,25 +133,25 @@ export async function worktreeCreate(input: Record<string, unknown>, config: Flo
  */
 export async function worktreeRemove(input: Record<string, unknown>, config: FlowConfig, cwd: string, out: Output): Promise<number> {
   const given = field(input, "worktree_path");
-  if (given === null) throw new StartError("the hook got no worktree_path; deleting nothing.");
+  if (given === null) throw new StartError(out.t.hook.noPath);
   const path = canonicalPath(given);
   const place = stepPlace({ config, cwd: existsSync(path) ? path : (field(input, "cwd") ?? cwd) }, out);
   const { mainRoot } = place;
-  if (path === mainRoot) throw new StartError("the main checkout is never deleted.");
+  if (path === mainRoot) throw new StartError(out.t.hook.mainNever);
   const entry = worktrees(mainRoot).find((item) => item.path === path);
-  if (entry === undefined && existsSync(path)) throw new StartError(`${path} is not a worktree of this repo; deleting nothing.`);
+  if (entry === undefined && existsSync(path)) throw new StartError(out.t.hook.notOfRepo(path));
   if (entry === undefined) {
     await teardownWorktree({ ...place, root: path });
     git(mainRoot, ["worktree", "prune"]);
     return 0;
   }
-  if (!isClean(path)) throw new StartError(`${path} has uncommitted changes; kept. See them with 'git -C ${path} status'.`);
+  if (!isClean(path)) throw new StartError(out.t.hook.uncommitted(path));
   await teardownWorktree({ ...place, root: path });
   const removed = git(mainRoot, ["worktree", "remove", "--force", path]);
-  if (!removed.ok) throw new StartError(`could not delete ${path} (its teardown already ran): ${removed.err}`);
+  if (!removed.ok) throw new StartError(out.t.hook.deleteFailed(path, removed.err));
   const { branch } = entry;
   if (branch === null) return 0;
   if (safeToDelete(mainRoot, branch, "")) git(mainRoot, ["branch", "-q", "-D", branch]);
-  else warn(out, `kept the branch ${branch}: it has commits that are not in origin.`);
+  else warn(out, out.t.hook.keptBranch(branch));
   return 0;
 }

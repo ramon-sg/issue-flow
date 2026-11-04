@@ -10,10 +10,12 @@
 import { existsSync } from "node:fs";
 import { readWork, resolveRepo, viewIssue } from "@ramon-sg/github-rest";
 import { ask, confirm, forgetTypedAhead } from "../ask.js";
+import { show } from "../banner.js";
 import { branchType } from "../branch-name.js";
 import { checkedOutAt, checkoutRoot, git, gitLines, locateRepo, onOrigin, ownCommits } from "../git.js";
 import { fill, issueColor, nextBranch } from "../issue-text.js";
 import { inPath, launchSession, permissionArgs, teleportSession } from "../launch.js";
+import { type Messages, messages } from "../messages/index.js";
 import { emitJson, type Output, warn } from "../output.js";
 import { findOpenPlan, findPlan, type PlanQuery } from "../plan-doc.js";
 import { proposeBranches } from "../propose.js";
@@ -31,10 +33,11 @@ import {
   prCloudSession,
   prepareHere,
   readAdopted,
+  readyHere,
   renameAdopted,
   withoutFresh,
 } from "../start-modes.js";
-import { type Adopted, again, StartError, type StartOptions, type StartState } from "../start-state.js";
+import { type Adopted, again, DeclinedError, StartError, type StartOptions, type StartState } from "../start-state.js";
 import { describeBranch, stepPlaceOf, summary } from "../start-summary.js";
 import { runSetup } from "../worktree-steps.js";
 import { branchPr, type WorkState, workState } from "../work-state.js";
@@ -55,13 +58,19 @@ interface Context {
 }
 
 /**
- * Adds a warning: prints it and keeps it for `--plan`'s output.
+ * Adds a warning: prints it in the terminal's language and keeps it, in English, for
+ * `--plan`'s JSON.
  * @param context - The start.
- * @param text - The warning.
+ * @param text - The warning, or a function that builds it from a catalog.
  */
-function note(context: Pick<Context, "out" | "warnings">, text: string): void {
-  context.warnings.push(text);
-  warn(context.out, text);
+function note(context: Pick<Context, "out" | "warnings">, text: string | ((t: Messages) => string)): void {
+  if (typeof text === "string") {
+    context.warnings.push(text);
+    warn(context.out, text);
+    return;
+  }
+  context.warnings.push(text(messages("en")));
+  warn(context.out, text(context.out.t));
 }
 
 /**
@@ -80,32 +89,33 @@ function note(context: Pick<Context, "out" | "warnings">, text: string): void {
 async function readContext(options: StartOptions, out: Output): Promise<Context> {
   const located = locateRepo(options.cwd);
   const startRoot = checkoutRoot(options.cwd);
-  if (located === null || startRoot === null) throw new StartError("run this inside a checkout of the repo.");
+  const error = out.t.start.error;
+  if (located === null || startRoot === null) throw new StartError(error.outsideCheckout);
   const { number, repo, config } = options;
   const origin = resolveRepo(undefined, located.mainRoot, {});
   if (origin === null || origin.toLowerCase() !== repo.toLowerCase())
-    throw new StartError(`this checkout's origin is ${origin ?? "not on GitHub"}, not ${repo}: the branch would be pushed to another repo. Run it in a checkout of ${repo}.`);
+    throw new StartError(error.wrongOrigin(origin ?? error.notOnGithub, repo));
   const issue = await viewIssue(repo, number);
-  if (issue === null) throw new StartError(`issue #${number} does not exist in ${repo}.`);
-  if (issue.state !== "OPEN") throw new StartError(`issue #${number} is ${issue.state}; not starting it.`);
+  if (issue === null) throw new StartError(error.noIssue(number, repo));
+  if (issue.state !== "OPEN") throw new StartError(error.issueNotOpen(number, issue.state));
   const warnings: string[] = [];
   const labels = issue.labels.map(({ name }) => name);
   if (branchType(config.branch.types, labels, issue.title) === null)
-    note({ out, warnings }, `issue #${number} has no type label.`);
-  if (!fetchOrigin(located.mainRoot, options.here)) throw new StartError("could not fetch origin.");
+    note({ out, warnings }, (t) => t.start.warn.noTypeLabel(number));
+  if (!fetchOrigin(located.mainRoot, options.here)) throw new StartError(error.fetchFailed);
   const read = await readWork(repo, [number], { cwd: located.mainRoot });
   for (const text of read.warnings) note({ out, warnings }, text);
   const entry = read.output.issues[0];
-  if (entry === undefined || "error" in entry) throw new StartError(`issue #${number} does not exist in ${repo}.`);
+  if (entry === undefined || "error" in entry) throw new StartError(error.noIssue(number, repo));
   const claudeBranches = gitLines(located.mainRoot, ["for-each-ref", "--format=%(refname:short)", "refs/heads"])
     .filter((name) => new RegExp(`^worktree-[a-z]+\\+${number}-`).test(name));
   if (claudeBranches.length > 0)
-    throw new StartError(`the issue has a 'claude --worktree' branch (${claudeBranches.join(", ")}): open that session instead.`);
+    throw new StartError(error.claudeBranch(claudeBranches.join(", ")));
   const base = config.baseBranch ?? read.output.defaultBranch ?? "main";
-  const adopted = options.adopt ? readAdopted(startRoot, located.mainRoot, base) : null;
+  const adopted = options.adopt ? readAdopted(startRoot, located.mainRoot, base, out.t) : null;
   const work = adopted === null ? workState(entry) : withoutFresh(workState(entry), adopted);
   if (work.forks.length > 0)
-    note({ out, warnings }, `the issue has PRs from a fork (${work.forks.map((pr) => `#${pr}`).join(", ")}): they are not resumed from here.`);
+    note({ out, warnings }, (t) => t.start.warn.forks(work.forks.map((pr) => `#${pr}`).join(", ")));
   return { options, out, ...located, startRoot, base, issue, labels, work, warnings, adopted };
 }
 
@@ -120,10 +130,11 @@ function proposeNew(context: Context): string {
   const info = { number: issue.number, title: issue.title, body: issue.body, labels: context.labels };
   const { proposals, warnings } = proposeBranches([info], options.config, {
     cwd: context.mainRoot,
+    t: options.plan ? messages("en") : context.out.t,
     ...(options.namer === undefined ? {} : { namer: options.namer }),
   });
   const [proposal] = proposals;
-  if (proposal === undefined) throw new StartError("could not propose a branch.");
+  if (proposal === undefined) throw new StartError(context.out.t.start.error.noPropose);
   for (const text of [...warnings, ...proposal.warnings]) note(context, text);
   return nextBranch(proposal.branch, context.work.known);
 }
@@ -139,11 +150,12 @@ function proposeNew(context: Context): string {
 async function pickBranch(context: Context, describe: (branch: string) => string, proposed: string): Promise<string | null> {
   const { candidates } = context.work;
   const lines = candidates.map((branch, index) => `  ${index + 1}) ${describe(branch)}\n`);
-  context.out.stderr(`Issue #${context.issue.number} already has ${candidates.length} branches:\n${lines.join("")}  n) another new branch: ${proposed}\n`);
-  const answer = await ask(context.out, `Which one? [1-${candidates.length}/n] `);
+  const t = context.out.t.start;
+  context.out.stderr(`${t.pick.header(context.issue.number, candidates.length)}${lines.join("")}${t.pick.other(proposed)}`);
+  const answer = await ask(context.out, t.pick.which(candidates.length));
   if (/^n$/i.test(answer)) return null;
   const chosen = /^\d+$/.test(answer) ? candidates[Number(answer) - 1] : undefined;
-  if (chosen === undefined) throw new StartError("did nothing.");
+  if (chosen === undefined) throw new DeclinedError(t.declined);
   return chosen;
 }
 
@@ -159,20 +171,21 @@ async function pickBranch(context: Context, describe: (branch: string) => string
  */
 async function chooseExisting(context: Context, proposed: () => string): Promise<string | null> {
   const { options, work } = context;
+  const { error } = context.out.t.start;
   const list = work.candidates.join(", ");
   if (options.forceNew) return null;
   if (options.resume !== null) {
     if (!work.candidates.includes(options.resume))
-      throw new StartError(`branch ${options.resume} is not one of issue #${options.number}'s. Its branches: ${list || "none"}`);
+      throw new StartError(error.notHers(options.resume, options.number, list || error.listNone));
     return options.resume;
   }
   if (work.candidates.length <= 1) return work.candidates[0] ?? null;
   const count = work.candidates.length;
   if (options.plan || options.dryRun) {
-    note(context, `the issue already has ${count} branches (${list}): proposing a new one. To resume one: ${again(options.number, "--resume <branch>")}.`);
+    note(context, (t) => t.start.warn.manyDry(count, list, again(options, "--resume <branch>")));
     return null;
   }
-  if (options.yes) throw new StartError(`the issue has ${count} branches (${list}): choose with --resume <branch> or --new.`);
+  if (options.yes) throw new StartError(error.manyYes(count, list));
   const partial = { ...context, found: null, branch: "", pr: null, kind: "closes", mode: "worktree", workDir: "", plan: null, cloudSession: null } as const;
   return pickBranch(context, (branch) => describeBranch(partial, branch, true), proposed());
 }
@@ -187,12 +200,13 @@ async function chooseExisting(context: Context, proposed: () => string): Promise
  * @throws StartError if the branch is gone.
  */
 function resumedPr(context: Context, branch: string): StartState["pr"] {
+  const { error } = context.out.t.start;
   const pr = branchPr(context.work.prs, branch);
   const exists = git(context.mainRoot, ["rev-parse", "-q", "--verify", `refs/heads/${branch}`]).ok || onOrigin(context.mainRoot, branch);
   if (exists) return pr;
   if (pr?.state === "OPEN")
-    throw new StartError(`PR #${pr.number} is still open and points to branch ${branch}, which is gone locally and in origin. Recreate it with 'git fetch origin pull/${pr.number}/head:${branch}' or close that PR and start again.`);
-  throw new StartError(`branch ${branch} is on GitHub but not in the local refs of origin, which look stale: run 'git fetch origin' and try again.`);
+    throw new StartError(error.openPrGone(pr.number, branch));
+  throw new StartError(error.staleRefs(branch));
 }
 
 /**
@@ -233,7 +247,7 @@ function promptFor(context: Pick<Context, "options" | "issue">, plan: string | n
  */
 function printPlan(context: Context, found: string | null, branch: string, pr: StartState["pr"]): number {
   const at = checkedOutAt(context.mainRoot, branch);
-  if (at !== null) throw new StartError(`the issue already has branch ${branch} (at ${at}): continue there with '${again(context.options.number)}'.`);
+  if (at !== null) throw new StartError(context.out.t.start.error.checkedOut(branch, at, again(context.options)));
   const empty = found !== null && pr === null && !onOrigin(context.mainRoot, branch) && ownCommits(context.mainRoot, branch, context.base) === 0;
   const resumed = found !== null && !empty;
   const plan = resumed
@@ -246,7 +260,7 @@ function printPlan(context: Context, found: string | null, branch: string, pr: S
     url: context.issue.url,
     title: context.issue.title,
     warnings: context.warnings,
-    claudeArgs: permissionArgs(context.options.permissions, null, context.mainRoot).args,
+    claudeArgs: permissionArgs(context.options.permissions, null, context.mainRoot, messages("en").start.permissions).args,
   });
   return 0;
 }
@@ -258,14 +272,12 @@ function printPlan(context: Context, found: string | null, branch: string, pr: S
  */
 function question(state: StartState): { text: string; declined: string } {
   const { work, found } = state;
-  if (found !== null) return { text: "Continue with this work?", declined: "did nothing." };
-  if (work.candidates.length > 0) return { text: "Create another branch for the issue?", declined: "did nothing." };
+  const t = state.out.t.start;
+  if (found !== null) return { text: t.question.continue, declined: t.declined };
+  if (work.candidates.length > 0) return { text: t.question.another, declined: t.declined };
   if (work.mergedPrs.length > 0)
-    return {
-      text: `The issue already has merged PR ${work.mergedPrs.map((pr) => `#${pr}`).join(", ")}. Start a new round?`,
-      declined: "did nothing. If the issue is done, close it.",
-    };
-  return { text: "Start the issue?", declined: "did nothing." };
+    return { text: t.question.round(work.mergedPrs.map((pr) => `#${pr}`).join(", ")), declined: t.declinedRound };
+  return { text: t.question.start, declined: t.declined };
 }
 
 /**
@@ -280,13 +292,13 @@ function liftForSession(state: StartState, lock: Lock): Lifted | null {
   const { out, commonDir, branch } = state;
   const wanted = state.options.permissions === "free-no-repo-deny";
   if (lock.shared) {
-    if (wanted) warn(out, "another session uses this worktree: the repo's deny rules stay.");
+    if (wanted) warn(out, out.t.start.warn.denyShared);
     return null;
   }
-  const leftover = restoreRepoDeny(commonDir, branch, state.workDir, null);
+  const leftover = restoreRepoDeny(commonDir, branch, state.workDir, null, out.t);
   if (leftover !== null) warn(out, leftover);
   if (!wanted) return null;
-  const { message, saved } = liftRepoDeny(state.workDir, commonDir, branch);
+  const { message, saved } = liftRepoDeny(state.workDir, commonDir, branch, out.t);
   out.stdout(`${message}\n`);
   return saved;
 }
@@ -300,19 +312,22 @@ function liftForSession(state: StartState, lock: Lock): Lifted | null {
 async function openSession(state: StartState): Promise<number> {
   const { options, out } = state;
   if (!options.launch || !inPath("claude")) {
-    out.stdout(`Ready. To open the Claude session: ${again(options.number)}\n`);
+    const say = out.t.start.say;
+    show(out, { mood: "ok", title: say.ready(options.number), next: { label: say.openClaude, command: again(options) } }, options.config);
     return 0;
   }
   const lock = state.mode === "worktree"
-    ? lockWorktree(state.mainRoot, state.workDir, (text) => warn(out, text))
+    ? lockWorktree(state.mainRoot, state.workDir, (text) => warn(out, text), out.t)
     : { mine: false, shared: false };
   const release = (): void => unlockWorktree(state.mainRoot, state.workDir, lock);
   process.once("exit", release);
   forgetTypedAhead();
-  const permissions = permissionArgs(options.permissions, state.workDir, state.mainRoot).args;
+  const permissions = permissionArgs(options.permissions, state.workDir, state.mainRoot, out.t.start.permissions).args;
   const lifted = liftForSession(state, lock);
   if (options.teleport) {
-    out.stdout(`Bringing the cloud session${state.cloudSession === null ? "" : ` (${state.cloudSession})`}. To resume it later: claude --resume\n`);
+    const say = out.t.start.say;
+    const id = state.cloudSession ?? "";
+    show(out, { mood: "ok", title: say.teleporting(options.number), ...(id === "" ? {} : { rows: [[say.sessionLabel, id]] as [string, string][] }), next: { label: say.resumeLater, command: "claude --resume" } }, options.config);
     teleportSession(state.workDir, permissions, state.cloudSession);
   } else launchSession(
     {
@@ -325,9 +340,10 @@ async function openSession(state: StartState): Promise<number> {
       permissions,
     },
     (text) => warn(out, text),
+    out.t,
   );
   if (lifted !== null) {
-    const problem = restoreRepoDeny(state.commonDir, state.branch, state.workDir, lifted);
+    const problem = restoreRepoDeny(state.commonDir, state.branch, state.workDir, lifted, state.out.t);
     if (problem !== null) warn(out, problem);
   }
   release();
@@ -350,23 +366,23 @@ export async function issueStart(options: StartOptions, out: Output): Promise<nu
   const propose = (): string => (proposed ??= proposeNew(context));
   const chosen = context.adopted === null
     ? { found: await chooseExisting(context, propose), named: null }
-    : chooseAdopted(context.mainRoot, context.work, context.adopted, options.number);
+    : chooseAdopted(context.mainRoot, context.work, context.adopted, options, out.t);
   const { found } = chosen;
   const branch = found ?? chosen.named ?? propose();
   const pr = found === null ? null : resumedPr(context, branch);
   const kind = context.work.candidates.some((other) => other !== branch) ? "part" : "closes";
   if (options.plan) return printPlan(context, found, branch, pr);
   if (options.teleport && found === null)
-    throw new StartError(`issue #${options.number} has no branch: start it with '${again(options.number, "--cloud")}' (or without flags).`);
+    throw new StartError(out.t.start.error.teleportNoBranch(options.number, again(options, "--cloud")));
   const plan = found !== null
     ? findPlan(planQuery(context), branch, pr?.number ?? null)
     : findOpenPlan(planQuery(context), context.work.mergedPrs);
   const cloudSession = await prCloudSession(options.repo, pr?.number ?? null);
   const state: StartState = { ...context, found, branch, pr, kind, ...placeOf(context, branch, found), plan, cloudSession };
-  out.stdout(summary(state, permissionArgs(options.permissions, existsSync(state.workDir) ? state.workDir : null, context.mainRoot)));
+  out.stdout(summary(state, permissionArgs(options.permissions, existsSync(state.workDir) ? state.workDir : null, context.mainRoot, out.t.start.permissions)));
   if (options.dryRun) return 0;
   const asked = question(state);
-  if (!options.yes && state.adopted === null && !(await confirm(out, asked.text))) throw new StartError(asked.declined);
+  if (!options.yes && state.adopted === null && !(await confirm(out, asked.text))) throw new DeclinedError(asked.declined);
   if (state.mode === "cloud") return launchCloud(state, out);
   if (state.adopted !== null) renameAdopted(state);
   else if (state.mode === "here") prepareHere(state);
@@ -377,7 +393,7 @@ export async function issueStart(options: StartOptions, out: Output): Promise<nu
     return 0;
   }
   if (state.adopted !== null) {
-    out.stdout(`Ready: issue #${options.number} is on branch ${branch}, with its draft PR.\n${plan === null ? "" : `Open plan of this issue, to resume: ${plan}\n`}`);
+    readyHere({ out, options, branch }, plan, prNumber);
     return 0;
   }
   if (state.mode === "worktree") {
@@ -398,8 +414,8 @@ export async function issueStart(options: StartOptions, out: Output): Promise<nu
  */
 function placeOf(context: Context, branch: string, found: string | null): Pick<StartState, "mode" | "workDir"> {
   const { options, mainRoot, adopted } = context;
-  if (adopted !== null) return placeAdopted({ branch, startRoot: context.startRoot, adopted });
-  if (options.here) return placeHere(mainRoot, context.startRoot, branch, options.number);
-  if (options.cloud) return placeCloud(mainRoot, branch, found, options.number);
-  return choosePlace(mainRoot, branch, options.branchMode, options.config.worktrees.dir);
+  if (adopted !== null) return placeAdopted({ branch, startRoot: context.startRoot, adopted, t: context.out.t });
+  if (options.here) return placeHere(mainRoot, context.startRoot, branch, options, context.out.t);
+  if (options.cloud) return placeCloud(mainRoot, branch, found, options, context.out.t);
+  return choosePlace(mainRoot, branch, options.branchMode, options.config.worktrees.dir, context.out.t);
 }

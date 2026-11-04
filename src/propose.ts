@@ -17,6 +17,7 @@ import {
 } from "./branch-name.js";
 import { type IssueToName, nameWithClaude } from "./claude-namer.js";
 import type { FlowConfig, Namer } from "./config.js";
+import { type Messages, messages } from "./messages/index.js";
 
 /** What is read of an issue to name its branch. */
 export interface IssueInfo {
@@ -40,11 +41,13 @@ export interface Proposal {
 }
 
 /** How to propose: the namer (the config's by default), where to run Claude and whether
- * a type Claude picks for an issue without one is used. */
+ * a type Claude picks for an issue without one is used. `t` is the language of the
+ * warnings (English by default: `--json` carries them). */
 export interface ProposeOptions {
   namer?: Namer;
   cwd: string;
   claudeType?: boolean;
+  t?: Messages;
 }
 
 /**
@@ -53,26 +56,28 @@ export interface ProposeOptions {
  * @param issue - The issue.
  * @param type - Its type, or null.
  * @param template - The repo's template.
+ * @param t - The messages.
  * @returns The proposal, or the notes on why the blocks were not used.
  */
 function fromBlocks(
   issue: IssueInfo,
   type: string | null,
   template: string,
+  t: Messages,
 ): Proposal | { notes: string[] } {
   const { number } = issue;
   const slug = suggestedSlug(issue.body);
   if (isSlug(slug))
     return { number, branch: renderBranch(template, type, number, slug), slug, type, source: "slug", warnings: [] };
-  if (slug !== null) return { notes: [`#${number}: "${slug}" in "Slug de rama" is not a valid slug; proposing another.`] };
+  if (slug !== null) return { notes: [t.propose.badSlug(number, slug)] };
   const branch = suggestedBranch(issue.body);
   const problem = branchProblem(branch, number);
   if (branch === null) return { notes: [] };
-  if (problem !== null) return { notes: [`#${number}: ${problem}; proposing another.`] };
+  if (problem !== null) return { notes: [t.propose.problem(number, problem)] };
   const prefix = branch.includes("/") ? branch.slice(0, branch.indexOf("/")) : null;
   const warnings =
     type !== null && prefix !== null && prefix !== type
-      ? [`#${number}: the suggested branch ${branch} does not start with ${type}/, the issue's type; using it anyway.`]
+      ? [t.propose.prefixDiffers(number, branch, type)]
       : [];
   const own = branch.slice(branch.lastIndexOf("/") + 1).slice(`${number}-`.length);
   return { number, branch, slug: own, type, source: "suggested", warnings };
@@ -96,6 +101,7 @@ export function proposeBranches(
   options: ProposeOptions,
 ): { proposals: Proposal[]; warnings: string[] } {
   const { template, types: rules } = config.branch;
+  const t = options.t ?? messages("en");
   const typeOf = new Map(
     issues.map((issue) => [issue.number, branchType(rules, issue.labels, issue.title)]),
   );
@@ -103,7 +109,7 @@ export function proposeBranches(
   const pending: IssueInfo[] = [];
   const notes = new Map<number, string[]>();
   for (const issue of issues) {
-    const found = fromBlocks(issue, typeOf.get(issue.number) ?? null, template);
+    const found = fromBlocks(issue, typeOf.get(issue.number) ?? null, template, t);
     if ("branch" in found) {
       proposals.set(issue.number, found);
       continue;
@@ -120,7 +126,7 @@ export function proposeBranches(
   }));
   const answer =
     namer === "claude" && asked.length > 0
-      ? nameWithClaude(asked, typeNames(rules), config.branch.claudeModel, options.cwd)
+      ? nameWithClaude(asked, typeNames(rules), config.branch.claudeModel, options.cwd, t)
       : null;
   const prefixes = Object.keys(rules.titlePrefixes);
   for (const issue of pending) {
@@ -141,7 +147,7 @@ export function proposeBranches(
       continue;
     }
     if (answer !== null && "names" in answer)
-      warnings.push(`#${number}: Claude gave no valid name; using the title.`);
+      warnings.push(t.propose.noValidName(number));
     const slug = titleSlug(issue.title, prefixes);
     proposals.set(number, {
       number,
@@ -156,7 +162,7 @@ export function proposeBranches(
     proposals: issues.map((issue) => proposals.get(issue.number) as Proposal),
     warnings:
       answer !== null && "error" in answer
-        ? [`${answer.error}; naming ${pending.length} issue(s) from the title.`]
+        ? [t.propose.fromTitle(answer.error, pending.length)]
         : [],
   };
 }

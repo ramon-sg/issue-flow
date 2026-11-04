@@ -8,6 +8,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isObject } from "./config-base.js";
+import type { Messages } from "./messages/index.js";
 
 /** This package's name on npm. */
 export const PACKAGE = "@ramon-sg/issue-flow";
@@ -72,20 +73,21 @@ export function ownVersions(): OwnVersions {
  * Reads a JSON object of the repo.
  * @param root - The repo.
  * @param path - The file, relative to the repo.
+ * @param t - The messages, for the errors.
  * @returns The object, or null if the file does not exist.
  * @throws SetupError if it is not valid JSON or not an object: it is never overwritten then.
- * @example readJson(root, ".claude/settings.json")
+ * @example readJson(root, ".claude/settings.json", t)
  */
-export function readJson(root: string, path: string): Record<string, unknown> | null {
+export function readJson(root: string, path: string, t: Messages): Record<string, unknown> | null {
   const file = join(root, path);
   if (!existsSync(file)) return null;
   let value: unknown;
   try {
     value = JSON.parse(readFileSync(file, "utf8"));
   } catch (error) {
-    throw new SetupError(`${path} is not valid JSON (${error instanceof Error ? error.message : String(error)}); fix it and run again.`);
+    throw new SetupError(t.setup.invalidJson(path, error instanceof Error ? error.message : String(error)));
   }
-  if (!isObject(value)) throw new SetupError(`${path} is not a JSON object; fix it and run again.`);
+  if (!isObject(value)) throw new SetupError(t.setup.notObject(path));
   return value;
 }
 

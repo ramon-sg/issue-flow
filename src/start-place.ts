@@ -9,9 +9,11 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync } from "node:f
 import { dirname, join, relative } from "node:path";
 import { assign, createPr, findPr, getPr, updatePr } from "@ramon-sg/github-rest";
 import { confirm } from "./ask.js";
+import { show } from "./banner.js";
 import { checkedOutAt, currentBranch, git, gitLines, hasLocal, isClean, onOrigin, safeToDelete, trackOrigin, untracked, updateBase } from "./git.js";
 import { bodyToPartOf, dirName, fill, prBody, type StartMode } from "./issue-text.js";
 import { forgetSession } from "./launch.js";
+import type { Messages } from "./messages/index.js";
 import { type Output, warn } from "./output.js";
 import type { Lock } from "./session-lock.js";
 import { again, StartError, type StartState } from "./start-state.js";
@@ -32,31 +34,30 @@ const GLOB = /[*?[]/;
  * @param branch - The branch.
  * @param branchMode - Whether `--branch` was given.
  * @param worktreesDir - The config's folder for worktrees.
+ * @param t - The messages.
  * @returns The mode and the folder.
  * @throws StartError if the place is taken.
- * @example choosePlace(root, "feat/42-x", false, ".claude/worktrees")
+ * @example choosePlace(root, "feat/42-x", false, ".claude/worktrees", messages("en"))
  */
 export function choosePlace(
   mainRoot: string,
   branch: string,
   branchMode: boolean,
   worktreesDir: string,
+  t: Messages,
 ): { mode: StartMode; workDir: string } {
   const at = checkedOutAt(mainRoot, branch);
   if (at !== null) {
     const mode = at === mainRoot ? "branch" : "worktree";
-    if (branchMode && mode === "worktree")
-      throw new StartError(`branch ${branch} is already in the worktree ${at}; run without --branch.`);
+    if (branchMode && mode === "worktree") throw new StartError(t.start.error.branchInWorktree(branch, at));
     return { mode, workDir: at };
   }
   if (branchMode) {
-    if (!isClean(mainRoot))
-      throw new StartError("the main checkout has uncommitted changes; commit or stash them first. No stash is made.");
+    if (!isClean(mainRoot)) throw new StartError(t.start.error.dirtyMain);
     return { mode: "branch", workDir: mainRoot };
   }
   const workDir = join(mainRoot, worktreesDir, dirName(branch));
-  if (existsSync(workDir))
-    throw new StartError(`${workDir} already exists and is not a worktree of ${branch}; check it by hand.`);
+  if (existsSync(workDir)) throw new StartError(t.start.error.dirExists(workDir, branch));
   return { mode: "worktree", workDir };
 }
 
@@ -82,6 +83,7 @@ function mustGit(cwd: string, args: string[], what: string): void {
  */
 export function prepareBranch(state: StartState): void {
   const { mainRoot, branch, base, found } = state;
+  const t = state.out.t.start.error;
   if (state.mode === "worktree") {
     if (existsSync(state.workDir)) return;
     // NOTE: --no-track, since tracking writes .git/config, which Claude Code's sandbox
@@ -89,23 +91,20 @@ export function prepareBranch(state: StartState): void {
     const args = found === null ? ["--no-track", "-b", branch, `origin/${base}`] : hasLocal(mainRoot, branch) ? [branch] : ["--no-track", "-b", branch, `origin/${branch}`];
     const result = git(mainRoot, ["worktree", "add", "-q", state.workDir, ...args]);
     if (!result.ok)
-      throw new StartError(
-        `could not create the worktree: ${result.err}. If a sandbox stopped it, run in a terminal: ${again(state.options.number, "--yes")}`,
-      );
+      throw new StartError(t.worktreeFailed(result.err, again(state.options, "--yes")));
     return;
   }
   if (currentBranch(mainRoot) === branch) return;
-  if (!isClean(mainRoot))
-    throw new StartError("the main checkout has uncommitted changes; commit or stash them first. No stash is made.");
+  if (!isClean(mainRoot)) throw new StartError(t.dirtyMain);
   if (found !== null) {
     const args = hasLocal(mainRoot, branch) ? [branch] : ["--no-track", "-b", branch, `origin/${branch}`];
-    return mustGit(mainRoot, ["checkout", "-q", ...args], `could not check out ${branch}`);
+    return mustGit(mainRoot, ["checkout", "-q", ...args], t.checkoutFailed(branch));
   }
-  if (currentBranch(mainRoot) !== base) throw new StartError(`the main checkout is not on ${base}.`);
+  if (currentBranch(mainRoot) !== base) throw new StartError(t.mainNotOnBase(base));
   if (git(mainRoot, ["rev-list", "--count", `origin/${base}..${base}`]).out !== "0")
-    throw new StartError(`local ${base} has commits that are not in origin/${base}; sort it out by hand.`);
-  mustGit(mainRoot, ["merge", "-q", "--ff-only", `origin/${base}`], `local ${base} diverged from origin/${base}`);
-  mustGit(mainRoot, ["checkout", "-q", "-b", branch], `could not create ${branch}`);
+    throw new StartError(t.baseAhead(base));
+  mustGit(mainRoot, ["merge", "-q", "--ff-only", `origin/${base}`], t.baseDiverged(base));
+  mustGit(mainRoot, ["checkout", "-q", "-b", branch], t.createFailed(branch));
 }
 
 /**
@@ -122,7 +121,7 @@ async function markOthersPartOf(state: StartState): Promise<void> {
       const body = bodyToPartOf(pr.body, number);
       if (body !== pr.body) await updatePr(repo, other, { body });
     } catch {
-      warn(state.out, `could not turn PR #${other} into Part of #${number}; edit it by hand.`);
+      warn(state.out, state.out.t.start.warn.othersPartOf(other, number));
     }
   }
 }
@@ -139,14 +138,15 @@ async function markOthersPartOf(state: StartState): Promise<void> {
  */
 export async function publish(state: StartState): Promise<number> {
   const { workDir, branch, options } = state;
+  const t = state.out.t.start;
   const commit = needsStartCommit(state);
   if (commit) {
     const message = fill(options.config.start.commitMessage, { number: String(options.number) });
-    mustGit(workDir, ["commit", "-q", "--allow-empty", "--only", "-m", message], "could not make the start commit");
+    mustGit(workDir, ["commit", "-q", "--allow-empty", "--only", "-m", message], t.error.commitFailed);
   }
   if (commit || !onOrigin(workDir, branch))
-    mustGit(workDir, ["push", "-q", "origin", branch], `could not push ${branch}`);
-  if (!trackOrigin(workDir, branch)) warn(state.out, untracked(branch));
+    mustGit(workDir, ["push", "-q", "origin", branch], t.error.pushFailed(branch));
+  if (!trackOrigin(workDir, branch)) warn(state.out, untracked(branch, state.out.t));
   let number = state.pr?.number ?? null;
   if (number === null) {
     const created = await createPr(options.repo, {
@@ -165,7 +165,7 @@ export async function publish(state: StartState): Promise<number> {
     try {
       await assign(options.repo, options.number, ["@me"]);
     } catch {
-      warn(state.out, `could not assign issue #${options.number} to you.`);
+      warn(state.out, t.warn.assignFailed(options.number));
     }
   }
   return number;
@@ -219,7 +219,7 @@ export function copyWorktreeIncludes(from: string, to: string, out: Output): voi
     try {
       files = expand(from, pattern);
     } catch {
-      warn(out, `skipping "${pattern}" of ${WORKTREE_INCLUDE}: it is not a valid pattern.`);
+      warn(out, out.t.start.warn.badPattern(pattern, WORKTREE_INCLUDE));
       continue;
     }
     for (const file of files) {
@@ -228,7 +228,7 @@ export function copyWorktreeIncludes(from: string, to: string, out: Output): voi
         mkdirSync(dirname(join(to, file)), { recursive: true });
         cpSync(join(from, file), join(to, file), { recursive: true });
       } catch {
-        warn(out, `could not copy ${file} to the worktree.`);
+        warn(out, out.t.start.warn.copyFailed(file));
       }
     }
   }
@@ -255,10 +255,10 @@ function ignoredFiles(workDir: string): string[] {
  * @returns The message, or null.
  */
 function keepReason(state: StartState, lock: Lock, head: string): string | null {
-  if (lock.shared) return "The PR was merged, but another session uses the worktree: not offering to delete it.";
-  if (!isClean(state.workDir)) return `The PR was merged, but ${state.workDir} has uncommitted changes: deleting nothing.`;
-  if (!safeToDelete(state.mainRoot, state.branch, head))
-    return `The PR was merged, but ${state.branch} has commits that are not in origin: deleting nothing.`;
+  const t = state.out.t.start.say;
+  if (lock.shared) return t.keepShared;
+  if (!isClean(state.workDir)) return t.keepDirty(state.workDir);
+  if (!safeToDelete(state.mainRoot, state.branch, head)) return t.keepUnpushed(state.branch);
   return null;
 }
 
@@ -272,31 +272,37 @@ function keepReason(state: StartState, lock: Lock, head: string): string | null 
  */
 export async function afterSession(state: StartState, lock: Lock): Promise<void> {
   const { out, mainRoot, branch, commonDir, base } = state;
+  const t = out.t.start;
+  const { config, number } = state.options;
   const pr = await findPr(state.options.repo, branch).catch(() => null);
   if (pr?.state !== "MERGED") {
-    out.stdout(`The session is saved. To resume it: ${again(state.options.number)}\n`);
+    const rows: [string, string][] = [[t.say.branchLabel, branch]];
+    if (pr !== null) rows.push([t.say.prLabel, pr.draft ? t.say.prDraftOf(pr.number) : `#${pr.number}`]);
+    show(out, { mood: "ok", title: t.say.saved(number), rows, next: { label: t.say.resume, command: again(state.options) } }, config);
     return;
   }
   if (!hasLocal(mainRoot, branch)) {
     forgetSession(commonDir, branch);
-    out.stdout(`The PR was merged and the local branch ${branch} no longer exists: nothing to delete.\n`);
+    show(out, { mood: "ok", title: t.say.merged(number), lines: [t.say.branchGone(branch)] }, config);
     return;
   }
   const reason = keepReason(state, lock, pr.head);
-  if (reason !== null) return out.stdout(`${reason}\n`);
+  if (reason !== null) return show(out, { mood: "ok", title: t.say.merged(number), lines: [reason] }, config);
   if (state.mode === "worktree") {
     const where = relative(mainRoot, state.workDir);
     const lost = ignoredFiles(state.workDir);
-    const also = lost.length === 0 ? "" : ` Its ignored files go too: ${lost.slice(0, MAX_LISTED).join(", ")}${lost.length > MAX_LISTED ? ", …" : ""}.`;
-    if (!(await confirm(out, `The PR was merged. Delete the worktree ${where} and the local branch ${branch}?${also}`))) return;
+    const also = lost.length === 0 ? [] : [t.say.ignoredToo(`${lost.slice(0, MAX_LISTED).join(", ")}${lost.length > MAX_LISTED ? ", …" : ""}`)];
+    show(out, { mood: "question", title: t.say.merged(number), rows: [[t.say.worktreeLabel, where], [t.say.branchLabel, branch]], lines: also }, config);
+    if (!(await confirm(out, t.say.deleteWorktree))) return;
     await teardownWorktree(stepPlaceOf(state));
-    mustGit(mainRoot, ["worktree", "remove", state.workDir], `could not delete ${where} (its teardown already ran)`);
+    mustGit(mainRoot, ["worktree", "remove", state.workDir], t.error.deleteWorktreeFailed(where));
   } else {
-    if (!(await confirm(out, `The PR was merged. Go back to ${base} and delete the local branch ${branch}?`))) return;
-    mustGit(mainRoot, ["checkout", "-q", base], `could not check out ${base}`);
+    show(out, { mood: "question", title: t.say.merged(number), rows: [[t.say.baseLabel, base], [t.say.branchLabel, branch]] }, config);
+    if (!(await confirm(out, t.say.backToBase(base)))) return;
+    mustGit(mainRoot, ["checkout", "-q", base], t.error.baseCheckoutFailed(base));
   }
-  mustGit(mainRoot, ["branch", "-q", "-D", branch], `could not delete ${branch}`);
+  mustGit(mainRoot, ["branch", "-q", "-D", branch], t.error.deleteBranchFailed(branch));
   forgetSession(commonDir, branch);
-  const stale = updateBase(mainRoot, base);
+  const stale = updateBase(mainRoot, base, out.t);
   if (stale !== null) warn(out, stale);
 }

@@ -71,12 +71,14 @@ export async function ask(out: Output, question: string): Promise<string> {
 }
 
 /**
- * Asks a yes or no question; anything but a yes, an empty answer included, is no.
+ * Asks a yes or no question; anything but a yes, an empty answer included, is no. The
+ * mark is `[y/N]` in English and `[s/N]` in Spanish; both languages accept the same
+ * answers (`y`, `yes`, `s`, `si`, `sí`).
  * @param out - Where the question goes.
- * @param question - The question, without `[y/N]`.
+ * @param question - The question, without the `[y/N]` mark.
  * @returns True if the answer is yes.
  * @example await confirm(out, "Start the issue?")
  */
 export async function confirm(out: Output, question: string): Promise<boolean> {
-  return /^(y|yes|s|si|sí)$/i.test(await ask(out, `${question} [y/N] `));
+  return /^(y|yes|s|si|sí)$/i.test(await ask(out, `${question} ${out.t.ask.yesNo} `));
 }

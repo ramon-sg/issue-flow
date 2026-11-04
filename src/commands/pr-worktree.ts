@@ -12,6 +12,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { getPr } from "@ramon-sg/github-rest";
+import { show } from "../banner.js";
 import type { FlowConfig } from "../config.js";
 import { canonicalPath } from "../docker.js";
 import { checkedOutAt, git, hasLocal, locateRepo, trackOrigin, untracked, worktrees } from "../git.js";
@@ -66,17 +67,17 @@ function mustGit(cwd: string, args: string[], message: string): void {
  * @throws StartError if git cannot make it, or the branch is checked out somewhere else.
  */
 function addWorktree(mainRoot: string, branch: string, path: string, out: Output): void {
-  mustGit(mainRoot, ["fetch", "-q", "origin", `+refs/heads/${branch}:refs/remotes/origin/${branch}`], `could not fetch ${branch} from origin`);
+  mustGit(mainRoot, ["fetch", "-q", "origin", `+refs/heads/${branch}:refs/remotes/origin/${branch}`], out.t.pr.fetchFailed(branch));
   const elsewhere = checkedOutAt(mainRoot, branch);
-  if (elsewhere !== null) throw new StartError(`${branch} is checked out in ${elsewhere}; review it there, or switch that checkout to another branch.`);
+  if (elsewhere !== null) throw new StartError(out.t.pr.elsewhere(branch, elsewhere));
   // NOTE: the tracking goes apart, after the worktree: it writes .git/config, which Claude
   // Code's sandbox forbids, and the worktree is still useful without it.
   const local = hasLocal(mainRoot, branch);
   const args = local ? [path, branch] : ["--no-track", "-b", branch, path, `origin/${branch}`];
-  mustGit(mainRoot, ["worktree", "add", "-q", ...args], `could not make the worktree of ${branch}`);
-  if (!trackOrigin(path, branch)) warn(out, untracked(branch));
+  mustGit(mainRoot, ["worktree", "add", "-q", ...args], out.t.pr.makeFailed(branch));
+  if (!trackOrigin(path, branch)) warn(out, untracked(branch, out.t));
   if (local && !git(path, ["merge", "-q", "--ff-only", `origin/${branch}`]).ok)
-    warn(out, `the local ${branch} does not move forward to origin/${branch}: you see other commits than the PR's.`);
+    warn(out, out.t.pr.noFastForward(branch));
 }
 
 /**
@@ -91,35 +92,36 @@ function addWorktree(mainRoot: string, branch: string, path: string, out: Output
  */
 export async function prWorktree(options: PrWorktreeOptions, out: Output): Promise<number> {
   const located = locateRepo(options.cwd);
-  if (located === null) throw new StartError("run this inside a checkout of the repo.");
+  if (located === null) throw new StartError(out.t.worktree.insideCheckout);
   const { mainRoot } = located;
   const pr = await getPr(options.repo, options.number);
-  if (pr === null) throw new StartError(`${options.repo} has no PR #${options.number}.`);
+  if (pr === null) throw new StartError(out.t.pr.noPr(options.repo, options.number));
   if (pr.fork)
-    throw new StartError(`PR #${pr.number} comes from a fork and its branch is not in origin; check it out by hand in a worktree with 'gh pr checkout ${pr.number}'.`);
-  out.stdout(`PR #${pr.number}: ${pr.url}\n`);
-  if (pr.state !== "OPEN") warn(out, `the PR is ${pr.state.toLowerCase()}.`);
+    throw new StartError(out.t.pr.fork(pr.number));
+  out.stdout(`${out.t.pr.title(pr.number, pr.url)}\n`);
+  if (pr.state !== "OPEN") warn(out, out.t.pr.notOpen(pr.state.toLowerCase()));
   const path = canonicalPath(prWorktreePath(mainRoot, options.config, pr.number));
   const existing = worktrees(mainRoot).find((entry) => entry.path === path);
   if (existing !== undefined && existing.branch !== pr.branch)
-    throw new StartError(`${path} is on ${existing.branch ?? "a detached HEAD"}, not on the PR's branch ${pr.branch}; delete it with 'git worktree remove ${path}'.`);
-  if (existing === undefined && existsSync(path)) throw new StartError(`${path} exists and is not a worktree of this repo.`);
+    throw new StartError(out.t.pr.wrongBranch(path, existing.branch ?? out.t.pr.detached, pr.branch));
+  if (existing === undefined && existsSync(path)) throw new StartError(out.t.pr.notWorktree(path));
   if (existing === undefined) {
     addWorktree(mainRoot, pr.branch, path, out);
     copyWorktreeIncludes(mainRoot, path, out);
-    out.stdout(`Worktree on ${pr.branch}: what you commit and push updates the PR.\n`);
-  } else out.stdout(`The worktree already exists; reusing it.\n`);
+    out.stdout(`${out.t.pr.created(pr.branch)}\n`);
+  } else out.stdout(`${out.t.pr.reusing}\n`);
   const place = { root: path, mainRoot, base: baseBranch(options.config, mainRoot), config: options.config, out, remote: false };
   if (options.setup) await runSetup(place, null);
   if (options.command === null) {
-    out.stdout(`Ready. To go in: cd ${path}\n`);
+    const say = out.t.start.say;
+    show(out, { mood: "ok", title: say.readyPr(pr.number), rows: [[say.branchLabel, pr.branch]], next: { label: say.goIn, command: `cd ${path}` } }, options.config);
     return 0;
   }
   const [command, ...args] = options.command.length > 0
     ? options.command
-    : ["claude", ...permissionArgs("default", path, mainRoot).args];
+    : ["claude", ...permissionArgs("default", path, mainRoot, out.t.start.permissions).args];
   if (command === undefined) return 0;
   const result = spawnSync(command, args, { cwd: path, stdio: "inherit" });
-  if (result.error !== undefined) throw new StartError(`could not run ${command}: ${result.error.message}`);
+  if (result.error !== undefined) throw new StartError(out.t.pr.runFailed(command, result.error.message));
   return result.status ?? 1;
 }

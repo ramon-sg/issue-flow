@@ -1,3 +1,5 @@
+**Español** · [English](README.en.md)
+
 # issue-flow
 
 Flujo de trabajo de issue a PR para cualquier repo, en local y en las sesiones de Claude en la nube: nombra la rama de cada issue, crea su worktree con puertos y Docker propios, abre el PR en draft y limpia cuando se mergea. Trae las skills que usan ese flujo.
@@ -61,7 +63,7 @@ Qué hace, en orden:
    - **Sin ramas vivas:** crea una nueva, con el nombre de `issue branch`. Si ese nombre ya se usó en una tanda mergeada, le suma `-2`, `-3`…
    - **Con una:** la retoma.
    - **Con varias:** en la terminal te pregunta cuál seguir. Con `--yes` hay que elegir con `--resume <rama>` o `--new`.
-3. **Muestra un resumen y pregunta `[y/N]`.** Una respuesta vacía es no.
+3. **Muestra un resumen y pregunta `[s/N]`.** Una respuesta vacía es no. Con `--lang en` la pregunta es `[y/N]`; en los dos idiomas se acepta `s`, `si`, `sí`, `y` y `yes`.
 4. **Crea lo que falta:**
    - el worktree, o con `--branch` la rama en este checkout;
    - el commit vacío con `[skip ci]`, el push y el PR en draft;
@@ -73,7 +75,7 @@ Qué hace, en orden:
    - Mientras Claude corre, el worktree queda bloqueado (`git worktree lock`). Si el bloqueo es de un `issue-flow` que ya no corre, lo toma.
 6. **Al salir de Claude:**
    - Si el PR se mergeó y no queda trabajo sin pushear, ofrece borrar el worktree y la rama.
-   - Si no, dice cómo retomar.
+   - Si no, dice cómo retomar. El comando repite cómo lanzaste `issue-flow`: si fue con `bun run issue:start:free 42`, ese mismo es el que te sugiere, y no `issue-flow issue start 42` (ver [Idioma y mensajes finales](#idioma-y-mensajes-finales)).
 
 **Permisos:** si el repo tiene [`claude-repo-guard`](https://github.com/ramon-sg/claude-repo-guard), Claude se abre en modo auto con su contexto (lo mismo que `claude:auto`). Con `--ask-permissions` se abre con tus settings, con `--free` sin sandbox ni preguntas (como `claude:free`), y con `--free --no-repo-deny` también sin los `deny` del `.claude/settings.json` del repo, que vuelven al salir ([qué quita cada modo](docs/flujos/terminal.md#opciones)). Sin `claude-repo-guard`, se abre con tus settings. `--plan` devuelve esos mismos argumentos en `claudeArgs`. El atajo es `npm run issue:start:free 42`. Con npm, las opciones van después de `--` (`npm run issue:start -- 42 --free`); con pnpm, bun o yarn no hace falta. La tabla de cada administrador está en [Flujos](docs/flujos.md#administradores). `issue-flow issue start --help` explica cada opción.
 
@@ -90,6 +92,37 @@ issue-flow issue start 42 --adopt      # dentro de un worktree que creó Orca o 
 - **`--here`** es para la skill dentro de una sesión en la nube. Deja este checkout en la rama (desde `origin/<base>`, o desde `origin/<rama>` si ya existe), hace el commit vacío, el push, el PR en draft y la asignación, y no abre Claude. Si corre en una sesión (`CLAUDE_CODE_REMOTE_SESSION_ID`), anota su link en el cuerpo del PR (`Cloud session: …`); queda una sola línea, la de la última sesión. Termina con una línea `Prompt: …` que la skill sigue. Se detiene si hay cambios sin commitear: no hace stash.
 - **`--teleport`** retoma como siempre (worktree, PR) y abre `claude --teleport` con la sesión anotada en el PR, o con la lista de sesiones si no hay ninguna. Sin `--teleport`, retomar abre la sesión local y el resumen avisa si hay una en la nube.
 - **`--adopt`** usa el worktree donde se corre, que creó otra herramienta. No pregunta ni abre Claude. Renombra su rama a la de la issue y publica; si la rama ya lleva el número de la issue (`fix/42-mi-nombre`), la deja como está. Si el worktree ya está en una rama viva de la issue, la retoma. Si no, solo adopta un worktree recién creado: se detiene si su rama está en origin, tiene commits propios o hay cambios sin commitear, o si la issue ya tiene su rama en otro lado.
+
+## Idioma y mensajes finales
+
+Lo que `issue-flow` imprime en la terminal, `--help` incluido, sale **en español por defecto**. El idioma se elige con lo primero que exista:
+
+1. La opción `--lang es|en`, válida en cualquier subcomando.
+2. La variable `ISSUE_FLOW_LANG=es|en` (vacía cuenta como si no existiera).
+3. `es`.
+
+`LANG` y `LC_ALL` **no** se leen: en macOS suelen ser `en_US.UTF-8` aunque hables español. Un valor desconocido es un error de uso (sale con 2 y muestra los valores válidos).
+
+```sh
+issue-flow --lang en issue start 42    # una sola vez, en inglés
+export ISSUE_FLOW_LANG=en              # siempre, en este shell
+```
+
+Solo cambia la terminal. Lo que se escribe en GitHub (el commit inicial, el cuerpo del PR, los comentarios, los labels) y lo que se lee de ahí no cambia, y `--json` tampoco: sus claves y sus textos son siempre los mismos.
+
+**Mensajes finales.** Lo que cierra `issue start` y `pr worktree` (sesión guardada, PR mergeado, listo para entrar, o el error que lo cortó) sale como un bloque corto: una marca de estado (`[ok]`, `[!]` o `[?]`), los datos (rama, PR) y, solo en su línea, el comando para copiar. Junto al bloque aparece Kuro, la mascota del proyecto, pero solo si la salida es una terminal. En un pipe, en CI o con `art: false` en `.agents/flow.json`, sale el mismo bloque sin el dibujo. Hay color solo en una terminal, y `NO_COLOR` lo apaga.
+
+**Comando para retomar.** Repite la forma en que lanzaste `issue-flow`, para que lo copies tal cual:
+
+| Lo lanzaste con | Te sugiere |
+|---|---|
+| `bun run issue:start:free 34` | `bun run issue:start:free 34` |
+| `npm run issue:start:free 34` | `npm run issue:start:free 34` (con otras opciones, `npm run issue:start:free -- 34 --no-repo-deny`) |
+| `pnpm issue:start:free 34` | `pnpm issue:start:free 34` |
+| `yarn issue:start:free 34` | `yarn issue:start:free 34` |
+| `issue-flow` o `npx` | `issue-flow issue start 34` |
+
+La forma de script solo se usa con los scripts que instala `apply` (`issue:start` y `issue:start:free`); un script ajeno que llame a `issue-flow` cae a `issue-flow issue start <n>`. Se repiten las opciones que definen cómo corre la sesión (`--free`, `--ask-permissions`, `--no-repo-deny`, `--namer`, `-R`, y `--lang` si lo pasaste como opción) y no las de una sola vez (`--new`, `--branch`, `--yes`, `--dry-run`, `--resume`, `--no-launch`, `--plan`).
 
 ## Worktrees: preparar, limpiar y borrar
 
@@ -214,13 +247,13 @@ Piezas de `flow.json` para lo que muchos repos comparten. `apply` ofrece, la pri
 | `npm`, `pnpm`, `bun` | Su lockfile | El paso `deps`, `trusted`, que instala sin cambiar el lockfile |
 | `docker-compose` | `compose.yaml` o `docker-compose.yml` | Un proyecto de Compose y un bloque de puertos por worktree: `up -d` al preparar y `down -v` al limpiar. El compose toma sus puertos de `ISSUE_FLOW_PORT_BASE` |
 | `direnv` | `.envrc` | `direnv allow` en cada worktree, para que carguen su entorno y sus secretos (Infisical, por ejemplo) |
+| `staging-main` | Nada: se pide | `baseBranch: "staging"`; `agent-kitchen` deja a `claude-repo-guard` mergear a `staging` |
 
 Los pasos de preparación de las recetas son `trusted`: corren el código del worktree (el lockfile, el compose, el `.envrc`), así que en un worktree con código que no está en la rama base, como el de `pr worktree`, se saltan y el comando dice qué correr cuando lo revisaste.
-| `staging-main` | Nada: se pide | `baseBranch: "staging"`; `agent-kitchen` deja a `claude-repo-guard` mergear a `staging` |
 
 ## Skills del flujo
 
-Viven en `skills/` y `skills-catalog.json` las lista. Se instalan con [`skills-manager`](https://github.com/ramon-sg/skills-manager), que las copia a `.agents/skills/` del repo para que lleguen también a la nube. Están en español y llaman a `npx @ramon-sg/issue-flow` y `npx @ramon-sg/github-rest`, que el repo tiene como dependencias de desarrollo. Van siempre con el scope: `issue-flow`, `github-rest` y `skills-manager` sin scope son paquetes de otras personas en npm, y `npx` los bajaría y correría si el repo no tiene los suyos instalados.
+Viven en `skills/` y `skills-catalog.json` las lista. Se instalan con [`skills-manager`](https://github.com/ramon-sg/skills-manager), que las copia a `.agents/skills/` del repo para que lleguen también a la nube. Están en español, responden en el idioma en que les escribes y llaman a `npx @ramon-sg/issue-flow` y `npx @ramon-sg/github-rest`, que el repo tiene como dependencias de desarrollo. Van siempre con el scope: `issue-flow`, `github-rest` y `skills-manager` sin scope son paquetes de otras personas en npm, y `npx` los bajaría y correría si el repo no tiene los suyos instalados.
 
 | Skill | Categoría | Para qué sirve | Trae también |
 |---|---|---|---|
@@ -273,6 +306,7 @@ Todo es opcional; sin el archivo valen los valores por defecto. Una clave descon
 | `start.summaryPrompt`, `start.summaryPlanPrompt` | Resumir y esperar | Pedido de `--plan` |
 | `start.cloudPrompt` | `/start-issue {number} --yes{flags}` | Lo que `--cloud` le pide a la sesión; `{flags}` es `--new` o `--resume <rama>` |
 | `plans.dirs` | `docs/plans`, `docs/specs` | Dónde buscar el plan de la issue: lo que tocó la rama, o el documento cuyo `prs:` nombra su PR |
+| `art` | `true` | `false` apaga a Kuro en los mensajes finales. Solo sale en una terminal; `NO_COLOR` apaga el color |
 | `colors` | `critical-path` y `P1:` rojo, `P2:` naranjo, `P3:` amarillo, `P4:` cian | Color de la sesión por prefijo de label; gana el primero que calce |
 | `labels` | Los 8 de abajo | Labels que crea `labels sync`; lo del repo se suma al default (ver abajo) |
 

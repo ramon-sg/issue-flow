@@ -22,7 +22,7 @@ npm run issue:start -- 42 --branch    # sin worktree, en esta carpeta
      mergeada, suma `-2`, `-3`…
    - Con una rama viva, la retoma.
    - Con varias, pregunta cuál seguir o si crear otra.
-3. **Muestra el resumen y pregunta `[y/N]`.** Issue, labels, rama, carpeta,
+3. **Muestra el resumen y pregunta `[s/N]`.** Issue, labels, rama, carpeta,
    permisos y la lista de acciones. Enter vacío es no.
 4. **Crea lo que falta.**
    - El worktree en `.claude/worktrees/` (la carpeta sale de `worktrees.dir`

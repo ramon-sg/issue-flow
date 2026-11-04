@@ -22,7 +22,7 @@ const CLI = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 function tty(s, args, answers) {
   const run = process.platform === "darwin" ? 'cat | exec script -q /dev/null "$@"' : 'cat | exec script -qec "$(printf "%q " "$@")" /dev/null';
   const shell = process.platform === "darwin" ? "sh" : "bash";
-  const env = { HOME: s.tmp, PATH: `${join(s.tmp, "bin")}:/usr/bin:/bin`, ...npxEnv(s) };
+  const env = { ISSUE_FLOW_LANG: "en", HOME: s.tmp, PATH: `${join(s.tmp, "bin")}:/usr/bin:/bin`, ...npxEnv(s) };
   return new Promise((resolve, reject) => {
     const child = spawn(shell, ["-c", run, shell, process.execPath, CLI, ...args], { cwd: s.main, env });
     const left = [...answers];

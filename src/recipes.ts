@@ -9,6 +9,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isObject } from "./config-base.js";
+import type { Messages } from "./messages/index.js";
 import { SetupError } from "./setup-files.js";
 
 /** Where the recipes are, next to `dist`. */
@@ -85,17 +86,19 @@ function mergeSteps(current: unknown, added: unknown): { steps: unknown[]; names
  * Merges a recipe's `worktrees` into the repo's.
  * @param current - The repo's `worktrees`, or undefined.
  * @param added - The recipe's.
- * @param changes - Where to note what changed.
+ * @param notes - Where to note what changed and what was kept.
+ * @param t - The messages.
  * @returns The merged `worktrees`.
  */
-function mergeWorktrees(current: unknown, added: Record<string, unknown>, changes: string[]): Record<string, unknown> {
+function mergeWorktrees(current: unknown, added: Record<string, unknown>, notes: { changes: string[]; kept: string[] }, t: Messages): Record<string, unknown> {
+  const { changes, kept } = notes;
   const merged = isObject(current) ? { ...current } : {};
   for (const [key, value] of Object.entries(added)) {
     if (STEP_LISTS.includes(key)) {
       const { steps, names, taken } = mergeSteps(merged[key], value);
       merged[key] = steps;
-      for (const name of names) changes.push(`worktrees.${key}: added "${name}"`);
-      for (const name of taken) changes.push(`kept the "${name}" step of worktrees.${key}`);
+      for (const name of names) changes.push(t.apply.addedStep(key, name));
+      for (const name of taken) kept.push(t.apply.keptStep(name, key));
     } else if (key === "dockerProjects") {
       const projects = [...new Set([...(Array.isArray(merged[key]) ? merged[key] : []), ...(Array.isArray(value) ? value : [])])];
       if (projects.length !== (Array.isArray(merged[key]) ? merged[key].length : 0)) changes.push(`worktrees.dockerProjects: ${projects.join(", ")}`);
@@ -114,19 +117,26 @@ function mergeWorktrees(current: unknown, added: Record<string, unknown>, change
  * @param raw - The repo's config, as JSON.
  * @param recipe - The recipe.
  * @param prefix - The repo's Docker project prefix, for `{project}`.
- * @returns The new config and what changed, one line each.
- * @example applyRecipe({}, npmRecipe, "acme").changes // ['worktrees.setup: added "deps"']
+ * @param t - The messages, for the changes.
+ * @returns The new config, what changed and what it kept as the repo had it, one line each.
+ * @example applyRecipe({}, npmRecipe, "acme", t).changes // ['worktrees.setup: added "deps"']
  */
-export function applyRecipe(raw: Record<string, unknown>, recipe: Recipe, prefix: string): { raw: Record<string, unknown>; changes: string[] } {
+export function applyRecipe(
+  raw: Record<string, unknown>,
+  recipe: Recipe,
+  prefix: string,
+  t: Messages,
+): { raw: Record<string, unknown>; changes: string[]; kept: string[] } {
   const config = JSON.parse(JSON.stringify(recipe.config).split(PROJECT_PLACEHOLDER).join(prefix)) as Record<string, unknown>;
   const next = { ...raw };
   const changes: string[] = [];
+  const kept: string[] = [];
   for (const [key, value] of Object.entries(config)) {
-    if (key === "worktrees" && isObject(value)) next.worktrees = mergeWorktrees(next.worktrees, value, changes);
+    if (key === "worktrees" && isObject(value)) next.worktrees = mergeWorktrees(next.worktrees, value, { changes, kept }, t);
     else if (next[key] === undefined) {
       next[key] = value;
       changes.push(`${key}: ${JSON.stringify(value)}`);
-    } else if (JSON.stringify(next[key]) !== JSON.stringify(value)) changes.push(`kept ${key} ${JSON.stringify(next[key])} (the recipe says ${JSON.stringify(value)})`);
+    } else if (JSON.stringify(next[key]) !== JSON.stringify(value)) kept.push(t.apply.keptKey(key, JSON.stringify(next[key]), JSON.stringify(value)));
   }
-  return { raw: next, changes };
+  return { raw: next, changes, kept };
 }

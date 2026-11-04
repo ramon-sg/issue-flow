@@ -49,10 +49,11 @@ export function needsStartCommit(state: StartState): boolean {
 export function describeBranch(state: StartState, branch: string, withPr: boolean): string {
   const local = hasLocal(state.mainRoot, branch);
   const remote = onOrigin(state.mainRoot, branch);
-  const where = local ? (remote ? "local and in origin" : "only local") : remote ? "only in origin" : "deleted";
-  const text = `${branch} (${where}, ${ownCommits(state.mainRoot, branch, state.base)} own commits)`;
+  const t = state.out.t.start;
+  const where = local ? (remote ? t.where.both : t.where.local) : remote ? t.where.origin : t.where.deleted;
+  const text = t.branchText(branch, where, ownCommits(state.mainRoot, branch, state.base));
   const pr = withPr ? branchPr(state.work.prs, branch) : null;
-  return pr === null ? text : `${text}, PR #${pr.number}, ${pr.state}`;
+  return pr === null ? text : t.branchPr(text, pr.number, pr.state);
 }
 
 /**
@@ -62,26 +63,27 @@ export function describeBranch(state: StartState, branch: string, withPr: boolea
  * @example plannedActions(state) // "create the branch from origin/main + empty commit + push + …"
  */
 export function plannedActions(state: StartState): string {
-  if (state.mode === "cloud") return "open the cloud session, which makes the branch, the commit, the PR and the assignment";
+  const t = state.out.t.start;
+  if (state.mode === "cloud") return t.action.cloud;
   const actions = placeActions(state);
   const { mainRoot, branch } = state;
   const { number, remoteSession } = state.options;
   const commit = needsStartCommit(state);
-  if (commit) actions.push("empty commit");
-  if (commit || !onOrigin(mainRoot, branch)) actions.push("push");
+  if (commit) actions.push(t.action.emptyCommit);
+  if (commit || !onOrigin(mainRoot, branch)) actions.push(t.action.push);
   if (state.pr === null) {
     const first = prBody(state.options.config.start.prBody, number, state.kind, state.issue.url).split("\n")[0];
-    actions.push(`draft PR (${first})`);
+    actions.push(t.action.draftPr(first ?? ""));
     const others = openPrsElsewhere(state.work.prs, branch);
     if (state.kind === "part" && others.length > 0)
-      actions.push(`Part of #${number} in the open PRs (${others.map((pr) => `#${pr}`).join(", ")})`);
+      actions.push(t.action.partOf(number, others.map((pr) => `#${pr}`).join(", ")));
   }
-  if (state.pr?.state === "CLOSED") actions.push(`reopen PR #${state.pr.number}`);
-  if (state.issue.assignees.length === 0) actions.push(`assign #${number} to @me`);
+  if (state.pr?.state === "CLOSED") actions.push(t.action.reopen(state.pr.number));
+  if (state.issue.assignees.length === 0) actions.push(t.action.assign(number));
   if (state.mode === "here" && remoteSession !== null && !sameCloudSession(state.cloudSession, remoteSession))
-    actions.push("note the session in the PR");
+    actions.push(t.action.noteSession);
   if (actions.length > 0) return actions.join(" + ");
-  return state.adopted === null ? "none: only open the session" : "none: everything was already done";
+  return state.adopted === null ? t.action.onlySession : t.action.allDone;
 }
 
 /**
@@ -92,10 +94,11 @@ export function plannedActions(state: StartState): string {
  */
 function placeActions(state: StartState): string[] {
   const { adopted, branch } = state;
-  if (adopted !== null) return adopted.current === branch ? [] : [`rename the branch ${adopted.current} to ${branch}`];
-  if (state.found === null) return [`create the branch from origin/${state.base}`];
-  if (state.mode === "worktree" && !existsSync(state.workDir)) return ["create the worktree on the branch"];
-  if (state.mode !== "worktree" && currentBranch(state.workDir) !== branch) return ["check out the branch"];
+  const t = state.out.t.start.action;
+  if (adopted !== null) return adopted.current === branch ? [] : [t.rename(adopted.current, branch)];
+  if (state.found === null) return [t.create(state.base)];
+  if (state.mode === "worktree" && !existsSync(state.workDir)) return [t.createWorktree];
+  if (state.mode !== "worktree" && currentBranch(state.workDir) !== branch) return [t.checkout];
   return [];
 }
 
@@ -116,7 +119,7 @@ function mergedLeftovers(state: StartState): string[] {
       .filter((head) => git(state.mainRoot, ["cat-file", "-e", `${head}^{commit}`]).ok);
     const count = git(state.mainRoot, ["rev-list", "--count", ref, "--not", `origin/${state.base}`, ...heads]);
     if (count.ok && count.out !== "0")
-      lines.push(line("Note:", `${merged} has ${count.out} commits that are not in ${state.base}`));
+      lines.push(line(state.out.t.start.label.note, state.out.t.start.leftover(merged, count.out, state.base)));
   }
   return lines;
 }
@@ -129,24 +132,25 @@ function mergedLeftovers(state: StartState): string[] {
  */
 function branchLines(state: StartState): string[] {
   const { work } = state;
+  const t = state.out.t.start;
   if (state.found !== null) {
-    const found = [`branch ${describeBranch(state, state.branch, false)}`];
-    if (state.pr !== null) found.push(`PR #${state.pr.number}, ${state.pr.state}`);
+    const found = [t.found.branch(describeBranch(state, state.branch, false))];
+    if (state.pr !== null) found.push(t.found.pr(state.pr.number, state.pr.state));
     if (state.mode === "worktree" && existsSync(state.workDir))
-      found.push(`worktree at ${relative(state.mainRoot, state.workDir)}`);
-    return [line("Found:", found.join("\n")), line("Planned:", state.plan ?? "no")];
+      found.push(t.found.worktree(relative(state.mainRoot, state.workDir)));
+    return [line(t.label.found, found.join("\n")), line(t.label.planned, state.plan ?? t.no)];
   }
   if (work.candidates.length > 0)
     return [
-      line("Branches:", work.candidates.map((branch) => describeBranch(state, branch, true)).join("\n")),
-      line("New branch:", state.branch),
+      line(t.label.branches, work.candidates.map((branch) => describeBranch(state, branch, true)).join("\n")),
+      line(t.label.newBranch, state.branch),
     ];
-  if (work.mergedPrs.length === 0) return [line("Branch:", state.branch)];
+  if (work.mergedPrs.length === 0) return [line(t.label.branch, state.branch)];
   return [
-    line("Round:", `${work.mergedPrs.length + 1} (already merged: PR ${work.mergedPrs.map((pr) => `#${pr}`).join(", ")})`),
-    line("Planned:", state.plan ?? "no"),
+    line(t.label.round, t.round(work.mergedPrs.length + 1, work.mergedPrs.map((pr) => `#${pr}`).join(", "))),
+    line(t.label.planned, state.plan ?? t.no),
     ...mergedLeftovers(state),
-    line("Branch:", state.branch),
+    line(t.label.branch, state.branch),
   ];
 }
 
@@ -159,18 +163,19 @@ function branchLines(state: StartState): string[] {
  */
 export function summary(state: StartState, permissions: PermissionArgs): string {
   const { issue, options } = state;
+  const t = state.out.t.start;
   const header = issueHeader(issue.body);
   const color = issueColor(state.labels, options.config.colors);
   const opensHere = state.adopted === null && (state.mode === "worktree" || state.mode === "branch");
   return [
-    line("Issue:", `#${issue.number} — ${issue.title}`),
-    ...(header.length > 0 ? [line("Summary:", header.join("\n"))] : []),
-    line("Labels:", state.labels.join(" · ")),
-    line("Color:", color === null ? "none" : `${color.color} (${color.label})`),
+    line(t.label.issue, `#${issue.number} — ${issue.title}`),
+    ...(header.length > 0 ? [line(t.label.summary, header.join("\n"))] : []),
+    line(t.label.labels, state.labels.join(" · ")),
+    line(t.label.color, color === null ? t.none : `${color.color} (${color.label})`),
     ...branchLines(state),
-    line("Mode:", modeText(state)),
-    ...(opensHere ? [...sessionLines(state), line("Permissions:", permissions.label)] : []),
-    line("Actions:", plannedActions(state)),
+    line(t.label.mode, modeText(state)),
+    ...(opensHere ? [...sessionLines(state), line(t.label.permissions, permissions.label)] : []),
+    line(t.label.actions, plannedActions(state)),
   ].join("");
 }
 
@@ -180,10 +185,11 @@ export function summary(state: StartState, permissions: PermissionArgs): string 
  * @returns The text.
  */
 function modeText(state: StartState): string {
-  if (state.adopted !== null) return `adopted worktree at ${state.workDir}`;
-  if (state.mode === "here") return "this session (--here)";
-  if (state.mode === "cloud") return "cloud (the session makes the branch and the PR)";
-  return state.mode === "worktree" ? `worktree at ${relative(state.mainRoot, state.workDir)}` : "branch in the main checkout";
+  const t = state.out.t.start.mode;
+  if (state.adopted !== null) return t.adopted(state.workDir);
+  if (state.mode === "here") return t.here;
+  if (state.mode === "cloud") return t.cloud;
+  return state.mode === "worktree" ? t.worktree(relative(state.mainRoot, state.workDir)) : t.branch;
 }
 
 /**
@@ -194,12 +200,13 @@ function modeText(state: StartState): string {
  */
 function sessionLines(state: StartState): string[] {
   const { cloudSession, options } = state;
+  const t = state.out.t.start;
   if (options.teleport)
-    return [line("Session:", cloudSession === null ? "cloud (chosen from teleport's list)" : `cloud ${cloudSession} (brought with teleport)`)];
+    return [line(t.label.session, cloudSession === null ? t.session.teleportList : t.session.teleported(cloudSession))];
   const saved = savedSession(state.commonDir, state.branch) !== null;
-  const lines = [line("Session:", `${sessionName(state.branch, state.mode)}${saved ? " (exists, resumed)" : ""}`)];
+  const lines = [line(t.label.session, `${sessionName(state.branch, state.mode)}${saved ? t.session.resumed : ""}`)];
   if (cloudSession !== null)
-    lines.push(line("Cloud:", `the issue has a cloud session (${cloudSessionUrl(cloudSession)}). To bring it: ${again(options.number, "--teleport")}`));
+    lines.push(line(t.label.cloud, t.session.cloudNote(cloudSessionUrl(cloudSession), again(options, "--teleport"))));
   return lines;
 }
 

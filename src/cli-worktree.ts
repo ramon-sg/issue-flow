@@ -82,9 +82,9 @@ export async function runSession(out: Output, cwd: string): Promise<number> {
   const dir = sessionDir(process.env.CLAUDE_PROJECT_DIR ? hookInput() : {}, cwd);
   let config = DEFAULT_CONFIG;
   try {
-    config = loadConfig(dir);
+    config = loadConfig(dir, out.t);
   } catch (error) {
-    out.stdout(`issue-flow session: ${error instanceof Error ? error.message : String(error)}; going on with the defaults.\n`);
+    out.stdout(`issue-flow session: ${out.t.goingOn(error instanceof Error ? error.message : String(error))}\n`);
   }
   return session({ config, cwd: dir }, out);
 }
@@ -105,13 +105,13 @@ export const ADAPTER_COMMANDS = ["setup", "issue", "archive"];
  * @example await runAdapter("setup", {}, [], run)
  */
 export async function runAdapter(command: string, flags: Flags, rest: string[], run: Omit<WorktreeRun, "config">): Promise<number> {
-  if (rest.length > (command === "issue" ? 1 : 0)) throw new UsageError(`adapter ${command} takes ${command === "issue" ? "at most one URL" : "no arguments"}.`);
+  if (rest.length > (command === "issue" ? 1 : 0)) throw new UsageError(run.out.t.cli.adapterArguments(command));
   let config = DEFAULT_CONFIG;
   try {
-    config = loadConfig(run.cwd);
+    config = loadConfig(run.cwd, run.out.t);
   } catch (error) {
     if (command === "issue" && rest.length > 0) throw error;
-    run.out.stderr(`issue-flow: ${error instanceof Error ? error.message : String(error)}; going on with the defaults.\n`);
+    run.out.stderr(`issue-flow: ${run.out.t.goingOn(error instanceof Error ? error.message : String(error))}\n`);
   }
   const options: AdapterOptions = { config, cwd: run.cwd, only: flags.only ?? null, url: rest[0] ?? null, repo: run.repo };
   if (command === "setup") return adapterSetup(options, run.out);
@@ -133,7 +133,7 @@ export const HOOK_COMMANDS = ["worktree-create", "worktree-remove"];
 export async function runHook(command: string, run: Pick<WorktreeRun, "out" | "cwd">): Promise<number> {
   const input = hookInput();
   const dir = sessionDir(input, run.cwd);
-  const config = loadConfig(dir);
+  const config = loadConfig(dir, run.out.t);
   if (command === "worktree-create") return worktreeCreate(input, config, dir, run.out);
   return worktreeRemove(input, config, dir, run.out);
 }

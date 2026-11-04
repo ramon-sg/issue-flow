@@ -64,7 +64,7 @@ test("a -- that pnpm passes on is dropped: issue start -- 214 --dry-run works as
 
 test("issue start --help names every flag issue start takes, and a usage error of issue start shows it", async () => {
   const { COMMAND_FLAGS } = await import("../dist/cli-flags.js");
-  const { START_USAGE } = await import("../dist/usage.js");
+  const START_USAGE = (await import("../dist/messages/index.js")).messages("en").usage.start;
   const s = startSandbox();
 
   const bad = s.cli(["-R", "acme/widgets", "issue", "start", "42", "--free", "--ask-permissions"]);
@@ -83,9 +83,9 @@ test("a closed issue, or one that does not exist, stops with 1", () => {
   const missing = s.run(["999", "--dry-run"]);
 
   assert.equal(closed.status, 1);
-  assert.match(closed.err, /issue #214 is CLOSED; not starting it/);
+  assert.match(closed.err, /issue #214 is CLOSED; not starting it/i);
   assert.equal(missing.status, 1);
-  assert.match(missing.err, /issue #999 does not exist in acme\/widgets/);
+  assert.match(missing.err, /issue #999 does not exist in acme\/widgets/i);
 });
 
 test("--dry-run shows the summary and changes nothing", () => {
@@ -111,6 +111,33 @@ test("--dry-run shows the summary and changes nothing", () => {
   assert.deepEqual(s.claudeCalls(), []);
 });
 
+test("in Spanish the summary has the catalog's labels, and the English text is not there", () => {
+  const s = startSandbox();
+
+  const r = s.run(["0214", "--dry-run"], { env: { ISSUE_FLOW_LANG: "es" } });
+
+  assert.equal(r.status, 0, r.err);
+  for (const expected of [
+    "Resumen:      Cuando un reclamo termina en reembolso",
+    "Etiquetas:    enhancement · P1: urgent",
+    `Rama:         ${BRANCH}`,
+    `Modo:         worktree en ${WT}`,
+    "Permisos:     tu configuración (claude-repo-guard no está instalado)",
+    "Acciones:     crear la rama desde origin/main + commit vacío + push + PR en borrador (Closes #214) + asignarte la #214",
+  ])
+    assert.ok(r.out.includes(expected), expected);
+  assert.doesNotMatch(r.out, /Branch:|Actions:|Permissions:/);
+});
+
+test("in Spanish a usage-time StartError speaks Spanish too", () => {
+  const s = startSandbox();
+
+  const r = s.run(["999", "--dry-run"], { env: { ISSUE_FLOW_LANG: "es" } });
+
+  assert.equal(r.status, 1);
+  assert.match(r.err, /la issue #999 no existe en acme\/widgets/i);
+});
+
 test("without a type label or a slug block it warns, names from the title and goes on", () => {
   const s = startSandbox();
   s.issue(214, { labels: [{ name: "area:api" }], body: "Sin bloque." });
@@ -130,6 +157,7 @@ test("no, or no answer, does nothing and exits with 1", () => {
 
   assert.equal(no.status, 1);
   assert.match(no.err, /Start the issue\? \[y\/N\] [\s\S]*did nothing/);
+  assert.doesNotMatch(no.err, /\[!\]/);
   assert.equal(empty.status, 1);
   assert.deepEqual(s.writes(), []);
   assert.equal(s.git(s.main, "branch", "--list", "feat/*"), "");
@@ -189,7 +217,8 @@ test("Claude opens in the worktree with a color, the prompt and the lock, which 
   assert.match(session.lock, /^claude session issue-flow \d+$/);
   assert.doesNotMatch(s.git(s.main, "worktree", "list", "--porcelain"), /locked/);
   assert.equal(readFileSync(join(s.main, ".git", "issue-flow-sessions", "feat+214-odoo-refund-notice"), "utf8"), `${id}\n`);
-  assert.match(r.out, /The session is saved\. To resume it: issue-flow issue start 214/);
+  assert.match(r.out, /^ {2}\[ok\] The session is saved - issue #214$/m);
+  assert.match(r.out, /^ {2}To resume it:\n {4}issue-flow issue start 214$/m);
 });
 
 test("with claude-repo-guard, auto mode by default; --ask-permissions and --free change it", () => {
@@ -363,7 +392,7 @@ test("--resume takes one of the issue's branches, and refuses another's", () => 
 
   assert.match(ok.out, /Found: {8}branch fix\/214-old/);
   assert.equal(other.status, 1);
-  assert.match(other.err, /branch fix\/2140-x is not one of issue #214's/);
+  assert.match(other.err, /branch fix\/2140-x is not one of issue #214's/i);
 });
 
 test("--new with another open branch: the new PR is Part of, and the open one that closed it too", () => {
@@ -439,7 +468,7 @@ test("--branch: a dirty main checkout stops it; a clean one goes on the branch, 
   const r = s.run(["214", "--yes", "--branch"]);
 
   assert.equal(dirty.status, 1);
-  assert.match(dirty.err, /the main checkout has uncommitted changes/);
+  assert.match(dirty.err, /the main checkout has uncommitted changes/i);
   assert.equal(r.status, 0, r.err);
   assert.equal(s.git(s.main, "rev-parse", "--abbrev-ref", "HEAD"), BRANCH);
   assert.match(r.out, /Mode: {9}branch in the main checkout/);
@@ -455,7 +484,7 @@ test("--branch with local main ahead of origin stops it", () => {
   const r = s.run(["214", "--yes", "--branch"]);
 
   assert.equal(r.status, 1);
-  assert.match(r.err, /local main has commits that are not in origin\/main/);
+  assert.match(r.err, /local main has commits that are not in origin\/main/i);
   assert.equal(s.git(s.main, "branch", "--list", "feat/*"), "");
 });
 
@@ -468,8 +497,9 @@ test("--no-launch, or no claude in the PATH, leaves everything ready and says ho
 
   assert.equal(flag.status, 0, flag.err);
   assert.deepEqual(fromFlag, []);
-  assert.match(flag.out, /Ready\. To open the Claude session: issue-flow issue start 214/);
-  assert.match(missing.out, /Ready\. To open the Claude session/);
+  assert.match(flag.out, /^ {2}\[ok\] Ready - issue #214$/m);
+  assert.match(flag.out, /^ {2}To open the Claude session:\n {4}issue-flow issue start 214$/m);
+  assert.match(missing.out, /To open the Claude session:/);
 });
 
 test("a failed fetch stops it before reading the work", () => {
@@ -480,7 +510,7 @@ test("a failed fetch stops it before reading the work", () => {
   const r = s.run(["214", "--yes", "--no-launch"]);
 
   assert.equal(r.status, 1);
-  assert.match(r.err, /could not fetch origin/);
+  assert.match(r.err, /could not fetch origin/i);
   assert.deepEqual(s.writes(), []);
 });
 
@@ -530,10 +560,50 @@ test("after the session: a merged PR, a clean worktree and a yes delete the work
 
   assert.equal(r.status, 0, r.err);
   assert.equal(s.git(s.main, "rev-parse", "main"), merged);
-  assert.match(r.err, /The PR was merged\. Delete the worktree \.claude\/worktrees\/feat\+214-odoo-refund-notice and the local branch feat\/214-odoo-refund-notice\?/);
+  assert.match(r.out, /^ {2}\[\?\] The PR was merged - issue #214$/m);
+  assert.match(r.out, /^ {2}Worktree {2}\.claude\/worktrees\/feat\+214-odoo-refund-notice$/m);
+  assert.match(r.out, /^ {2}Branch {4}feat\/214-odoo-refund-notice$/m);
+  assert.match(r.err, /Delete the worktree and the local branch\?/);
   assert.equal(existsSync(join(s.main, WT)), false);
   assert.equal(s.git(s.main, "branch", "--list", BRANCH), "");
   assert.deepEqual(s.sessionFiles(), []);
+});
+
+test("in Spanish the question is [s/N] and an s, si or sí answers yes", () => {
+  for (const answer of ["s", "SÍ", "si"]) {
+    const s = startSandbox();
+    s.run(["214", "--yes", "--no-launch"]);
+    s.advanceMain();
+
+    const r = s.run(["214", "--yes"], { input: `${answer}\n`, env: { ISSUE_FLOW_LANG: "es", FAKE_CLAUDE_MERGE: "900" } });
+
+    assert.equal(r.status, 0, r.err);
+    assert.match(r.out, /\[\?\] El PR se integró - issue #214/, answer);
+    assert.match(r.err, /¿Borrar el worktree y la rama local\?.*\[s\/N\] /, answer);
+    assert.equal(existsSync(join(s.main, WT)), false, answer);
+  }
+  const s = startSandbox();
+  s.run(["214", "--yes", "--no-launch"]);
+  s.advanceMain();
+
+  const no = s.run(["214", "--yes"], { input: "n\n", env: { ISSUE_FLOW_LANG: "es", FAKE_CLAUDE_MERGE: "900" } });
+
+  assert.equal(no.status, 0, no.err);
+  assert.equal(existsSync(join(s.main, WT)), true);
+});
+
+test("confirm takes the same answers in both languages: s in en and y in es are a yes", () => {
+  for (const [lang, answer, mark] of [["en", "s", "[y/N]"], ["es", "y", "[s/N]"]]) {
+    const s = startSandbox();
+    s.run(["214", "--yes", "--no-launch"]);
+    s.advanceMain();
+
+    const r = s.run(["214", "--yes"], { input: `${answer}\n`, env: { ISSUE_FLOW_LANG: lang, FAKE_CLAUDE_MERGE: "900" } });
+
+    assert.equal(r.status, 0, r.err);
+    assert.ok(r.err.includes(mark), `${lang}: ${r.err}`);
+    assert.equal(existsSync(join(s.main, WT)), false, lang);
+  }
 });
 
 test("after the session: a merged PR with a commit not pushed, or changes, deletes nothing", () => {
@@ -591,7 +661,7 @@ test("a lock of another live session is left alone and nothing offers to delete 
 
   assert.equal(r.status, 0, r.err);
   assert.match(r.err, /the worktree is already locked/);
-  assert.match(r.out, /another session uses the worktree: not offering to delete it/);
+  assert.match(r.out, /Another session uses the worktree: not offering to delete it/);
   assert.match(s.git(s.main, "worktree", "list", "--porcelain"), /locked claude session agent-1/);
 });
 
@@ -632,7 +702,7 @@ test("--branch stops if the branch is in a worktree, or the main checkout is dir
   const inWorktree = s.run(["214", "--dry-run", "--branch"]);
 
   assert.equal(dirty.status, 1);
-  assert.match(dirty.err, /the main checkout has uncommitted changes/);
+  assert.match(dirty.err, /the main checkout has uncommitted changes/i);
   assert.equal(inWorktree.status, 1);
   assert.match(inWorktree.err, /is already in the worktree .*; run without --branch/);
 });
@@ -708,7 +778,7 @@ test("a repo other than the checkout's origin stops it before reading the issue"
   const env = s.run(["214", "--dry-run"], { env: { GH_REPO: "acme/other" } });
 
   assert.equal(r.status, 1);
-  assert.match(r.err, /this checkout's origin is acme\/widgets, not acme\/other/);
+  assert.match(r.err, /this checkout's origin is acme\/widgets, not acme\/other/i);
   assert.deepEqual(s.ghCalls(), []);
   assert.equal(env.status, 1);
   assert.equal(s.git(s.origin, "branch", "--list", "feat/*"), "");
@@ -767,7 +837,7 @@ test("the question before deleting a worktree names its ignored files", () => {
 
   const r = s.run(["214", "--yes"], { input: "n\n", env: { FAKE_CLAUDE_MERGE: "900" } });
 
-  assert.match(r.err, /Its ignored files go too: \.local\//);
+  assert.match(r.out, /Its ignored files go too: \.local\//);
 });
 
 // NOTE: Claude Code's sandbox forbids writing .git/config; a config.lock that is there makes
@@ -824,4 +894,82 @@ test("a local branch that tracks origin's base ends up tracking its own branch i
 
   assert.equal(r.status, 0, r.err);
   assert.equal(s.git(s.main, "rev-parse", "--abbrev-ref", `${BRANCH}@{u}`), `origin/${BRANCH}`);
+});
+
+test("in Spanish the final message is a block too", () => {
+  const s = startSandbox();
+
+  const r = s.run(["214", "--yes"], { env: { ISSUE_FLOW_LANG: "es" } });
+
+  assert.equal(r.status, 0, r.err);
+  assert.match(r.out, /^ {2}\[ok\] Sesión guardada - issue #214$/m);
+  assert.match(r.out, /^ {2}Para retomarla:\n {4}issue-flow issue start 214$/m);
+});
+
+test("in a terminal the final message has Kuro beside it", async () => {
+  const s = startSandbox();
+
+  const r = await s.tty(["issue", "start", "214", "--yes", "--no-launch"]);
+
+  assert.equal(r.status, 0, r.out);
+  assert.ok(r.out.includes("▄█████▄"), r.out);
+  assert.match(r.out, /\[ok\][^\n]*Ready - issue #214/);
+});
+
+test("with art false in the repo's config there is no Kuro, not even in a terminal", async () => {
+  const s = startSandbox();
+  mkdirSync(join(s.main, ".agents"), { recursive: true });
+  writeFileSync(join(s.main, ".agents", "flow.json"), '{ "art": false }\n');
+
+  const r = await s.tty(["issue", "start", "214", "--yes", "--no-launch"]);
+
+  assert.equal(r.status, 0, r.out);
+  assert.ok(!r.out.includes("▄█████▄"), r.out);
+  assert.match(r.out, /\[ok\][^\n]*Ready - issue #214/);
+});
+
+test("an issue start that fails in GitHub writes the error block on stderr and stops with 1", () => {
+  const s = startSandbox();
+
+  const r = s.run(["999", "--dry-run"]);
+
+  assert.equal(r.status, 1);
+  assert.match(r.err, /^ {2}\[!\] .*Issue #999 does not exist in acme\/widgets/m);
+  assert.doesNotMatch(r.err, /^issue-flow:/m);
+  assert.equal(r.out, "");
+});
+
+test("--plan keeps the JSON warnings in English under ISSUE_FLOW_LANG=es", () => {
+  const s = startSandbox();
+  s.issue(214, { body: "Texto.\n\n**Slug de rama**\n`Cart Total`" });
+
+  const r = s.run(["214", "--plan"], { env: { ISSUE_FLOW_LANG: "es" } });
+
+  assert.equal(r.status, 0, r.err);
+  const { warnings } = JSON.parse(r.out);
+  assert.ok(warnings.length > 0);
+  assert.match(warnings.join(" "), /is not a valid slug; proposing another/);
+});
+
+test("the session-saved block carries the branch and the PR number, in both languages", () => {
+  for (const [lang, saved, draft] of [["en", /The session is saved/, /PR +#\d+ \(draft\)/], ["es", /Sesión guardada/, /PR +#\d+ \(en borrador\)/]]) {
+    const s = startSandbox();
+    const r = s.run(["214", "--yes"], { env: { ISSUE_FLOW_LANG: lang } });
+    assert.equal(r.status, 0, r.err);
+    assert.match(r.out, saved);
+    assert.match(r.out, new RegExp(`(Branch|Rama) +${BRANCH}`), lang);
+    assert.match(r.out, draft, `${lang}: ${r.out}`);
+  }
+});
+
+test("declining in Spanish is a plain line, not an error block, and the error titles are capitalized", () => {
+  const s = startSandbox();
+
+  const no = s.run(["214"], { input: "n\n", env: { ISSUE_FLOW_LANG: "es" } });
+  const missing = s.run(["999", "--dry-run"], { env: { ISSUE_FLOW_LANG: "es" } });
+
+  assert.equal(no.status, 1);
+  assert.doesNotMatch(no.err, /\[!\]/);
+  assert.match(no.err, /no se hizo nada\./);
+  assert.match(missing.err, /\[!\] [A-ZÁÉÍÓÚ]/);
 });

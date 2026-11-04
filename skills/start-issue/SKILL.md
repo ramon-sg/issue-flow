@@ -14,6 +14,8 @@ description: |
 argument-hint: "<número de issue> [--branch] [--resume <rama> | --new] [--yes]"
 ---
 
+Responde al usuario en el idioma en que te escribe.
+
 # Empezar una issue
 
 El flujo vive en `issue-flow issue start` (dependencia de desarrollo del
@@ -96,7 +98,8 @@ suma a las acciones el resumen de la issue en su cuerpo (Paso 5).
   ramas): se muestran y se sigue.
 - **Varias ramas:** el resumen las lista y propone una nueva. Pregunta cuál
   retomar y suma `--resume <rama>` o `--new` en el Paso 3.
-- **Ya se empezó:** el resumen dice `Found:` y `Planned:`. La pregunta es
+- **Ya se empezó:** el resumen dice `Found:` y `Planned:` (en español, `Encontrado:` y
+  `Planeado:`). La pregunta es
   si se continúa.
 - **La issue sigue abierta y su PR ya se mergeó:** propone una tanda nueva
   en otra rama (`-2`, `-3`…); la rama exacta es la del resumen.

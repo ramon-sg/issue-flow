@@ -3,10 +3,11 @@
  * of every open issue without a branch block, and adds a "Slug de rama" block to those
  * only after a confirmation (`--yes`, or answering in the terminal).
  */
-import { createInterface } from "node:readline/promises";
 import { editIssue, type IssueView, listIssues, viewIssue } from "@ramon-sg/github-rest";
 import { hasBranchBlock, SLUG_HEADING, withSlugBlock } from "../branch-name.js";
+import { confirm } from "../ask.js";
 import type { FlowConfig, Namer } from "../config.js";
+import { messages } from "../messages/index.js";
 import { type IssueInfo, type Proposal, proposeBranches } from "../propose.js";
 import { emitJson, type Output, UsageError, warn } from "../output.js";
 
@@ -74,7 +75,7 @@ export async function branchOf(
   for (const number of numbers) {
     const found = await viewIssue(options.repo, number);
     if (found === null) {
-      warn(out, `issue #${number} does not exist in ${options.repo}.`);
+      warn(out, out.t.branch.noIssue(number, options.repo));
       code = 1;
       continue;
     }
@@ -82,27 +83,13 @@ export async function branchOf(
   }
   const { proposals, warnings } = proposeBranches(issues, options.config, {
     cwd: options.cwd,
+    t: options.json ? messages("en") : out.t,
     ...(options.namer === undefined ? {} : { namer: options.namer }),
   });
   for (const line of [...warnings, ...proposals.flatMap((proposal) => proposal.warnings)])
     warn(out, line);
   print(proposals, out, options.json);
   return code;
-}
-
-/**
- * Asks in the terminal whether to write the blocks.
- * @param count - How many issues.
- * @returns True if the answer is yes.
- */
-async function confirm(count: number): Promise<boolean> {
-  const prompt = createInterface({ input: process.stdin, output: process.stderr });
-  try {
-    const answer = await prompt.question(`Add the "Slug de rama" block to ${count} issue(s)? [y/N] `);
-    return /^y(es)?$/i.test(answer.trim());
-  } finally {
-    prompt.close();
-  }
 }
 
 /**
@@ -117,10 +104,10 @@ async function mayWrite(options: BranchOptions, count: number, out: Output): Pro
   if (options.dryRun) return false;
   if (options.yes) return true;
   if (!out.interactive) {
-    warn(out, "nothing written: pass --yes to add the blocks.");
+    warn(out, out.t.branch.nothingWritten);
     return false;
   }
-  return confirm(count);
+  return confirm(out, out.t.branch.addBlock(count));
 }
 
 /**
@@ -157,7 +144,7 @@ async function missingIssues(options: BranchOptions, out: Output): Promise<Issue
   const limit = options.limit ?? MISSING_LIMIT;
   const issues = listed.issues.filter((issue) => !hasBranchBlock(issue.body));
   if (listed.truncated || issues.length > limit)
-    warn(out, "GitHub has more issues than were read; run it again after this.");
+    warn(out, out.t.branch.moreIssues);
   return issues.slice(0, limit);
 }
 
@@ -174,16 +161,17 @@ async function missingIssues(options: BranchOptions, out: Output): Promise<Issue
  */
 export async function branchMissing(options: BranchOptions, out: Output): Promise<number> {
   if (options.json && !options.dryRun && !options.yes)
-    throw new UsageError("--missing --json needs --dry-run or --yes: there is no terminal to confirm in.");
+    throw new UsageError(out.t.branch.jsonNeeds);
   const issues = await missingIssues(options, out);
   const { proposals, warnings } = proposeBranches(issues.map(info), options.config, {
     cwd: options.cwd,
     claudeType: false,
+    t: options.json ? messages("en") : out.t,
     ...(options.namer === undefined ? {} : { namer: options.namer }),
   });
   const untyped = proposals
     .filter((proposal) => proposal.type === null && options.config.branch.template.includes("{type}"))
-    .map((proposal) => `#${proposal.number}: it has no type label, so its branch has no type until it gets one.`);
+    .map((proposal) => out.t.branch.noType(proposal.number));
   for (const line of [...warnings, ...proposals.flatMap((proposal) => proposal.warnings), ...untyped])
     warn(out, line);
   print(proposals, out, options.json);
@@ -192,10 +180,10 @@ export async function branchMissing(options: BranchOptions, out: Output): Promis
   for (const proposal of proposals) {
     try {
       if (!(await addBlock(options.repo, proposal))) {
-        warn(out, `#${proposal.number}: it got a branch block or was deleted meanwhile; left alone.`);
+        warn(out, out.t.branch.leftAlone(proposal.number));
         continue;
       }
-      if (!options.json) out.stdout(`#${proposal.number}: block added.\n`);
+      if (!options.json) out.stdout(`${out.t.branch.added(proposal.number)}\n`);
     } catch (error) {
       warn(out, `#${proposal.number}: ${error instanceof Error ? error.message : String(error)}`);
       code = 1;

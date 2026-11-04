@@ -11,6 +11,8 @@ description: |
 argument-hint: "[número de PR] — si no se pasa, el de la rama actual"
 ---
 
+Responde al usuario en el idioma en que te escribe.
+
 # Comentarios de review de un PR
 
 > **Regla de oro:** el OK al plan del Paso 4 autoriza a aplicar los

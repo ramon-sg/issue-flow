@@ -36,7 +36,8 @@ test("pr worktree makes a worktree on the PR's branch, tracking origin, and leav
   assert.equal(readFileSync(join(dir, ".local", "credentials"), "utf8"), "ID=x\n");
   assert.equal(s.git(s.main, "rev-parse", "--abbrev-ref", "HEAD"), "main");
   assert.equal(s.git(s.main, "status", "--porcelain"), "?? local-work.txt");
-  assert.match(r.out, /Ready\. To go in: cd .*\/\.claude\/worktrees\/pr-7\n/);
+  assert.match(r.out, /^ {2}\[ok\] Ready - PR #7$/m);
+  assert.match(r.out, /^ {2}To go in:\n {4}cd .*\/\.claude\/worktrees\/pr-7$/m);
   assert.deepEqual(s.writes(), []);
 });
 
@@ -120,7 +121,7 @@ test("pr worktree refuses a fork's PR, a missing PR and a branch checked out in 
   assert.equal(fork.status, 1);
   assert.match(fork.err, /PR #8 comes from a fork and its branch is not in origin/);
   assert.equal(missing.status, 1);
-  assert.match(missing.err, /acme\/widgets has no PR #99/);
+  assert.match(missing.err, /acme\/widgets has no PR #99/i);
   assert.equal(taken.status, 1);
   assert.match(taken.err, new RegExp(`${PR_BRANCH} is checked out in ${s.main};`));
   assert.equal(existsSync(prPath(s)), false);

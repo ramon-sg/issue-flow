@@ -1,7 +1,7 @@
 // Helpers of the `issue start` tests: a bare origin and a clone whose origin says
 // github.com/acme/widgets (git rewrites it to the bare one), the GitHub world of
 // fake-github.mjs, the fake claude, and the compiled CLI.
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -142,30 +142,62 @@ export function startSandbox() {
       calls: () => lines(files.dockerLog),
     },
     stateDir: join(tmp, "state"),
-    cli(args, { input = "", withoutClaude = false, env = {}, cwd = main } = {}) {
+    // The environment of a run; also resets the logs of the fakes.
+    environment({ withoutClaude = false, env = {} } = {}) {
       writeFileSync(files.world, JSON.stringify(world, null, 2));
       writeFileSync(files.routes, "{}");
       writeFileSync(files.gh, "");
       writeFileSync(files.claude, "");
       writeFileSync(files.dockerLog, "");
+      return {
+        ...GIT_ENV,
+        HOME: tmp,
+        PATH: withoutClaude ? noClaude : bin,
+        FAKE_GH_WORLD: files.world,
+        FAKE_GH_ROUTES: files.routes,
+        FAKE_GH_LOG: files.gh,
+        FAKE_CLAUDE_LOG: files.claude,
+        CLAUDE_CONFIG_DIR: files.config,
+        FAKE_DOCKER_STATE: files.docker,
+        FAKE_DOCKER_LOG: files.dockerLog,
+        ISSUE_FLOW_LANG: "en",
+        ISSUE_FLOW_STATE_DIR: join(tmp, "state"),
+        ...env,
+      };
+    },
+    // Runs the CLI in a pseudo-terminal (`script`), so both streams are terminals; answers
+    // `answer` once `mark` shows, if given.
+    tty(args, { answer = null, mark = "[y/N]", env = {}, withoutClaude = false, cwd = main } = {}) {
+      const environment = { ...sandbox.environment({ withoutClaude, env }), PATH: `${withoutClaude ? noClaude : bin}:/usr/bin:/bin` };
+      const run = process.platform === "darwin" ? 'cat | exec script -q /dev/null "$@"' : 'cat | exec script -qec "$(printf "%q " "$@")" /dev/null';
+      const shell = process.platform === "darwin" ? "sh" : "bash";
+      return new Promise((resolve, reject) => {
+        const child = spawn(shell, ["-c", run, shell, process.execPath, CLI, ...args], { cwd, env: environment });
+        let out = "";
+        let typed = answer === null;
+        if (typed) child.stdin.end();
+        const timer = setTimeout(() => child.kill(), 20_000);
+        child.stdout.setEncoding("utf8").on("data", (chunk) => {
+          out += chunk;
+          if (!typed && out.includes(mark)) {
+            typed = true;
+            child.stdin.end(`${answer}\r`);
+          }
+        });
+        child.on("error", reject);
+        child.on("close", (status) => {
+          clearTimeout(timer);
+          sandbox.load();
+          resolve({ status, out });
+        });
+      });
+    },
+    cli(args, { input = "", withoutClaude = false, env = {}, cwd = main } = {}) {
       const r = spawnSync(process.execPath, [CLI, ...args], {
         cwd,
         encoding: "utf8",
         input,
-        env: {
-          ...GIT_ENV,
-          HOME: tmp,
-          PATH: withoutClaude ? noClaude : bin,
-          FAKE_GH_WORLD: files.world,
-          FAKE_GH_ROUTES: files.routes,
-          FAKE_GH_LOG: files.gh,
-          FAKE_CLAUDE_LOG: files.claude,
-          CLAUDE_CONFIG_DIR: files.config,
-          FAKE_DOCKER_STATE: files.docker,
-          FAKE_DOCKER_LOG: files.dockerLog,
-          ISSUE_FLOW_STATE_DIR: join(tmp, "state"),
-          ...env,
-        },
+        env: sandbox.environment({ withoutClaude, env }),
       });
       sandbox.load();
       assert.deepEqual(lines(files.gh).filter((call) => call.path === "graphql"), [], "the flow must only call GitHub over REST");

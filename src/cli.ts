@@ -16,6 +16,11 @@ import { prWorktree } from "./commands/pr-worktree.js";
 import { ConfigError } from "./config-base.js";
 import { type FlowConfig, loadConfig, type Namer } from "./config.js";
 import type { Permissions } from "./launch.js";
+import { LangError, resolveLang } from "./lang.js";
+import { show } from "./banner.js";
+import { launchOf } from "./launch-as.js";
+import { DeclinedError } from "./start-state.js";
+import { type Messages, messages } from "./messages/index.js";
 import { type Output, processOutput, UsageError } from "./output.js";
 import { usageOf } from "./usage.js";
 
@@ -33,12 +38,13 @@ const REPO = /^[^/\s]+\/[^/\s]+$/;
  * @param flag - The `-R` value.
  * @param config - The config.
  * @param cwd - Where the command runs.
+ * @param t - The messages of the terminal.
  * @returns `owner/repo`.
  * @throws UsageError if `-R` or `GH_REPO` is malformed; GitHubError if there is no repo.
  */
-export function repoOf(flag: string | undefined, config: FlowConfig, cwd: string): string {
+export function repoOf(flag: string | undefined, config: FlowConfig, cwd: string, t: Messages): string {
   if (flag !== undefined && !REPO.test(flag))
-    throw new UsageError(`-R expects owner/repo: ${flag}`);
+    throw new UsageError(t.cli.repoFlag(flag));
   let repo: string | null;
   try {
     repo = resolveRepo(flag ?? config.repo ?? undefined, cwd);
@@ -47,48 +53,48 @@ export function repoOf(flag: string | undefined, config: FlowConfig, cwd: string
     throw error;
   }
   if (repo === null)
-    throw new GitHubError(
-      "can't tell which repo this is: run inside a checkout whose origin is on GitHub, pass -R owner/repo, set GH_REPO or \"repo\" in .agents/flow.json.",
-      0,
-    );
+    throw new GitHubError(t.cantTellRepo, 0);
   return repo;
 }
 
 /**
  * The `--namer` value.
  * @param value - The flag, or undefined.
+ * @param t - The messages of the terminal.
  * @returns The namer, or undefined to use the config's.
  * @throws UsageError if it is not claude or title.
  */
-function namerOf(value: string | undefined): Namer | undefined {
+function namerOf(value: string | undefined, t: Messages): Namer | undefined {
   if (value === undefined || value === "claude" || value === "title") return value;
-  throw new UsageError(`--namer expects claude or title: ${value}`);
+  throw new UsageError(t.cli.namer(value));
 }
 
 /**
  * Checks that only the command's own flags were given.
  * @param command - The command (`start`, `worktree prune`, `session`).
  * @param flags - The flags.
+ * @param t - The messages of the terminal.
  * @throws UsageError if one belongs to another command.
- * @example ownFlags("worktree ports", { next: true })
+ * @example ownFlags("worktree ports", { next: true }, t)
  */
-export function ownFlags(command: string, flags: Flags): void {
-  const shared = command === "branch" || command === "start" ? ["repo", "help", "namer"] : ["repo", "help"];
+export function ownFlags(command: string, flags: Flags, t: Messages): void {
+  const shared = command === "branch" || command === "start" ? ["repo", "help", "lang", "namer"] : ["repo", "help", "lang"];
   const allowed = new Set<string>([...shared, ...(COMMAND_FLAGS[command] ?? [])]);
   const other = Object.keys(flags).find((flag) => !allowed.has(flag));
   const name = command === "branch" || command === "start" ? `issue ${command}` : command;
-  if (other !== undefined) throw new UsageError(`--${other} does not go with ${name}.`);
+  if (other !== undefined) throw new UsageError(t.cli.flagNotWith(other, name));
 }
 
 /**
  * The permission mode of `issue start`.
  * @param flags - The flags.
+ * @param t - The messages of the terminal.
  * @returns The mode.
  * @throws UsageError if both were given.
  */
-function permissionsOf(flags: Flags): Permissions {
-  if (flags["ask-permissions"] && flags.free) throw new UsageError("use --ask-permissions or --free, not both.");
-  if (flags["no-repo-deny"] && !flags.free) throw new UsageError("--no-repo-deny goes with --free.");
+function permissionsOf(flags: Flags, t: Messages): Permissions {
+  if (flags["ask-permissions"] && flags.free) throw new UsageError(t.cli.askOrFree);
+  if (flags["no-repo-deny"] && !flags.free) throw new UsageError(t.cli.noRepoDenyNeedsFree);
   if (flags.free) return flags["no-repo-deny"] ? "free-no-repo-deny" : "free";
   return flags["ask-permissions"] ? "ask" : "default";
 }
@@ -97,18 +103,19 @@ function permissionsOf(flags: Flags): Permissions {
  * Checks the flags of `issue start`.
  * @param flags - The flags.
  * @param rest - The positionals after the command.
+ * @param t - The messages of the terminal.
  * @returns The issue number.
  * @throws UsageError if they do not fit.
  */
-function startArgs(flags: Flags, rest: string[]): number {
+function startArgs(flags: Flags, rest: string[], t: Messages): number {
   const [text, ...extra] = rest;
   if (text === undefined || extra.length > 0 || !NUMBER.test(text))
-    throw new UsageError("issue start needs one issue number.");
-  if (flags.resume !== undefined && flags.new) throw new UsageError("--resume does not go with --new.");
+    throw new UsageError(t.cli.startNeedsNumber);
+  if (flags.resume !== undefined && flags.new) throw new UsageError(t.cli.resumeWithNew);
   const conflicting = flags.branch || flags["dry-run"] || flags.yes || flags.resume !== undefined || flags.new || flags["no-repo-deny"];
   if (flags.plan && conflicting)
-    throw new UsageError("--plan does not go with --branch, --dry-run, --yes, --resume, --new nor --no-repo-deny.");
-  cloudArgs(flags);
+    throw new UsageError(t.cli.planConflicts);
+  cloudArgs(flags, t);
   return Number(text);
 }
 
@@ -124,15 +131,16 @@ const EXCLUSIVE: Record<"cloud" | "here" | "teleport" | "adopt", (keyof Flags)[]
  * Checks `--cloud`, `--here`, `--teleport` and `--adopt`: at most one, and none with the
  * flags it has no use for (only `--teleport` opens Claude here, and it needs a branch).
  * @param flags - The flags.
+ * @param t - The messages of the terminal.
  * @throws UsageError if they do not fit.
  */
-function cloudArgs(flags: Flags): void {
+function cloudArgs(flags: Flags, t: Messages): void {
   const ways = (Object.keys(EXCLUSIVE) as (keyof typeof EXCLUSIVE)[]).filter((way) => flags[way] === true);
-  if (ways.length > 1) throw new UsageError(`use one of --${ways.join(", --")}, not several.`);
+  if (ways.length > 1) throw new UsageError(t.cli.oneWay(ways));
   const [way] = ways;
   if (way === undefined) return;
   const other = EXCLUSIVE[way].find((flag) => flags[flag] !== undefined && flags[flag] !== false);
-  if (other !== undefined) throw new UsageError(`--${way} does not go with --${other}.`);
+  if (other !== undefined) throw new UsageError(t.cli.wayNotWith(way, other));
 }
 
 /**
@@ -190,25 +198,26 @@ export async function main(argv: string[], out: Output, cwd: string): Promise<nu
   }
   const { values: flags, positionals } = parsed;
   if (flags.help) {
-    out.stdout(`${usageOf(positionals)}\n`);
+    out.stdout(`${usageOf(positionals, out.t)}\n`);
     return 0;
   }
+  const { t } = out;
   const [group, sub, ...rest] = positionals;
   if (group === "pr") return runPr(sub, rest, flags, { out, cwd, command });
   if (group === "labels") return runLabels(sub, rest, flags, { out, cwd });
   if (group !== undefined && SETUP_COMMANDS.includes(group)) {
-    ownFlags(group, flags);
+    ownFlags(group, flags, t);
     return runSetupCommand(group, flags, [sub, ...rest].filter((item) => item !== undefined), { out, cwd });
   }
   if (group === "adapter" || group === "hook") {
     const commands = group === "adapter" ? ADAPTER_COMMANDS : HOOK_COMMANDS;
-    if (sub === undefined || !commands.includes(sub)) throw new UsageError(`${group} expects ${commands.join(", ")}.`);
-    ownFlags(`${group} ${sub}`, flags);
+    if (sub === undefined || !commands.includes(sub)) throw new UsageError(t.cli.groupExpects(group, commands));
+    ownFlags(`${group} ${sub}`, flags, t);
     if (group === "hook") {
-      if (rest.length > 0) throw new UsageError(`hook ${sub} takes no arguments.`);
+      if (rest.length > 0) throw new UsageError(t.cli.takesNoArguments(`hook ${sub}`));
       return runHook(sub, { out, cwd });
     }
-    return runAdapter(sub, flags, rest, { out, cwd, repo: () => repoOf(flags.repo, loadConfig(cwd), cwd) });
+    return runAdapter(sub, flags, rest, { out, cwd, repo: () => repoOf(flags.repo, loadConfig(cwd, t), cwd, t) });
   }
   return runIssue(group, sub, rest, flags, { out, cwd });
 }
@@ -223,13 +232,13 @@ export async function main(argv: string[], out: Output, cwd: string): Promise<nu
  * @throws UsageError if the arguments do not fit.
  */
 async function runPr(sub: string | undefined, rest: string[], flags: Flags, run: { out: Output; cwd: string; command: string[] | null }): Promise<number> {
-  if (sub !== "worktree") throw new UsageError("pr expects worktree.");
-  ownFlags("pr worktree", flags);
+  if (sub !== "worktree") throw new UsageError(run.out.t.cli.prExpects);
+  ownFlags("pr worktree", flags, run.out.t);
   const [text, ...extra] = rest;
-  if (text === undefined || extra.length > 0 || !NUMBER.test(text)) throw new UsageError("pr worktree needs one PR number.");
-  const config = loadConfig(run.cwd);
+  if (text === undefined || extra.length > 0 || !NUMBER.test(text)) throw new UsageError(run.out.t.cli.prNeedsNumber);
+  const config = loadConfig(run.cwd, run.out.t);
   return prWorktree(
-    { repo: repoOf(flags.repo, config, run.cwd), config, cwd: run.cwd, number: Number(text), setup: !(flags["no-setup"] ?? false), command: run.command },
+    { repo: repoOf(flags.repo, config, run.cwd, run.out.t), config, cwd: run.cwd, number: Number(text), setup: !(flags["no-setup"] ?? false), command: run.command },
     run.out,
   );
 }
@@ -244,12 +253,12 @@ async function runPr(sub: string | undefined, rest: string[], flags: Flags, run:
  * @throws UsageError if the arguments do not fit; GitHubError if GitHub fails.
  */
 async function runLabels(sub: string | undefined, rest: string[], flags: Flags, run: { out: Output; cwd: string }): Promise<number> {
-  if (sub !== "sync") throw new UsageError("labels expects sync.");
-  ownFlags("labels sync", flags);
-  if (rest.length > 0) throw new UsageError("labels sync takes no arguments.");
-  const config = loadConfig(run.cwd);
+  if (sub !== "sync") throw new UsageError(run.out.t.cli.labelsExpects);
+  ownFlags("labels sync", flags, run.out.t);
+  if (rest.length > 0) throw new UsageError(run.out.t.cli.takesNoArguments("labels sync"));
+  const config = loadConfig(run.cwd, run.out.t);
   return labelsSync(
-    { repo: repoOf(flags.repo, config, run.cwd), labels: config.labels, update: flags.update ?? false, dryRun: flags["dry-run"] ?? false, json: flags.json ?? false },
+    { repo: repoOf(flags.repo, config, run.cwd, run.out.t), labels: config.labels, update: flags.update ?? false, dryRun: flags["dry-run"] ?? false, json: flags.json ?? false },
     run.out,
   );
 }
@@ -266,32 +275,33 @@ async function runLabels(sub: string | undefined, rest: string[], flags: Flags, 
  */
 async function runIssue(group: string | undefined, command: string | undefined, rest: string[], flags: Flags, run: { out: Output; cwd: string }): Promise<number> {
   const { out, cwd } = run;
+  const { t } = out;
   const positionals = [group, command, ...rest].filter((item) => item !== undefined);
   if (group === "session") {
-    ownFlags("session", flags);
-    if (positionals.length > 1) throw new UsageError("session takes no arguments.");
+    ownFlags("session", flags, t);
+    if (positionals.length > 1) throw new UsageError(t.cli.takesNoArguments("session"));
     return runSession(out, cwd);
   }
   if (group === "worktree") {
     if (command === undefined || !WORKTREE_COMMANDS.includes(command))
-      throw new UsageError(`worktree expects ${WORKTREE_COMMANDS.join(", ")}.`);
-    ownFlags(`worktree ${command}`, flags);
-    if (rest.length > 0) throw new UsageError(`worktree ${command} takes no arguments.`);
-    const config = loadConfig(cwd);
-    return runWorktree(command, flags, { out, cwd, config, repo: () => repoOf(flags.repo, config, cwd) });
+      throw new UsageError(t.cli.groupExpects("worktree", WORKTREE_COMMANDS));
+    ownFlags(`worktree ${command}`, flags, t);
+    if (rest.length > 0) throw new UsageError(t.cli.takesNoArguments(`worktree ${command}`));
+    const config = loadConfig(cwd, t);
+    return runWorktree(command, flags, { out, cwd, config, repo: () => repoOf(flags.repo, config, cwd, t) });
   }
   if (group !== "issue" || (command !== "branch" && command !== "start"))
-    throw new UsageError(group === undefined ? "missing the command." : `unknown command: ${positionals.join(" ")}`);
-  ownFlags(command, flags);
-  if (flags.yes && flags["dry-run"]) throw new UsageError("use --yes or --dry-run, not both.");
-  const namer = namerOf(flags.namer);
+    throw new UsageError(group === undefined ? t.cli.missingCommand : t.cli.unknownCommand(positionals));
+  ownFlags(command, flags, t);
+  if (flags.yes && flags["dry-run"]) throw new UsageError(t.cli.yesOrDryRun);
+  const namer = namerOf(flags.namer, t);
   if (command === "start") {
-    const number = startArgs(flags, rest);
-    const permissions = permissionsOf(flags);
-    const config = loadConfig(cwd);
+    const number = startArgs(flags, rest, t);
+    const permissions = permissionsOf(flags, t);
+    const config = loadConfig(cwd, t);
     return issueStart(
       {
-        repo: repoOf(flags.repo, config, cwd),
+        repo: repoOf(flags.repo, config, cwd, t),
         config,
         cwd,
         number,
@@ -309,20 +319,21 @@ async function runIssue(group: string | undefined, command: string | undefined, 
         teleport: flags.teleport ?? false,
         adopt: flags.adopt ?? false,
         remoteSession: process.env.CLAUDE_CODE_REMOTE_SESSION_ID || null,
+        launchedAs: launchOf(process.env, flags),
       },
       out,
     );
   }
   if (flags.limit !== undefined && !POSITIVE.test(flags.limit))
-    throw new UsageError(`--limit expects a positive number: ${flags.limit}`);
-  if (flags.missing && rest.length > 0) throw new UsageError("--missing takes no issue numbers.");
+    throw new UsageError(t.cli.limit(flags.limit));
+  if (flags.missing && rest.length > 0) throw new UsageError(t.cli.missingNoNumbers);
   if (!flags.missing && (rest.length === 0 || !rest.every((text) => NUMBER.test(text))))
-    throw new UsageError("issue branch needs issue numbers, or --missing.");
+    throw new UsageError(t.cli.branchNeeds);
   if (!flags.missing && (flags.yes || flags["dry-run"] || flags.limit !== undefined))
-    throw new UsageError("--yes, --dry-run and --limit go with --missing.");
-  const config = loadConfig(cwd);
+    throw new UsageError(t.cli.missingFlags);
+  const config = loadConfig(cwd, t);
   const options = {
-    repo: repoOf(flags.repo, config, cwd),
+    repo: repoOf(flags.repo, config, cwd, t),
     config,
     cwd,
     ...(namer === undefined ? {} : { namer }),
@@ -334,15 +345,72 @@ async function runIssue(group: string | undefined, command: string | undefined, 
   return flags.missing ? branchMissing(options, out) : branchOf(rest.map(Number), options, out);
 }
 
-const out = processOutput();
-main(process.argv.slice(2), out, process.cwd()).then(
+/**
+ * The `--lang` value of some arguments, read before anything else.
+ * @param argv - The arguments.
+ * @returns The value, or undefined.
+ */
+function langFlagOf(argv: string[]): string | undefined {
+  const { values } = parseArgs({ args: splitArgs(argv).args, options: OPTIONS, allowPositionals: true, strict: false });
+  return typeof values.lang === "string" ? values.lang : undefined;
+}
+
+/**
+ * Whether the words name a command whose failures go out as a block: `issue start` and
+ * `pr worktree`.
+ * @param words - The command's words.
+ * @returns True for those two.
+ */
+function isStartCommand(words: string[]): boolean {
+  return (words[0] === "issue" && words[1] === "start") || (words[0] === "pr" && words[1] === "worktree");
+}
+
+/**
+ * Writes an error as a block on stderr: the first line of the message is the title and
+ * the rest goes under it. The repo's config is read if it can be, so `art: false` also
+ * silences Kuro here.
+ * @param error - What was thrown.
+ */
+function showError(error: unknown): void {
+  let config: FlowConfig | null = null;
+  try {
+    config = loadConfig(process.cwd());
+  } catch {
+    // NOTE: an unreadable config only means the defaults.
+  }
+  if (error instanceof DeclinedError) {
+    out.stderr(`${error.message}\n`);
+    return;
+  }
+  const [first = "", ...rest] = (error instanceof Error ? error.message : String(error)).split("\n");
+  // NOTE: a message that opens with a branch or a path (`feat/7-x is checked out`) keeps its first letter.
+  const title = /^\p{L}+(\s|$)/u.test(first) ? first.charAt(0).toUpperCase() + first.slice(1) : first;
+  show(out, { mood: "error", title, ...(rest.length > 0 ? { lines: rest } : {}) }, config, "stderr");
+}
+
+const argv = process.argv.slice(2);
+let lang;
+try {
+  lang = resolveLang(langFlagOf(argv), process.env);
+} catch (error) {
+  if (!(error instanceof LangError)) throw error;
+  process.stderr.write(`issue-flow: ${messages("es").lang.invalid(error.source, error.value)}\n${usageOf(commandWords(argv), messages("es"))}\n`);
+  process.exit(2);
+}
+const out = processOutput(lang);
+main(argv, out, process.cwd()).then(
   (code) => {
     process.exitCode = code;
   },
   (error: unknown) => {
     const usage = error instanceof UsageError;
     const config = error instanceof ConfigError;
-    out.stderr(`issue-flow: ${error instanceof Error ? error.message : String(error)}\n${usage ? `${usageOf(commandWords(process.argv.slice(2)))}\n` : ""}`);
+    if (!usage && !config && isStartCommand(commandWords(argv))) {
+      showError(error);
+      process.exitCode = 1;
+      return;
+    }
+    out.stderr(`issue-flow: ${error instanceof Error ? error.message : String(error)}\n${usage ? `${usageOf(commandWords(argv), out.t)}\n` : ""}`);
     process.exitCode = usage || config ? 2 : 1;
   },
 );

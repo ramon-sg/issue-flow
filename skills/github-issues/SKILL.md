@@ -12,6 +12,8 @@ description: |
   para otro repo, (5) Hay que adjuntar una captura a una issue.
 ---
 
+Responde al usuario en el idioma en que te escribe.
+
 # Issues de GitHub
 
 Una issue es un prompt para quien la resuelva, persona o agente. Las cortas,

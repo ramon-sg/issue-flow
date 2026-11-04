@@ -11,6 +11,8 @@ description: |
 argument-hint: "[número de PR] — si no se pasa, el de la rama actual"
 ---
 
+Responde al usuario en el idioma en que te escribe.
+
 # Cerrar un PR
 
 Cerrar es terminar y mergear. Todo lo de antes del merge vive en

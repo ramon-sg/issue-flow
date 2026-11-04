@@ -6,6 +6,7 @@
  * Abastio's `scripts/start-issue.sh`.
  */
 import { git, worktreeLock } from "./git.js";
+import type { Messages } from "./messages/index.js";
 
 /** Start of the lock reason. */
 export const LOCK_REASON = "claude session issue-flow";
@@ -48,18 +49,19 @@ export function isStale(reason: string): boolean {
  * @param mainRoot - The main checkout.
  * @param workDir - The worktree.
  * @param say - Where to say what happened.
+ * @param t - The messages.
  * @returns Whether this process holds the lock and whether another session does.
- * @example lockWorktree(root, wt, console.error)
+ * @example lockWorktree(root, wt, console.error, messages("en"))
  */
-export function lockWorktree(mainRoot: string, workDir: string, say: (text: string) => void): Lock {
+export function lockWorktree(mainRoot: string, workDir: string, say: (text: string) => void, t: Messages): Lock {
   const reason = worktreeLock(mainRoot, workDir);
   if (reason !== null && isStale(reason)) {
-    say(`Taking over the lock of a session that is gone (${reason}).`);
+    say(t.start.warn.lockTakeover(reason));
     git(mainRoot, ["worktree", "unlock", workDir]);
   }
   if (git(mainRoot, ["worktree", "lock", "--reason", `${LOCK_REASON} ${process.pid}`, workDir]).ok)
     return { mine: true, shared: false };
-  say("the worktree is already locked (is another session open?); going on without locking it.");
+  say(t.start.warn.lockShared);
   return { mine: false, shared: true };
 }
 

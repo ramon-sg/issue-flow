@@ -13,6 +13,8 @@ description: |
 argument-hint: "[número de PR] — si no se pasa, el de la rama actual"
 ---
 
+Responde al usuario en el idioma en que te escribe.
+
 # Terminar un PR
 
 > **Regla de oro:** lo que documenta el cambio (el plan, el README, `docs/`)

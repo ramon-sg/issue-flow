@@ -108,6 +108,14 @@ describe("skill contents", () => {
     }
   });
 
+  test("every skill tells the agent to answer in the user's language, right after the frontmatter", () => {
+    for (const skill of CATALOG.skills) {
+      const text = readFileSync(join(ROOT, "skills", skill.name, "SKILL.md"), "utf8");
+      const body = text.split(/^---$/m)[2] ?? "";
+      assert.match(body.replace(/^\n+/, ""), /^Responde al usuario en el idioma en que te escribe\.\n/, skill.name);
+    }
+  });
+
   test("no file of a shared skill names the project it came from", () => {
     for (const file of files(join(ROOT, "skills"))) {
       assert.doesNotMatch(readFileSync(file, "utf8"), PROJECT_NAMES, file);

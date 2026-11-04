@@ -69,7 +69,8 @@ test("--adopt renames a just-made worktree's branch and publishes it, without as
   assert.deepEqual(s.world.issues[214].assignees, [{ login: "me" }]);
   assert.deepEqual(s.claudeCalls(), []);
   assert.equal(existsSync(join(s.main, WT)), false);
-  assert.match(r.out, /Ready: issue #214 is on branch feat\/214-odoo-refund-notice, with its draft PR\./);
+  assert.match(r.out, /^ {2}\[ok\] Ready - issue #214$/m);
+  assert.match(r.out, /^ {2}Branch {2}feat\/214-odoo-refund-notice$/m);
 });
 
 test("--adopt again with the PR open adds nothing", () => {
@@ -114,7 +115,7 @@ test("--adopt in a new round names the branch with -2 and points to the plan lef
 
   assert.equal(r.status, 0, r.err);
   assert.equal(branchAt(s, dir), `${BRANCH}-2`);
-  assert.match(r.out, /Open plan of this issue, to resume: docs\/plans\/open\.md/);
+  assert.match(r.out, /^ {2}Open plan {2}docs\/plans\/open\.md$/m);
 });
 
 test("--adopt stops if the issue already has its branch elsewhere, and renames nothing", () => {
@@ -238,7 +239,7 @@ test("--cloud opens the cloud session from the main checkout and creates nothing
   assert.deepEqual(s.claudeCalls().map((call) => [call.args, call.cwd]), [[["--cloud", "/start-issue 214 --yes"], s.main]]);
   assert.match(r.out, /Mode: {9}cloud \(the session makes the branch and the PR\)/);
   assert.doesNotMatch(r.out, /Session:/);
-  assert.match(r.out, /To bring it here: issue-flow issue start 214 --teleport/);
+  assert.match(r.out, /^ {2}To bring it here:\n {4}issue-flow issue start 214 --teleport$/m);
   assert.deepEqual(s.writes(), []);
   assert.equal(s.git(s.origin, "branch", "--list", "feat/*"), "");
   assert.equal(existsSync(join(s.main, WT)), false);
@@ -258,7 +259,7 @@ test("--cloud: no opens nothing, and without claude it says how to open it", () 
   assert.match(noLaunch.out, /To open the cloud session/);
   assert.deepEqual(noLaunchCalls, []);
   assert.equal(noClaude.status, 0, noClaude.err);
-  assert.match(noClaude.out, /To open the cloud session: issue-flow issue start 214 --cloud/);
+  assert.match(noClaude.out, /To open the cloud session:\n {4}issue-flow issue start 214 --cloud/);
 });
 
 test("--cloud leaves a main checkout on another branch and dirty alone, with a warning", () => {
@@ -294,7 +295,7 @@ test("--cloud stops if the branch is checked out or only local, and a failed ses
   assert.equal(onlyLocal.status, 1);
   assert.match(onlyLocal.err, /is only local: push it or go on without --cloud/);
   assert.equal(failed.status, 1);
-  assert.match(failed.err, /could not open the cloud session/);
+  assert.match(failed.err, /could not open the cloud session/i);
 });
 
 test("--cloud with several branches passes the chosen one, or --new, to the session", () => {
@@ -363,7 +364,7 @@ test("--teleport brings the session noted in the PR to the worktree, with the pe
 
   assert.equal(r.status, 0, r.err);
   assert.match(r.out, /Session: {6}cloud session_01TEST \(brought with teleport\)/);
-  assert.match(r.out, /To resume it later: claude --resume/);
+  assert.match(r.out, /To resume it later:\n {4}claude --resume/);
   assert.deepEqual(s.claudeCalls().map((call) => [call.args, call.cwd]), [
     [["--settings", '{"sandbox":{"enabled":false}}', "--dangerously-skip-permissions", "--teleport", "session_01TEST"], join(s.main, WT)],
   ]);
@@ -381,7 +382,7 @@ test("--teleport without a session in the PR opens the list, and without a branc
   assert.match(list.out, /Session: {6}cloud \(chosen from teleport's list\)/);
   assert.deepEqual(s.claudeCalls()[0].args, ["--teleport"]);
   assert.equal(noBranch.status, 1);
-  assert.match(noBranch.err, /issue #214 has no branch: start it with 'issue-flow issue start 214 --cloud'/);
+  assert.match(noBranch.err, /issue #214 has no branch: start it with 'issue-flow issue start 214 --cloud'/i);
 });
 
 test("--here starts the issue in this checkout, notes the cloud session in the PR and prints the prompt", () => {
@@ -482,7 +483,7 @@ test("--here stops with uncommitted changes, without moving HEAD nor pushing", (
   const r = s.run(["214", "--here", "--yes"]);
 
   assert.equal(r.status, 1);
-  assert.match(r.err, /this checkout has uncommitted changes/);
+  assert.match(r.err, /this checkout has uncommitted changes/i);
   assert.equal(s.git(s.main, "rev-parse", "HEAD"), head);
   assert.equal(branchAt(s, s.main), "main");
   assert.equal(s.git(s.origin, "branch", "--list", "feat/*"), "");
@@ -533,7 +534,7 @@ test("--here stops if the branch is in another worktree", () => {
   const r = s.run(["214", "--here", "--yes"]);
 
   assert.equal(r.status, 1);
-  assert.ok(r.err.includes(`branch ${BRANCH} is already at ${other}:`), r.err);
+  assert.ok(r.err.includes(`Branch ${BRANCH} is already at ${other}:`), r.err);
   assert.equal(branchAt(s, s.main), "main");
 });
 

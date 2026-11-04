@@ -3,6 +3,9 @@
  * writing to `process` directly, so the entry point decides about the terminal.
  */
 
+import type { Lang } from "./lang.js";
+import { type Messages, messages } from "./messages/index.js";
+
 /** Usage error: exits 2 and prints the usage text. */
 export class UsageError extends Error {}
 
@@ -11,18 +14,27 @@ export interface Output {
   stdout: (text: string) => void;
   stderr: (text: string) => void;
   interactive: boolean;
+  /** The messages in the terminal's language. */
+  t: Messages;
+  lang: Lang;
+  /** Whether each stream is a terminal (for color). */
+  terminal: { stdout: boolean; stderr: boolean };
 }
 
 /**
  * The process's output; interactive when both stdin and stdout are a terminal.
+ * @param lang - The language of the terminal.
  * @returns The output.
- * @example processOutput().interactive
+ * @example processOutput("es").interactive
  */
-export function processOutput(): Output {
+export function processOutput(lang: Lang): Output {
   return {
     stdout: (text) => process.stdout.write(text),
     stderr: (text) => process.stderr.write(text),
     interactive: Boolean(process.stdin.isTTY && process.stdout.isTTY),
+    t: messages(lang),
+    lang,
+    terminal: { stdout: Boolean(process.stdout.isTTY), stderr: Boolean(process.stderr.isTTY) },
   };
 }
 

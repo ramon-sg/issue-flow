@@ -10,6 +10,8 @@ description: |
 argument-hint: "<número de PR>"
 ---
 
+Responde al usuario en el idioma en que te escribe.
+
 # Revisar un PR en un worktree
 
 ## Nunca en el checkout principal

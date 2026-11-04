@@ -9,11 +9,13 @@
 import { spawnSync } from "node:child_process";
 import { getPr, updatePr } from "@ramon-sg/github-rest";
 import { forgetTypedAhead } from "./ask.js";
+import { show } from "./banner.js";
 import { checkedOutAt, currentBranch, git, hasLocal, isClean, onOrigin, ownCommits } from "./git.js";
 import { cloudSessionOf, fill, issueOfBranch, sameCloudSession, type StartMode, withCloudSession } from "./issue-text.js";
 import { inPath } from "./launch.js";
+import type { Messages } from "./messages/index.js";
 import { type Output, warn } from "./output.js";
-import { type Adopted, again, StartError, type StartState } from "./start-state.js";
+import { type Adopted, again, StartError, type StartOptions, type StartState } from "./start-state.js";
 import type { WorkState } from "./work-state.js";
 
 /** A branch name safe to put in the cloud session's prompt, which a skill may run. */
@@ -40,14 +42,15 @@ export function fetchOrigin(mainRoot: string, here: boolean): boolean {
  * @param startRoot - The checkout where it runs.
  * @param mainRoot - The main checkout.
  * @param base - The base branch.
+ * @param t - The messages.
  * @returns The branch and whether it is fresh.
  * @throws StartError in the main checkout or on a detached HEAD.
- * @example readAdopted(wt, root, "main") // { current: "ramon/x", fresh: true }
+ * @example readAdopted(wt, root, "main", messages("en")) // { current: "ramon/x", fresh: true }
  */
-export function readAdopted(startRoot: string, mainRoot: string, base: string): Adopted {
-  if (startRoot === mainRoot) throw new StartError("--adopt runs inside a worktree, not in the main checkout.");
+export function readAdopted(startRoot: string, mainRoot: string, base: string, t: Messages): Adopted {
+  if (startRoot === mainRoot) throw new StartError(t.start.error.adoptInMain);
   const current = currentBranch(startRoot);
-  if (current === null) throw new StartError(`the worktree ${startRoot} is not on a branch; not adopting it.`);
+  if (current === null) throw new StartError(t.start.error.adoptDetached(startRoot));
   return { current, fresh: !onOrigin(mainRoot, current) && ownCommits(mainRoot, current, base) === 0 };
 }
 
@@ -74,28 +77,29 @@ export function withoutFresh(work: WorkState, adopted: Adopted): WorkState {
  * @param mainRoot - The main checkout.
  * @param work - The issue's work.
  * @param adopted - The adopted branch.
- * @param number - The issue.
+ * @param options - The options of the run.
+ * @param t - The messages.
  * @returns The branch resumed, or the new one already named, or neither (propose one).
  * @throws StartError if the issue has live branches elsewhere.
- * @example chooseAdopted(root, work, adopted, 214) // { found: null, named: "fix/214-x" }
+ * @example chooseAdopted(root, work, adopted, options, messages("en")) // { found: null, named: "fix/214-x" }
  */
 export function chooseAdopted(
   mainRoot: string,
   work: WorkState,
   adopted: Adopted,
-  number: number,
+  options: StartOptions,
+  t: Messages,
 ): { found: string | null; named: string | null } {
   const { candidates } = work;
   if (candidates.includes(adopted.current)) return { found: adopted.current, named: null };
-  if (adopted.fresh && issueOfBranch(adopted.current) === number) return { found: null, named: adopted.current };
+  if (adopted.fresh && issueOfBranch(adopted.current) === options.number) return { found: null, named: adopted.current };
   const [only] = candidates;
   if (only === undefined) return { found: null, named: null };
-  const after = "continue there with";
-  if (candidates.length > 1)
-    throw new StartError(`the issue already has ${candidates.length} branches (${candidates.join(", ")}): ${after} '${again(number)}' and delete this worktree.`);
+  const error = t.start.error;
+  if (candidates.length > 1) throw new StartError(error.adoptMany(candidates.length, candidates.join(", "), again(options)));
   const at = checkedOutAt(mainRoot, only);
-  const where = at !== null ? `at ${at}` : hasLocal(mainRoot, only) ? "local, without a worktree" : "only in origin";
-  throw new StartError(`the issue already has branch ${only} (${where}): ${after} '${again(number)}' and delete this worktree.`);
+  const where = at !== null ? error.adoptAt(at) : hasLocal(mainRoot, only) ? error.adoptLocal : error.adoptOrigin;
+  throw new StartError(error.adoptOne(only, where, again(options)));
 }
 
 /**
@@ -103,21 +107,20 @@ export function chooseAdopted(
  * is nothing to check (an `--adopt` repeated or resumed); if not, it must be fresh and
  * without uncommitted changes, so a branch with other work is never renamed. Untracked
  * files do not count: the tool may leave its own.
- * @param state - What it knows: the branch, the start checkout and the adopted branch.
+ * @param state - What it knows: the branch, the start checkout, the adopted branch and the messages.
  * @returns The mode and the folder.
  * @throws StartError if the worktree is not fresh.
  * @example placeAdopted({ branch, startRoot, adopted })
  */
 export function placeAdopted(
-  state: { branch: string; startRoot: string; adopted: Adopted },
+  state: { branch: string; startRoot: string; adopted: Adopted; t: Messages },
 ): { mode: StartMode; workDir: string } {
-  const { branch, startRoot, adopted } = state;
+  const { branch, startRoot, adopted, t } = state;
   const place = { mode: "worktree" as const, workDir: startRoot };
   if (branch === adopted.current) return place;
   if (!adopted.fresh)
-    throw new StartError(`branch ${adopted.current} is in origin or has commits of its own: only a just-made worktree is adopted.`);
-  if (!isClean(startRoot, false))
-    throw new StartError(`the worktree ${startRoot} has uncommitted changes: only a just-made worktree is adopted.`);
+    throw new StartError(t.start.error.adoptNotFresh(adopted.current));
+  if (!isClean(startRoot, false)) throw new StartError(t.start.error.adoptDirty(startRoot));
   return place;
 }
 
@@ -133,7 +136,7 @@ export function renameAdopted(state: StartState): void {
   const current = state.adopted?.current;
   if (current === undefined) return;
   if (!git(state.startRoot, ["branch", "-m", state.branch]).ok)
-    throw new StartError(`could not rename ${current} to ${state.branch}.`);
+    throw new StartError(state.out.t.start.error.renameFailed(current, state.branch));
 }
 
 /**
@@ -143,16 +146,22 @@ export function renameAdopted(state: StartState): void {
  * @param mainRoot - The main checkout.
  * @param startRoot - The checkout where it runs.
  * @param branch - The branch.
- * @param number - The issue.
+ * @param options - The options of the run.
+ * @param t - The messages.
  * @returns The mode and the folder.
  * @throws StartError if the place is taken.
- * @example placeHere(root, root, "feat/42-x", 42)
+ * @example placeHere(root, root, "feat/42-x", options, messages("en"))
  */
-export function placeHere(mainRoot: string, startRoot: string, branch: string, number: number): { mode: StartMode; workDir: string } {
+export function placeHere(
+  mainRoot: string,
+  startRoot: string,
+  branch: string,
+  options: StartOptions,
+  t: Messages,
+): { mode: StartMode; workDir: string } {
   const at = checkedOutAt(mainRoot, branch);
-  if (at !== null && at !== startRoot) throw new StartError(`branch ${branch} is already at ${at}: continue there with '${again(number)}'.`);
-  if (!isClean(startRoot, false))
-    throw new StartError("this checkout has uncommitted changes; commit or stash them first. No stash is made.");
+  if (at !== null && at !== startRoot) throw new StartError(t.start.error.hereTaken(branch, at, again(options)));
+  if (!isClean(startRoot, false)) throw new StartError(t.start.error.hereDirty);
   return { mode: "here", workDir: startRoot };
 }
 
@@ -163,17 +172,22 @@ export function placeHere(mainRoot: string, startRoot: string, branch: string, n
  * @param mainRoot - The main checkout.
  * @param branch - The branch.
  * @param found - The branch being resumed, or null.
- * @param number - The issue.
+ * @param options - The options of the run.
+ * @param t - The messages.
  * @returns The mode and the folder.
  * @throws StartError if the cloud cannot take the branch.
- * @example placeCloud(root, "feat/42-x", null, 42)
+ * @example placeCloud(root, "feat/42-x", null, options, messages("en"))
  */
-export function placeCloud(mainRoot: string, branch: string, found: string | null, number: number): { mode: StartMode; workDir: string } {
+export function placeCloud(
+  mainRoot: string,
+  branch: string,
+  found: string | null,
+  options: StartOptions,
+  t: Messages,
+): { mode: StartMode; workDir: string } {
   const at = checkedOutAt(mainRoot, branch);
-  if (at !== null)
-    throw new StartError(`branch ${branch} is already at ${at}: continue there with '${again(number)}', without --cloud.`);
-  if (found !== null && !onOrigin(mainRoot, branch))
-    throw new StartError(`branch ${branch} is only local: push it or go on without --cloud.`);
+  if (at !== null) throw new StartError(t.start.error.cloudTaken(branch, at, again(options)));
+  if (found !== null && !onOrigin(mainRoot, branch)) throw new StartError(t.start.error.cloudLocal(branch));
   return { mode: "cloud", workDir: mainRoot };
 }
 
@@ -188,14 +202,15 @@ export function placeCloud(mainRoot: string, branch: string, found: string | nul
  */
 export function prepareHere(state: StartState): void {
   const { workDir, branch, base, mainRoot } = state;
+  const error = state.out.t.start.error;
   const checkout = (args: string[]): void => {
-    if (!git(workDir, ["checkout", "-q", ...args]).ok) throw new StartError(`could not leave ${branch} in this checkout.`);
+    if (!git(workDir, ["checkout", "-q", ...args]).ok) throw new StartError(error.hereCheckout(branch));
   };
   if (state.found === null) return checkout(["--no-track", "-B", branch, `origin/${base}`]);
   if (!onOrigin(mainRoot, branch))
-    throw new StartError(`branch ${branch} is only local (on another machine or checkout): push it from there and run this again.`);
+    throw new StartError(error.hereLocalOnly(branch));
   if (hasLocal(mainRoot, branch) && git(mainRoot, ["rev-list", "--count", branch, "--not", `origin/${branch}`]).out !== "0")
-    throw new StartError(`the local branch ${branch} has commits that are not in origin; push them or sort it out by hand.`);
+    throw new StartError(error.hereAhead(branch));
   // NOTE: --no-track: publish sets the upstream when it can (see trackOrigin).
   checkout(["--no-track", "-B", branch, `origin/${branch}`]);
 }
@@ -212,6 +227,21 @@ export async function prCloudSession(repo: string, pr: number | null): Promise<s
   if (pr === null) return null;
   const found = await getPr(repo, pr).catch(() => null);
   return found === null ? null : cloudSessionOf(found.body);
+}
+
+/**
+ * Says the issue is on its branch with its draft PR, and where the plan to resume is.
+ * @param state - The start.
+ * @param plan - The open plan's path, or null.
+ * @param pr - The PR number, if known.
+ * @example readyHere(state, "docs/plans/open.md", 900)
+ */
+export function readyHere(state: Pick<StartState, "out" | "options" | "branch">, plan: string | null, pr: number | null = null): void {
+  const { out, options, branch } = state;
+  const say = out.t.start.say;
+  const rows: [string, string][] = [[say.branchLabel, branch], [say.prLabel, pr === null ? say.prDraft : say.prDraftOf(pr)]];
+  if (plan !== null) rows.push([say.planLabel, plan]);
+  show(out, { mood: "ok", title: say.ready(options.number), rows }, options.config);
 }
 
 /**
@@ -232,10 +262,11 @@ export async function finishHere(state: StartState, pr: number, prompt: string):
       if (found === null) throw new Error(`PR #${pr} is gone`);
       await updatePr(options.repo, pr, { body: withCloudSession(found.body, id) });
     } catch {
-      warn(out, `could not note the session in PR #${pr}.`);
+      warn(out, out.t.start.warn.noteSession(pr));
     }
   }
-  out.stdout(`Ready: issue #${options.number} is on branch ${state.branch}, with its draft PR.\nPrompt: ${prompt}\n`);
+  readyHere(state, null, pr);
+  out.stdout(`Prompt: ${prompt}\n`);
 }
 
 /**
@@ -254,7 +285,7 @@ export function cloudFlags(state: StartState): string {
   if (found === null && work.candidates.length > 0) return " --new";
   if (work.candidates.length <= 1 || found === null) return "";
   if (!PLAIN_BRANCH.test(found))
-    throw new StartError(`branch ${JSON.stringify(found)} has characters the cloud session's prompt cannot carry; rename it.`);
+    throw new StartError(state.out.t.start.error.cloudBranchChars(JSON.stringify(found)));
   return ` --resume ${found}`;
 }
 
@@ -270,15 +301,16 @@ export function cloudFlags(state: StartState): string {
  */
 export function launchCloud(state: StartState, out: Output): number {
   const { options, mainRoot, base } = state;
+  const say = out.t.start.say;
   if (!options.launch || !inPath("claude")) {
-    out.stdout(`Ready. To open the cloud session: ${again(options.number, "--cloud")}\n`);
+    show(out, { mood: "ok", title: say.ready(options.number), next: { label: say.openCloud, command: again(options, "--cloud") } }, options.config);
     return 0;
   }
-  if (currentBranch(mainRoot) !== base) warn(out, `the main checkout is not on ${base}: the session clones its current branch.`);
+  if (currentBranch(mainRoot) !== base) warn(out, out.t.start.warn.cloudBase(base));
   const prompt = fill(options.config.start.cloudPrompt, { number: String(options.number), flags: cloudFlags(state) });
   forgetTypedAhead();
   if (spawnSync("claude", ["--cloud", prompt], { cwd: mainRoot, stdio: "inherit" }).status !== 0)
-    throw new StartError("could not open the cloud session.");
-  out.stdout(`To bring it here: ${again(options.number, "--teleport")}\n`);
+    throw new StartError(out.t.start.error.cloudOpenFailed);
+  show(out, { mood: "ok", title: say.cloudOpen(options.number), next: { label: say.bringHere, command: again(options, "--teleport") } }, options.config);
   return 0;
 }

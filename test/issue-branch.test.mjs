@@ -102,6 +102,17 @@ test("without claude in the PATH, or if it fails, one warning and the title for 
   assert.match(failing.err, /claude exited with 1/);
 });
 
+test("the namer's failures are in Spanish with ISSUE_FLOW_LANG=es", () => {
+  const s = sandbox();
+  s.route(`GET ${ISSUES}/5`, issue(5, { title: "Uno" }));
+
+  const missing = s.run(["issue", "branch", "5"], { withoutClaude: true, env: { ISSUE_FLOW_LANG: "es" } });
+  const failing = s.run(["issue", "branch", "5"], { claudeExit: 1, env: { ISSUE_FLOW_LANG: "es" } });
+
+  assert.match(missing.err, /claude no está en el PATH; se nombran 1 issue\(s\) desde el título/);
+  assert.match(failing.err, /claude terminó con 1/);
+});
+
 test("--namer title and branch.namer title in the config never call Claude", () => {
   const s = sandbox();
   s.route(`GET ${ISSUES}/5`, issue(5, { title: "Uno" }));
