@@ -1,108 +1,140 @@
+**English** · [Español](README.es.md)
+
 # issue-flow
 
-Flujo de trabajo de issue a PR para cualquier repo, en local y en las sesiones de Claude en la nube: nombra la rama de cada issue, crea su worktree con puertos y Docker propios, abre el PR en draft y limpia cuando se mergea. Trae las skills que usan ese flujo.
+An issue-to-PR workflow for any repo, locally and in Claude cloud sessions: it names the branch of each issue, creates its worktree with its own ports and Docker, opens the PR as a draft and cleans up when it is merged. It ships the skills that use that workflow.
 
-> **Instalar en un repo:** `npx agent-kitchen apply`, que instala este flujo con sus skills, las skills generales, `agent-cloud-kit` y `claude-repo-guard`, y los actualiza ([agent-kitchen](https://github.com/ramon-sg/agent-kitchen)). El paquete es `@ramon-sg/issue-flow` y el comando, `issue-flow`; sin el scope, `issue-flow` en npm es otro paquete.
+> **Install in a repo:** `npx agent-kitchen apply`, which installs this workflow with its skills, the general skills, `agent-cloud-kit` and `claude-repo-guard`, and keeps them updated ([agent-kitchen](https://github.com/ramon-sg/agent-kitchen)). The package is `@ramon-sg/issue-flow` and the command is `issue-flow`; without the scope, `issue-flow` on npm is a different package.
 
-## Qué va a tener
+## What you get
 
-- **`issue-flow apply|doctor`:** deja como lo pide su versión, y revisa, lo que el flujo deja en el repo: `.agents/flow.json` con sus recetas, las dependencias y los hooks. Los corre `agent-kitchen`.
-- **`issue-flow issue branch <n>`:** propone la rama de una issue (con Claude por defecto, o desde el título). Con `--missing`, agrega el slug de rama a todas las issues abiertas que no lo tienen.
-- **`issue-flow labels sync`:** crea en GitHub los labels que el flujo espera y le faltan al repo: los de tipo y `P1` a `P4`, con los mismos colores en todos los repos.
-- **`issue-flow issue start <n>`:** crea la rama y el worktree, hace el commit inicial, abre el PR en draft, asigna la issue y abre Claude. Con `--cloud`, lo hace en una sesión en la nube.
-- **`issue-flow worktree setup|teardown|ports|cleanup|prune`:** prepara y limpia cada worktree con los pasos del repo, le da un bloque de puertos y borra los worktrees con el PR cerrado.
-- **`issue-flow pr worktree <n>`:** abre un PR en su propio worktree, en la rama del PR, para revisarlo sin soltar lo que estás haciendo.
-- **`issue-flow adapter setup|issue|archive`:** lo que corren Orca y Paseo al crear o borrar un worktree.
-- **`issue-flow session`:** el hook `SessionStart`; en la nube llama a [`agent-cloud-kit`](https://github.com/ramon-sg/agent-cloud-kit).
-- **`issue-flow hook worktree-create|worktree-remove`:** los hooks `WorktreeCreate` y `WorktreeRemove` de Claude Code, para `claude --worktree`.
-- **Skills:** `github-issues`, `start-issue`, `finish-pr`, `close-pr`, `pr-review-comments` y `pr-worktree`.
+- **`issue-flow apply|doctor`:** leaves as its version requires, and checks, what the workflow puts in the repo: `.agents/flow.json` with its recipes, the dependencies and the hooks. `agent-kitchen` runs them.
+- **`issue-flow issue branch <n>`:** proposes an issue's branch (with Claude by default, or from the title). With `--missing`, adds the branch slug to every open issue that lacks one.
+- **`issue-flow labels sync`:** creates on GitHub the labels the workflow expects and the repo is missing: the type labels and `P1` to `P4`, with the same colors in every repo.
+- **`issue-flow issue start <n>`:** creates the branch and the worktree, makes the initial commit, opens the draft PR, assigns the issue and opens Claude. With `--cloud`, it does this in a cloud session.
+- **`issue-flow worktree setup|teardown|ports|cleanup|prune`:** prepares and cleans each worktree with the repo's steps, gives it a block of ports and deletes the worktrees whose PR is closed.
+- **`issue-flow pr worktree <n>`:** opens a PR in its own worktree, on the PR's branch, so you can review it without dropping what you are doing.
+- **`issue-flow adapter setup|issue|archive`:** what Orca and Paseo run when they create or delete a worktree.
+- **`issue-flow session`:** the `SessionStart` hook; in the cloud it calls [`agent-cloud-kit`](https://github.com/ramon-sg/agent-cloud-kit).
+- **`issue-flow hook worktree-create|worktree-remove`:** Claude Code's `WorktreeCreate` and `WorktreeRemove` hooks, for `claude --worktree`.
+- **Skills:** `github-issues`, `start-issue`, `finish-pr`, `close-pr`, `pr-review-comments` and `pr-worktree`.
 
-## Nombre de la rama
+## Branch name
 
 ```sh
-issue-flow issue branch 42 57           # propone la rama de cada issue, sin escribir nada
-issue-flow issue branch --missing       # la de cada issue abierta sin bloque, y lo agrega tras confirmar
+issue-flow issue branch 42 57           # proposes the branch of each issue, writes nothing
+issue-flow issue branch --missing       # the branch of each open issue without a block, and adds it after confirming
 issue-flow issue branch --missing --dry-run --json
 ```
 
-La issue guarda solo el slug, en un bloque así:
+The issue stores only the slug, in a block like this:
 
 ```markdown
 **Slug de rama**
 `cart-total-with-credit`
 ```
 
-El número es el de la issue y el tipo sale de las labels (o, si no hay, del prefijo del título: `bug:` da `fix`). Así el cuerpo se escribe antes de que la issue tenga número, de una sola vez, y no queda viejo si cambia el label o la plantilla. Es lo mismo que hacen GitHub, GitLab y Linear: la rama se calcula al crearla.
+The number is the issue's and the type comes from the labels (or, if there are none, from the title prefix: `bug:` gives `fix`). That way the body is written before the issue has a number, in one go, and does not go stale if the label or the template changes. It is what GitHub, GitLab and Linear do: the branch is computed when it is created.
 
-La rama se arma con la plantilla del repo y el slug sale, en este orden:
+The branch is built from the repo's template, and the slug comes from, in this order:
 
-1. **Del bloque "Slug de rama"** de la issue.
-2. **Del bloque antiguo "Rama sugerida"**, con la rama completa (`fix/42-cart`), si es `<prefijo>/<n>-<slug>` de esa issue. Se usa tal cual, así las issues de antes siguen funcionando; nunca se escribe.
-3. **De Claude** (`claude -p`, una sola llamada para todas las issues): Claude propone el slug en inglés y, si la issue no tiene tipo, lo elige de la lista del repo. Su respuesta se valida.
-4. **Del título**, si Claude no está, falla o responde algo que no sirve.
+1. **The "Slug de rama" block** of the issue.
+2. **The old "Rama sugerida" block**, with the full branch (`fix/42-cart`), if it is `<prefix>/<n>-<slug>` of that issue. It is used as is, so older issues keep working; it is never written.
+3. **Claude** (`claude -p`, a single call for all the issues): Claude proposes the slug in English and, if the issue has no type, picks it from the repo's list. Its answer is validated.
+4. **The title**, if Claude is not available, fails or answers something unusable.
 
-`--missing` agrega el bloque "Slug de rama" después del primer párrafo de cada issue abierta sin bloque (ni nuevo ni antiguo), solo con `--yes` o si respondes que sí en la terminal; `--dry-run` nunca escribe. Como solo guarda el slug, no usa el tipo que elegiría Claude: muestra la rama que dará la issue y avisa de las que no tienen label de tipo.
+`--missing` adds the "Slug de rama" block after the first paragraph of each open issue without a block (neither new nor old), only with `--yes` or if you answer yes in the terminal; `--dry-run` never writes. Since it stores only the slug, it does not use the type Claude would pick: it shows the branch the issue will get and warns about the ones with no type label.
 
-## Empezar una issue
+## Starting an issue
 
-Las cuatro formas de empezar una issue (terminal, la skill en una sesión, la nube de Claude, Orca y Paseo), paso a paso: [docs/flujos.md](docs/flujos.md).
-
-```sh
-issue-flow issue start 42              # worktree en .claude/worktrees/, PR en draft y Claude
-issue-flow issue start 42 --dry-run    # el resumen, sin cambiar nada (solo hace git fetch)
-issue-flow issue start 42 --yes --no-launch   # lo que corre la skill después de tu OK
-issue-flow issue start 42 --plan       # una línea JSON con la rama y el pedido, sin efectos
-```
-
-Qué hace, en orden:
-
-1. **Lee la issue y su trabajo:** se detiene si la issue está cerrada; hace `git fetch` y lee con [`github-rest`](https://github.com/ramon-sg/github-rest) sus PRs y ramas, en GitHub y en esta máquina.
-2. **Elige la rama:**
-   - **Sin ramas vivas:** crea una nueva, con el nombre de `issue branch`. Si ese nombre ya se usó en una tanda mergeada, le suma `-2`, `-3`…
-   - **Con una:** la retoma.
-   - **Con varias:** en la terminal te pregunta cuál seguir. Con `--yes` hay que elegir con `--resume <rama>` o `--new`.
-3. **Muestra un resumen y pregunta `[y/N]`.** Una respuesta vacía es no.
-4. **Crea lo que falta:**
-   - el worktree, o con `--branch` la rama en este checkout;
-   - el commit vacío con `[skip ci]`, el push y el PR en draft;
-   - reabre el PR cerrado de una rama que se retoma, y te asigna la issue.
-
-   El PR dice `Closes #n`, o `Part of #n` si la issue tiene otra rama viva; en ese caso los otros PRs abiertos que la cerraban también pasan a `Part of`. El worktree recibe los archivos ignorados que lista `.worktreeinclude` (credenciales, por ejemplo), como `claude --worktree`.
-5. **Abre Claude en la misma terminal** con un pedido y el color de la prioridad.
-   - Cada rama guarda su sesión, así que empezar otra vez la retoma.
-   - Mientras Claude corre, el worktree queda bloqueado (`git worktree lock`). Si el bloqueo es de un `issue-flow` que ya no corre, lo toma.
-6. **Al salir de Claude:**
-   - Si el PR se mergeó y no queda trabajo sin pushear, ofrece borrar el worktree y la rama.
-   - Si no, dice cómo retomar.
-
-**Permisos:** si el repo tiene [`claude-repo-guard`](https://github.com/ramon-sg/claude-repo-guard), Claude se abre en modo auto con su contexto (lo mismo que `claude:auto`). Con `--ask-permissions` se abre con tus settings, con `--free` sin sandbox ni preguntas (como `claude:free`), y con `--free --no-repo-deny` también sin los `deny` del `.claude/settings.json` del repo, que vuelven al salir ([qué quita cada modo](docs/flujos/terminal.md#opciones)). Sin `claude-repo-guard`, se abre con tus settings. `--plan` devuelve esos mismos argumentos en `claudeArgs`. El atajo es `npm run issue:start:free 42`. Con npm, las opciones van después de `--` (`npm run issue:start -- 42 --free`); con pnpm, bun o yarn no hace falta. La tabla de cada administrador está en [Flujos](docs/flujos.md#administradores). `issue-flow issue start --help` explica cada opción.
-
-### Con la nube y con otras herramientas
+The four ways to start an issue (terminal, the skill in a session, Claude's cloud, Orca and Paseo), step by step: [docs/flujos.md](docs/flujos.md) (in Spanish).
 
 ```sh
-issue-flow issue start 42 --cloud      # confirma acá y abre una sesión de Claude en la nube
-issue-flow issue start 42 --here       # dentro de esa sesión: empieza la issue en este checkout
-issue-flow issue start 42 --teleport   # trae al worktree la sesión de la nube anotada en el PR
-issue-flow issue start 42 --adopt      # dentro de un worktree que creó Orca o Paseo
+issue-flow issue start 42              # worktree in .claude/worktrees/, draft PR and Claude
+issue-flow issue start 42 --dry-run    # the summary, changing nothing (only runs git fetch)
+issue-flow issue start 42 --yes --no-launch   # what the skill runs after your OK
+issue-flow issue start 42 --plan       # one JSON line with the branch and the prompt, no side effects
 ```
 
-- **`--cloud`** lee la issue, muestra el resumen y pregunta, igual que en local. Después corre `claude --cloud "/start-issue 42 --yes"` desde el checkout principal, sin crear rama ni PR acá: los crea la sesión con `--here`. Si la issue tiene varias ramas, le pasa la elegida con `--resume <rama>` o `--new`. Se detiene si la rama ya está abierta en un checkout o existe solo en local, porque la nube no la vería.
-- **`--here`** es para la skill dentro de una sesión en la nube. Deja este checkout en la rama (desde `origin/<base>`, o desde `origin/<rama>` si ya existe), hace el commit vacío, el push, el PR en draft y la asignación, y no abre Claude. Si corre en una sesión (`CLAUDE_CODE_REMOTE_SESSION_ID`), anota su link en el cuerpo del PR (`Cloud session: …`); queda una sola línea, la de la última sesión. Termina con una línea `Prompt: …` que la skill sigue. Se detiene si hay cambios sin commitear: no hace stash.
-- **`--teleport`** retoma como siempre (worktree, PR) y abre `claude --teleport` con la sesión anotada en el PR, o con la lista de sesiones si no hay ninguna. Sin `--teleport`, retomar abre la sesión local y el resumen avisa si hay una en la nube.
-- **`--adopt`** usa el worktree donde se corre, que creó otra herramienta. No pregunta ni abre Claude. Renombra su rama a la de la issue y publica; si la rama ya lleva el número de la issue (`fix/42-mi-nombre`), la deja como está. Si el worktree ya está en una rama viva de la issue, la retoma. Si no, solo adopta un worktree recién creado: se detiene si su rama está en origin, tiene commits propios o hay cambios sin commitear, o si la issue ya tiene su rama en otro lado.
+What it does, in order:
 
-## Worktrees: preparar, limpiar y borrar
+1. **Reads the issue and its work:** stops if the issue is closed; runs `git fetch` and reads its PRs and branches with [`github-rest`](https://github.com/ramon-sg/github-rest), on GitHub and on this machine.
+2. **Picks the branch:**
+   - **No live branches:** creates a new one, named as `issue branch` does. If that name was already used in a merged batch, it adds `-2`, `-3`...
+   - **With one:** resumes it.
+   - **With several:** in the terminal it asks which one to follow. With `--yes` you have to choose with `--resume <branch>` or `--new`.
+3. **Shows a summary and asks `[y/N]`.** An empty answer is no. In Spanish the question is `[s/N]` and `s`, `si`, `sí`, `y` and `yes` are accepted.
+4. **Creates what is missing:**
+   - the worktree, or with `--branch` the branch in this checkout;
+   - the empty commit with `[skip ci]`, the push and the draft PR;
+   - reopens the closed PR of a branch being resumed, and assigns you the issue.
+
+   The PR says `Closes #n`, or `Part of #n` if the issue has another live branch; in that case the other open PRs that closed it also become `Part of`. The worktree gets the ignored files listed in `.worktreeinclude` (credentials, for example), like `claude --worktree`.
+5. **Opens Claude in the same terminal** with a prompt and the priority's color.
+   - Each branch keeps its session, so starting again resumes it.
+   - While Claude runs, the worktree is locked (`git worktree lock`). If the lock belongs to an `issue-flow` that is no longer running, it takes it over.
+6. **When you leave Claude:**
+   - If the PR was merged and there is no unpushed work, it offers to delete the worktree and the branch.
+   - If not, it says how to resume. The command repeats how you launched `issue-flow`: if it was `bun run issue:start:free 42`, that is the one it suggests, not `issue-flow issue start 42` (see [Language and closing messages](#language-and-closing-messages)).
+
+**Permissions:** if the repo has [`claude-repo-guard`](https://github.com/ramon-sg/claude-repo-guard), Claude opens in auto mode with its context (the same as `claude:auto`). With `--ask-permissions` it opens with your settings, with `--free` without sandbox or prompts (like `claude:free`), and with `--free --no-repo-deny` also without the `deny` rules of the repo's `.claude/settings.json`, which come back when you leave ([what each mode removes](docs/flujos/terminal.md#opciones)). Without `claude-repo-guard`, it opens with your settings. `--plan` returns those same arguments in `claudeArgs`. The shortcut is `npm run issue:start:free 42`. With npm, the options go after `--` (`npm run issue:start -- 42 --free`); with pnpm, bun or yarn it is not needed. The table for each package manager is in [Flujos](docs/flujos.md#administradores). `issue-flow issue start --help` explains every option.
+
+### With the cloud and other tools
 
 ```sh
-issue-flow worktree setup              # corre los pasos de preparación en este worktree
-issue-flow worktree setup --only deps  # uno solo
-issue-flow worktree teardown           # sus pasos de limpieza, sus puertos y su Docker
-issue-flow worktree ports [--next]     # el primer puerto de su bloque, o lo pasa al siguiente
-issue-flow worktree cleanup            # el Docker de los worktrees que ya no existen
-issue-flow worktree prune              # borra los worktrees cuyo PR se mergeó o se cerró, y pone al día la base local
+issue-flow issue start 42 --cloud      # confirms here and opens a Claude session in the cloud
+issue-flow issue start 42 --here       # inside that session: starts the issue in this checkout
+issue-flow issue start 42 --teleport   # brings to the worktree the cloud session noted in the PR
+issue-flow issue start 42 --adopt      # inside a worktree created by Orca or Paseo
 ```
 
-Lo propio de cada repo (instalar, armar la base, levantar Docker) son **pasos** en `worktrees` de `.agents/flow.json`; `issue-flow` solo los corre:
+- **`--cloud`** reads the issue, shows the summary and asks, just like locally. Then it runs `claude --cloud "/start-issue 42 --yes"` from the main checkout, without creating a branch or PR here: the session creates them with `--here`. If the issue has several branches, it passes the chosen one with `--resume <branch>` or `--new`. It stops if the branch is already open in a checkout or exists only locally, because the cloud would not see it.
+- **`--here`** is for the skill inside a cloud session. It leaves this checkout on the branch (from `origin/<base>`, or from `origin/<branch>` if it already exists), makes the empty commit, the push, the draft PR and the assignment, and does not open Claude. If it runs in a session (`CLAUDE_CODE_REMOTE_SESSION_ID`), it notes its link in the PR body (`Cloud session: ...`); only one line is kept, the one of the latest session. It ends with a `Prompt: ...` line that the skill follows. It stops if there are uncommitted changes: it does not stash.
+- **`--teleport`** resumes as usual (worktree, PR) and opens `claude --teleport` with the session noted in the PR, or with the list of sessions if there is none. Without `--teleport`, resuming opens the local session and the summary warns if there is one in the cloud.
+- **`--adopt`** uses the worktree where it runs, which another tool created. It does not ask or open Claude. It renames its branch to the issue's and publishes; if the branch already carries the issue number (`fix/42-my-name`), it leaves it as is. If the worktree is already on a live branch of the issue, it resumes it. Otherwise it only adopts a freshly created worktree: it stops if its branch is on origin, has commits of its own or has uncommitted changes, or if the issue already has its branch elsewhere.
+
+## Language and closing messages
+
+What `issue-flow` prints in the terminal, `--help` included, comes out **in Spanish by default**. The language is chosen by the first of these that exists:
+
+1. The `--lang es|en` option, valid on any subcommand.
+2. The `ISSUE_FLOW_LANG=es|en` variable (empty counts as unset).
+3. `es`.
+
+`LANG` and `LC_ALL` are **not** read: on macOS they are usually `en_US.UTF-8` even if you speak Spanish. An unknown value is a usage error (exits with 2 and shows the valid values).
+
+```sh
+issue-flow --lang en issue start 42    # once, in English
+export ISSUE_FLOW_LANG=en              # always, in this shell
+```
+
+Only the terminal changes. What is written to GitHub (the initial commit, the PR body, the comments, the labels) and what is read from there does not change, and neither does `--json`: its keys and texts are always the same.
+
+**Closing messages.** What ends `issue start` and `pr worktree` (session saved, PR merged, ready to go in, or the error that stopped it) comes out as a short block: a status mark (`[ok]`, `[!]` or `[?]`), the data (branch, PR) and, alone on its line, the command to copy. Next to the block appears Kuro, the project's mascot, but only if the output is a terminal. In a pipe, in CI or with `art: false` in `.agents/flow.json`, the same block comes out without the drawing. Color shows only in a terminal, and `NO_COLOR` turns it off.
+
+**Resume command.** It repeats the way you launched `issue-flow`, so you can copy it as is:
+
+| You launched it with | It suggests |
+|---|---|
+| `bun run issue:start:free 34` | `bun run issue:start:free 34` |
+| `npm run issue:start:free 34` | `npm run issue:start:free 34` (with other options, `npm run issue:start:free -- 34 --no-repo-deny`) |
+| `pnpm issue:start:free 34` | `pnpm issue:start:free 34` |
+| `issue-flow` or `npx` | `issue-flow issue start 34` |
+
+The script form is used only with the scripts `apply` installs (`issue:start` and `issue:start:free`); a script of someone else's that calls `issue-flow` falls back to `issue-flow issue start <n>`. The options that define how the session runs are repeated (`--free`, `--ask-permissions`, `--no-repo-deny`, `--namer`, `-R`, and `--lang` if you passed it as an option) and the one-off ones are not (`--new`, `--branch`, `--yes`, `--dry-run`, `--resume`, `--no-launch`, `--plan`).
+
+## Worktrees: prepare, clean and delete
+
+```sh
+issue-flow worktree setup              # runs the preparation steps in this worktree
+issue-flow worktree setup --only deps  # just one
+issue-flow worktree teardown           # its cleanup steps, its ports and its Docker
+issue-flow worktree ports [--next]     # the first port of its block, or moves it to the next one
+issue-flow worktree cleanup            # the Docker of the worktrees that no longer exist
+issue-flow worktree prune              # deletes the worktrees whose PR was merged or closed, and updates the local base
+```
+
+What is specific to each repo (installing, building the database, starting Docker) are **steps** in `worktrees` of `.agents/flow.json`; `issue-flow` only runs them:
 
 ```json
 {
@@ -118,35 +150,35 @@ Lo propio de cada repo (instalar, armar la base, levantar Docker) son **pasos** 
 }
 ```
 
-- **Cuándo corren:** `issue start` corre el `setup` en cada worktree nuevo, después de copiar `.worktreeinclude`. El hook `session` lo corre al abrir Claude en un worktree. El `teardown` corre antes de borrar un worktree, con `prune` o al limpiar después del merge.
-- **De dónde salen:** del `.agents/flow.json` de `origin/<base>`, nunca del worktree. Así una rama no puede sumar comandos a su propio setup, y un checkout principal que quedó atrás no deja al worktree sin su `install`. Si los pasos del checkout principal son otros, `issue-flow` lo avisa. Sin `origin/<base>`, o si ahí el archivo no es válido, usa los del checkout principal. Sin pasos, `worktree setup` e `issue start` dicen de qué archivo los leyeron. En la nube no hay otro checkout: ahí la config es la de la rama de la sesión. El teardown sigue usando la config del checkout principal.
-- **Pueden correr más de una vez:** `issue start` y el hook `session` corren el `setup` del mismo worktree, así que un paso sin `once` tiene que poder repetirse.
-- **`trusted`:** el paso corre solo si el código del worktree está en `origin/<base>` y no tiene cambios. Es para un install, que corre los scripts de `package.json` de esa rama. En la nube corre siempre, porque la máquina es descartable.
-- **`once`:** el paso no se repite una vez que funcionó (deja una marca en el git dir del worktree).
-- **Variables de cada paso:** `ISSUE_FLOW_WORKTREE`, `ISSUE_FLOW_MAIN_ROOT`, `ISSUE_FLOW_DOCKER_SUFFIX` y, con `ports`, `ISSUE_FLOW_PORT_BASE`.
-- **Puertos:** cada worktree recibe un bloque fijo. Sale de un hash de la máquina y la carpeta, salta los bloques donde algo escucha o que otro worktree de la máquina registró, y queda guardado. macOS usa la primera mitad del rango y el resto la segunda, así un worktree de la laptop no choca con uno del servidor que Orca reenvía.
-- **Docker:** el proyecto de Compose de cada worktree es `<prefijo>-$ISSUE_FLOW_DOCKER_SUFFIX`. `cleanup` borra contenedores, volúmenes y redes de los proyectos con un prefijo de `dockerProjects` cuya carpeta ya no es un checkout. Nunca toca uno sin sufijo, el del checkout principal.
-- **Apps:** el `teardown` detiene los procesos que escuchan en un puerto del bloque y corren dentro del worktree (TERM a su grupo y, a los 5 segundos, KILL). Nunca toca uno de afuera. Necesita `lsof`.
-- **`prune`** pregunta antes de borrar. Nunca toca un worktree con cambios, con commits sin pushear o bloqueado por una sesión de Claude, y revisa cada uno otra vez justo antes de borrarlo.
+- **When they run:** `issue start` runs `setup` in each new worktree, after copying `.worktreeinclude`. The `session` hook runs it when Claude opens in a worktree. `teardown` runs before deleting a worktree, with `prune` or when cleaning up after the merge.
+- **Where they come from:** from the `.agents/flow.json` of `origin/<base>`, never from the worktree. That way a branch cannot add commands to its own setup, and a main checkout that fell behind does not leave the worktree without its `install`. If the main checkout's steps are different, `issue-flow` says so. Without `origin/<base>`, or if the file is not valid there, it uses the main checkout's. Without steps, `worktree setup` and `issue start` say which file they read them from. In the cloud there is no other checkout: there the config is the session branch's. Teardown still uses the main checkout's config.
+- **They can run more than once:** `issue start` and the `session` hook run the `setup` of the same worktree, so a step without `once` must be repeatable.
+- **`trusted`:** the step runs only if the worktree's code is in `origin/<base>` and has no changes. It is meant for an install, which runs that branch's `package.json` scripts. In the cloud it always runs, because the machine is disposable.
+- **`once`:** the step is not repeated once it has worked (it leaves a mark in the worktree's git dir).
+- **Variables of each step:** `ISSUE_FLOW_WORKTREE`, `ISSUE_FLOW_MAIN_ROOT`, `ISSUE_FLOW_DOCKER_SUFFIX` and, with `ports`, `ISSUE_FLOW_PORT_BASE`.
+- **Ports:** each worktree gets a fixed block. It comes from a hash of the machine and the folder, skips the blocks where something is listening or that another worktree on the machine registered, and is stored. macOS uses the first half of the range and the rest the second, so a laptop worktree does not collide with one on the server that Orca forwards.
+- **Docker:** each worktree's Compose project is `<prefix>-$ISSUE_FLOW_DOCKER_SUFFIX`. `cleanup` deletes containers, volumes and networks of the projects with a prefix from `dockerProjects` whose folder is no longer a checkout. It never touches one without a suffix, the main checkout's.
+- **Apps:** `teardown` stops the processes that listen on a port of the block and run inside the worktree (TERM to their group and, after 5 seconds, KILL). It never touches one from outside. It needs `lsof`.
+- **`prune`** asks before deleting. It never touches a worktree with changes, with unpushed commits or locked by a Claude session, and checks each one again right before deleting it.
 
-Los nombres de Docker y los bloques de puertos salen iguales que los de Abastio.
+Docker names and port blocks come out the same as Abastio's.
 
-## Revisar un PR: `issue-flow pr worktree`
+## Reviewing a PR: `issue-flow pr worktree`
 
 ```sh
-issue-flow pr worktree 42               # crea (o reusa) .claude/worktrees/pr-42 en la rama del PR
-issue-flow pr worktree 42 -- claude     # y corre el comando ahí; con `--` solo, abre Claude
-issue-flow pr worktree 42 --no-setup    # sin los pasos de setup
+issue-flow pr worktree 42               # creates (or reuses) .claude/worktrees/pr-42 on the PR's branch
+issue-flow pr worktree 42 -- claude     # and runs the command there; with `--` alone, opens Claude
+issue-flow pr worktree 42 --no-setup    # without the setup steps
 ```
 
-- La rama sigue a `origin`, así que lo que commiteas y pusheas actualiza el PR. Si ya tienes la rama en local, avanza a la de origin cuando puede y avisa si no.
-- Copia `.worktreeinclude` y corre el `setup`, pero salta los pasos `trusted`: el código del PR todavía no está en la rama base. Dice qué correr cuando lo revisaste.
-- Nunca toca el checkout principal: si la rama está abierta ahí o en otro worktree, se detiene. Un PR de un fork no se abre, porque su rama no está en origin.
-- Se borra con `issue-flow worktree prune` cuando el PR se mergea o se cierra, como cualquier worktree.
+- The branch follows `origin`, so what you commit and push updates the PR. If you already have the branch locally, it advances to origin's when it can and warns if not.
+- It copies `.worktreeinclude` and runs `setup`, but skips the `trusted` steps: the PR's code is not in the base branch yet. It says what to run once you have reviewed it.
+- It never touches the main checkout: if the branch is open there or in another worktree, it stops. A PR from a fork is not opened, because its branch is not on origin.
+- It is deleted with `issue-flow worktree prune` when the PR is merged or closed, like any worktree.
 
-## Orca y Paseo: `issue-flow adapter`
+## Orca and Paseo: `issue-flow adapter`
 
-`orca.yaml` y `paseo.json` solo llaman al adaptador, que deja el worktree igual que uno de `issue start`:
+`orca.yaml` and `paseo.json` only call the adapter, which leaves the worktree like one from `issue start`:
 
 ```yaml
 # orca.yaml
@@ -160,86 +192,86 @@ scripts:
 { "worktree": { "setup": ["npx @ramon-sg/issue-flow adapter setup"], "teardown": "npx @ramon-sg/issue-flow adapter archive" } }
 ```
 
-- **`setup [--only <paso>]`:** copia `.worktreeinclude` (Paseo no lo copia), corre los pasos de `setup` y, sin `--only`, empieza la issue de la que salió el worktree como `issue start <n> --adopt`. Con Paseo la issue sale de la rama (`feat/42-x`, `42-x`); con Orca, de su CLI (`orca worktree current --json`). Siempre sale con 0: si algo falla, dice qué correr.
-- **`issue [<url>]`:** solo empieza la issue. Con la URL a mano sale con el código de `issue start`.
-- **`archive`:** el `teardown` del worktree: pasos, apps, puertos y Docker. Siempre sale con 0, porque un archive que falla no puede bloquear el borrado. Si el enlace de git se rompió, igual borra el Docker de la carpeta con la config del checkout que nombran `ORCA_ROOT_PATH` o `PASEO_SOURCE_CHECKOUT_PATH`.
+- **`setup [--only <step>]`:** copies `.worktreeinclude` (Paseo does not copy it), runs the `setup` steps and, without `--only`, starts the issue the worktree came from as `issue start <n> --adopt`. With Paseo the issue comes from the branch (`feat/42-x`, `42-x`); with Orca, from its CLI (`orca worktree current --json`). It always exits 0: if something fails, it says what to run.
+- **`issue [<url>]`:** only starts the issue. With the URL at hand it exits with `issue start`'s code.
+- **`archive`:** the worktree's `teardown`: steps, apps, ports and Docker. It always exits 0, because a failing archive cannot block the deletion. If git's link broke, it still deletes the folder's Docker with the config of the checkout named by `ORCA_ROOT_PATH` or `PASEO_SOURCE_CHECKOUT_PATH`.
 
-## Hooks de Claude Code para `claude --worktree`
+## Claude Code hooks for `claude --worktree`
 
-`issue-flow hook worktree-create` y `issue-flow hook worktree-remove` son los hooks `WorktreeCreate` y `WorktreeRemove`. Con ellos, un worktree de `claude --worktree <nombre>` recibe lo mismo que uno de `issue start`, y se limpia cuando Claude lo borra. Claude solo llama a `WorktreeRemove` para los worktrees que hizo un hook `WorktreeCreate`.
+`issue-flow hook worktree-create` and `issue-flow hook worktree-remove` are the `WorktreeCreate` and `WorktreeRemove` hooks. With them, a `claude --worktree <name>` worktree gets the same as one from `issue start`, and is cleaned up when Claude deletes it. Claude only calls `WorktreeRemove` for the worktrees a `WorktreeCreate` hook made.
 
-- **`worktree-create`:** crea `<worktrees.dir>/<nombre>` en la rama `worktree-<nombre>` desde `origin/<base>` (la `baseBranch` de la config), o lo reusa. Copia `.worktreeinclude`, corre el `setup` e imprime solo la ruta, que es lo que Claude lee. Rechaza `pr-<n>`: para eso está `pr worktree`.
-- **`worktree-remove`:** corre el `teardown` y borra la carpeta, y la rama si todos sus commits están en origin. Conserva un worktree con cambios sin commitear.
+- **`worktree-create`:** creates `<worktrees.dir>/<name>` on the branch `worktree-<name>` from `origin/<base>` (the config's `baseBranch`), or reuses it. It copies `.worktreeinclude`, runs `setup` and prints only the path, which is what Claude reads. It rejects `pr-<n>`: that is what `pr worktree` is for.
+- **`worktree-remove`:** runs `teardown` and deletes the folder, and the branch if all its commits are on origin. It keeps a worktree with uncommitted changes.
 
-## Hook de sesión: `issue-flow session`
+## Session hook: `issue-flow session`
 
-Es el hook `SessionStart` de Claude Code. Lo que imprime le llega a Claude como contexto, así que ahí van los avisos. Nunca hace fallar la sesión.
+It is Claude Code's `SessionStart` hook. What it prints reaches Claude as context, so the warnings go there. It never makes the session fail.
 
-1. En una sesión en la nube (`CLAUDE_CODE_REMOTE=true`), corre `agent-cloud-kit session`. Si no está, dice qué setup script poner en claude.ai.
-2. En un worktree (o en el checkout de la nube), corre los pasos de `setup`. La carpeta sale del `cwd` que manda Claude, que con `claude --worktree` es la del worktree, y si no viene, de `CLAUDE_PROJECT_DIR`.
-3. Si un worktree local está en la rama de una issue que no está en origin, avisa que la issue no quedó empezada.
-4. Borra el Docker de los worktrees que ya no existen: Claude Code no llama al hook `WorktreeRemove` de los worktrees que no hizo un hook `WorktreeCreate`.
-5. Si hay `.envrc` y `direnv`, agrega su entorno a `CLAUDE_ENV_FILE`, para que los comandos de la sesión lo tengan.
+1. In a cloud session (`CLAUDE_CODE_REMOTE=true`), it runs `agent-cloud-kit session`. If it is not there, it says which setup script to put in claude.ai.
+2. In a worktree (or in the cloud checkout), it runs the `setup` steps. The folder comes from the `cwd` Claude sends, which with `claude --worktree` is the worktree's, and if it is missing, from `CLAUDE_PROJECT_DIR`.
+3. If a local worktree is on the branch of an issue that is not on origin, it warns that the issue was not started.
+4. It deletes the Docker of the worktrees that no longer exist: Claude Code does not call the `WorktreeRemove` hook for worktrees that a `WorktreeCreate` hook did not make.
+5. If there is a `.envrc` and `direnv`, it adds its environment to `CLAUDE_ENV_FILE`, so the session's commands have it.
 
-## Lo que el flujo deja en el repo: `issue-flow apply`
+## What the workflow leaves in the repo: `issue-flow apply`
 
-`npx agent-kitchen apply` corre `apply` en la versión que elige y después mueve las skills del flujo a la misma tag. Correrlo a mano sirve para probar el flujo en un repo sin lo demás.
+`npx agent-kitchen apply` runs `apply` in the version it chooses and then moves the workflow's skills to the same tag. Running it by hand is useful to try the workflow in a repo without the rest.
 
 ```sh
-npx @ramon-sg/issue-flow@<versión> apply          # deja el repo como lo pide esa versión
-npx @ramon-sg/issue-flow@<versión> apply --yes    # sin preguntas, con las recetas que sugiere el repo
-npx @ramon-sg/issue-flow apply --recipe docker-compose   # suma una receta más tarde
-npx @ramon-sg/issue-flow apply --dry-run          # solo dice qué cambiaría (--json para agent-kitchen)
-npx @ramon-sg/issue-flow doctor                   # revisa que el repo esté como lo deja apply (--json)
+npx @ramon-sg/issue-flow@<version> apply          # leaves the repo as that version requires
+npx @ramon-sg/issue-flow@<version> apply --yes    # no questions, with the recipes the repo suggests
+npx @ramon-sg/issue-flow apply --recipe docker-compose   # adds one more recipe later
+npx @ramon-sg/issue-flow apply --dry-run          # only says what would change (--json for agent-kitchen)
+npx @ramon-sg/issue-flow doctor                   # checks the repo is as apply leaves it (--json)
 ```
 
-`apply` deja el repo como lo pide la versión que corre, y correrlo otra vez no cambia nada. La versión la elige quien actualiza, al elegir cuál correr: `apply` no cambia la versión de ningún otro paquete.
+`apply` leaves the repo as the version it runs requires, and running it again changes nothing. The version is chosen by whoever updates, by choosing which one to run: `apply` does not change the version of any other package.
 
-1. **`.agents/flow.json`:** si no existe, lo crea con el `$schema` de esta versión y, si el repo tiene `paseo.json`, con su plantilla de rama y sus tipos. Esa primera vez propone las recetas que sugieren los archivos del repo (con `--yes`, todas; sin terminal y sin `--yes`, no escribe nada y lo dice). Si ya existe, no pregunta: corre las migraciones de esta versión, mueve el `$schema` y suma las recetas de `--recipe`.
-2. **`package.json`:** `@ramon-sg/issue-flow` en esta versión, exacta. `@ramon-sg/github-rest` y los scripts `issue:start`, `issue:start:free`, `worktree:prune` y `pr:worktree` solo si faltan (`issue:start:free` no se agrega si el repo tiene su propio `issue:start`, que se saltaría): un `github-rest` que el repo ya tiene se queda, con un aviso si no llega a la versión que necesitan las skills.
-3. **`.claude/settings.json`:** los hooks `SessionStart`, `WorktreeCreate` y `WorktreeRemove`, fijados a esta versión y con 600 segundos. El de `SessionStart` corre `agent-cloud-kit session` en la nube, así que un hook propio de `agent-cloud-kit` se quita para que no corra dos veces.
+1. **`.agents/flow.json`:** if it does not exist, it creates it with this version's `$schema` and, if the repo has `paseo.json`, with its branch template and its types. That first time it proposes the recipes that the repo's files suggest (with `--yes`, all of them; with no terminal and no `--yes`, it writes nothing and says so). If it already exists, it does not ask: it runs this version's migrations, moves the `$schema` and adds the `--recipe` recipes.
+2. **`package.json`:** `@ramon-sg/issue-flow` at this version, exact. `@ramon-sg/github-rest` and the `issue:start`, `issue:start:free`, `worktree:prune` and `pr:worktree` scripts only if missing (`issue:start:free` is not added if the repo has its own `issue:start`, which it would skip): a `github-rest` the repo already has stays, with a warning if it does not reach the version the skills need.
+3. **`.claude/settings.json`:** the `SessionStart`, `WorktreeCreate` and `WorktreeRemove` hooks, pinned to this version and with 600 seconds. The `SessionStart` one runs `agent-cloud-kit session` in the cloud, so an `agent-cloud-kit` hook of its own is removed so it does not run twice.
 
-No consulta npm, y nunca baja de versión: si el repo ya tiene una issue-flow más nueva (por ejemplo, `package.json` subido a mano antes del `install`), o un rango como `^0.2.6`, se detiene y dice qué correr. `--json` da `{ version, changes, kept, written, next }`. Sale con 0 si aplicó o no había nada que hacer, y con 1 si se negó o tenía que preguntar y no pudo.
+It does not query npm, and never goes down a version: if the repo already has a newer issue-flow (for example, `package.json` bumped by hand before the `install`), or a range like `^0.2.6`, it stops and says what to run. `--json` gives `{ version, changes, kept, written, next }`. It exits 0 if it applied or there was nothing to do, and 1 if it refused or had to ask and could not.
 
-**`doctor`** no cambia nada. Revisa la config y su `$schema`, las dependencias y que los hooks estén en esta versión. Cada problema dice qué lo arregla: `npx agent-kitchen apply` si el repo fija otra issue-flow (también mueve las skills), y `npx @ramon-sg/issue-flow apply` si la versión es esta pero sus archivos quedaron atrás.
+**`doctor`** changes nothing. It checks the config and its `$schema`, the dependencies and that the hooks are at this version. Each problem says what fixes it: `npx agent-kitchen apply` if the repo pins another issue-flow (it also moves the skills), and `npx @ramon-sg/issue-flow apply` if the version is this one but its files fell behind.
 
-**`init` y `upgrade`** siguen funcionando hasta la 0.4.0, con un aviso: `init` es `apply`, y `upgrade` es `apply --yes` sin recetas, porque nunca preguntaba.
+**`init` and `upgrade`** keep working until 0.4.0, with a warning: `init` is `apply`, and `upgrade` is `apply --yes` without recipes, because it never asked.
 
-### Recetas
+### Recipes
 
-Piezas de `flow.json` para lo que muchos repos comparten. `apply` ofrece, la primera vez, las que sugieren los archivos del repo; `--recipe a,b` elige otras. Una receta solo agrega lo que falta: un paso con el mismo nombre o una clave que el repo ya tiene no se tocan.
+Pieces of `flow.json` for what many repos share. `apply` offers, the first time, the ones the repo's files suggest; `--recipe a,b` picks others. A recipe only adds what is missing: a step with the same name or a key the repo already has is not touched.
 
-| Receta | La sugiere | Qué agrega |
+| Recipe | Suggested by | What it adds |
 |---|---|---|
-| `npm`, `pnpm`, `bun` | Su lockfile | El paso `deps`, `trusted`, que instala sin cambiar el lockfile |
-| `docker-compose` | `compose.yaml` o `docker-compose.yml` | Un proyecto de Compose y un bloque de puertos por worktree: `up -d` al preparar y `down -v` al limpiar. El compose toma sus puertos de `ISSUE_FLOW_PORT_BASE` |
-| `direnv` | `.envrc` | `direnv allow` en cada worktree, para que carguen su entorno y sus secretos (Infisical, por ejemplo) |
+| `npm`, `pnpm`, `bun` | Their lockfile | The `deps` step, `trusted`, which installs without changing the lockfile |
+| `docker-compose` | `compose.yaml` or `docker-compose.yml` | A Compose project and a block of ports per worktree: `up -d` on prepare and `down -v` on cleanup. The compose takes its ports from `ISSUE_FLOW_PORT_BASE` |
+| `direnv` | `.envrc` | `direnv allow` in each worktree, so they load their environment and secrets (Infisical, for example) |
+| `staging-main` | Nothing: you ask for it | `baseBranch: "staging"`; `agent-kitchen` lets `claude-repo-guard` merge to `staging` |
 
-Los pasos de preparación de las recetas son `trusted`: corren el código del worktree (el lockfile, el compose, el `.envrc`), así que en un worktree con código que no está en la rama base, como el de `pr worktree`, se saltan y el comando dice qué correr cuando lo revisaste.
-| `staging-main` | Nada: se pide | `baseBranch: "staging"`; `agent-kitchen` deja a `claude-repo-guard` mergear a `staging` |
+The recipes' preparation steps are `trusted`: they run the worktree's code (the lockfile, the compose, the `.envrc`), so in a worktree with code that is not in the base branch, like `pr worktree`'s, they are skipped and the command says what to run once you have reviewed it.
 
-## Skills del flujo
+## The workflow's skills
 
-Viven en `skills/` y `skills-catalog.json` las lista. Se instalan con [`skills-manager`](https://github.com/ramon-sg/skills-manager), que las copia a `.agents/skills/` del repo para que lleguen también a la nube. Están en español y llaman a `npx @ramon-sg/issue-flow` y `npx @ramon-sg/github-rest`, que el repo tiene como dependencias de desarrollo. Van siempre con el scope: `issue-flow`, `github-rest` y `skills-manager` sin scope son paquetes de otras personas en npm, y `npx` los bajaría y correría si el repo no tiene los suyos instalados.
+They live in `skills/` and `skills-catalog.json` lists them. They are installed with [`skills-manager`](https://github.com/ramon-sg/skills-manager), which copies them to the repo's `.agents/skills/` so they reach the cloud too. They are written in Spanish, answer in the language you write to them in, and call `npx @ramon-sg/issue-flow` and `npx @ramon-sg/github-rest`, which the repo has as dev dependencies. They always go with the scope: `issue-flow`, `github-rest` and `skills-manager` without the scope are other people's packages on npm, and `npx` would download and run them if the repo does not have its own installed.
 
-| Skill | Categoría | Para qué sirve | Trae también |
+| Skill | Category | What it is for | Also brings |
 |---|---|---|---|
-| `github-issues` | Issues | Una issue corta con cabecera de tres líneas, criterios comprobables y el slug de su rama; comprueba duplicados y el tope de palabras | — |
-| `start-issue` | Issues | Empieza una issue desde una sesión con `issue-flow issue start`, en local, en un worktree o en la nube | — |
-| `finish-pr` | PRs | Auditoría, documentos al día, ready, revisión y CI, y el chequeo de que se puede mergear; se detiene antes del merge con un reporte de qué falta y cómo limpiar | `pr-review-comments` |
-| `close-pr` | PRs | Corre `finish-pr` y, si quedó listo, mergea con merge commit y limpia la rama y el worktree | `finish-pr` |
-| `pr-review-comments` | PRs | Verifica cada comentario y check contra el código, propone un plan, aplica lo aprobado y responde los hilos | `github-issues` |
-| `pr-worktree` | PRs | Revisa un PR en su worktree con `issue-flow pr worktree`, sin tocar el checkout principal | `close-pr` |
+| `github-issues` | Issues | A short issue with a three-line header, verifiable criteria and its branch slug; checks duplicates and the word cap | - |
+| `start-issue` | Issues | Starts an issue from a session with `issue-flow issue start`, locally, in a worktree or in the cloud | - |
+| `finish-pr` | PRs | Audit, up-to-date documents, ready, review and CI, and the check that it can be merged; stops before the merge with a report of what is missing and how to clean up | `pr-review-comments` |
+| `close-pr` | PRs | Runs `finish-pr` and, if it is ready, merges with a merge commit and cleans the branch and the worktree | `finish-pr` |
+| `pr-review-comments` | PRs | Verifies each comment and check against the code, proposes a plan, applies what is approved and answers the threads | `github-issues` |
+| `pr-worktree` | PRs | Reviews a PR in its worktree with `issue-flow pr worktree`, without touching the main checkout | `close-pr` |
 
-`agent-kitchen` las instala con el catálogo en la tag de la versión del flujo y las mueve con él. `finish-pr` (y con ella `close-pr`) y `pr-worktree` usan `code-audit`, del catálogo [`agent-skills`](https://github.com/ramon-sg/agent-skills): `agent-kitchen` ofrece los dos.
+`agent-kitchen` installs them with the catalog at the tag of the workflow's version and moves them with it. `finish-pr` (and with it `close-pr`) and `pr-worktree` use `code-audit`, from the [`agent-skills`](https://github.com/ramon-sg/agent-skills) catalog: `agent-kitchen` offers both.
 
-**Lo propio de cada repo va en `project.md`**, que cada skill (salvo `pr-worktree`) crea desde su plantilla al instalarse: los labels y el assignee, qué flujo sigue cada issue, qué corre sin preguntar al cerrar, qué bots revisan y qué cuenta como review aprobado. Ese archivo es del repo: `check` no lo marca y las actualizaciones lo conservan.
+**What is specific to each repo goes in `project.md`**, which each skill (except `pr-worktree`) creates from its template when installed: the labels and the assignee, which flow each issue follows, what runs without asking on close, which bots review and what counts as an approved review. That file belongs to the repo: `check` does not flag it and updates keep it.
 
-**En la nube** las skills no usan `gh pr` ni `gh issue`, que van por GraphQL. Sacar un PR de draft y resolver un hilo solo existen en GraphQL, y el merge va con `gh pr merge`, que el modo auto de Claude Code revisa. En local las tres van con `gh`; en la nube las skills se detienen y lo dicen. Si el sandbox bloquea algo, no lo reintentan de otra forma: muestran qué correr en una terminal.
+**In the cloud** the skills do not use `gh pr` or `gh issue`, which go through GraphQL. Taking a PR out of draft and resolving a thread exist only in GraphQL, and the merge goes with `gh pr merge`, which Claude Code's auto mode reviews. Locally all three go with `gh`; in the cloud the skills stop and say so. If the sandbox blocks something, they do not retry another way: they show what to run in a terminal.
 
 ## Config: `.agents/flow.json`
 
-Todo es opcional; sin el archivo valen los valores por defecto. Una clave desconocida es un error, así un error de tipeo no pasa en silencio. Se lee siempre del checkout principal, también desde un worktree. `schema.json` da autocompletado en el editor:
+Everything is optional; without the file the defaults apply. An unknown key is an error, so a typo does not pass silently. It is always read from the main checkout, also from a worktree. `schema.json` gives autocompletion in the editor:
 
 ```json
 {
@@ -255,38 +287,39 @@ Todo es opcional; sin el archivo valen los valores por defecto. Una clave descon
 }
 ```
 
-| Clave | Por defecto | Para qué |
+| Key | Default | What for |
 |---|---|---|
-| `repo` | `-R`, `GH_REPO` u `origin` | El repo en GitHub |
-| `baseBranch` | La rama por defecto del repo | De dónde parte el trabajo |
-| `branch.template` | `{type}/{number}-{slug}` | Nombre de la rama; necesita `{number}` y `{slug}` |
-| `branch.namer` | `claude` | `claude` o `title` |
-| `branch.claudeModel` | `haiku` | Modelo de `claude -p` |
-| `branch.types` | Los de arriba | Tipo por label y por prefijo; cada mapa reemplaza al de por defecto |
-| `worktrees.dir` | `.claude/worktrees` | Dónde van los worktrees |
-| `worktrees.setup`, `worktrees.teardown` | Ninguno | Pasos para preparar y limpiar un worktree (ver arriba) |
-| `worktrees.ports` | Apagado | `true` para bloques de 10 desde 20000, o `{ start, blockSize, blocks }` |
-| `worktrees.dockerProjects` | Ninguno | Prefijos de los proyectos de Compose de los worktrees |
-| `start.commitMessage` | `chore: empieza el trabajo en la issue #{number} [skip ci]` | Commit vacío inicial |
-| `start.prBody` | `{keyword} #{number}`, la URL de la issue (`{url}`) y "En progreso." | Cuerpo del PR en draft |
-| `start.prompt`, `start.resumePrompt` | Resumir la issue y seguir `start-issue`, o retomar desde `{plan}` | Pedido con que se abre Claude |
-| `start.summaryPrompt`, `start.summaryPlanPrompt` | Resumir y esperar | Pedido de `--plan` |
-| `start.cloudPrompt` | `/start-issue {number} --yes{flags}` | Lo que `--cloud` le pide a la sesión; `{flags}` es `--new` o `--resume <rama>` |
-| `plans.dirs` | `docs/plans`, `docs/specs` | Dónde buscar el plan de la issue: lo que tocó la rama, o el documento cuyo `prs:` nombra su PR |
-| `colors` | `critical-path` y `P1:` rojo, `P2:` naranjo, `P3:` amarillo, `P4:` cian | Color de la sesión por prefijo de label; gana el primero que calce |
-| `labels` | Los 8 de abajo | Labels que crea `labels sync`; lo del repo se suma al default (ver abajo) |
+| `repo` | `-R`, `GH_REPO` or `origin` | The repo on GitHub |
+| `baseBranch` | The repo's default branch | Where the work starts from |
+| `branch.template` | `{type}/{number}-{slug}` | Branch name; needs `{number}` and `{slug}` |
+| `branch.namer` | `claude` | `claude` or `title` |
+| `branch.claudeModel` | `haiku` | `claude -p`'s model |
+| `branch.types` | The ones above | Type by label and by prefix; each map replaces the default one |
+| `worktrees.dir` | `.claude/worktrees` | Where the worktrees go |
+| `worktrees.setup`, `worktrees.teardown` | None | Steps to prepare and clean a worktree (see above) |
+| `worktrees.ports` | Off | `true` for blocks of 10 from 20000, or `{ start, blockSize, blocks }` |
+| `worktrees.dockerProjects` | None | Prefixes of the worktrees' Compose projects |
+| `start.commitMessage` | `chore: empieza el trabajo en la issue #{number} [skip ci]` | Initial empty commit |
+| `start.prBody` | `{keyword} #{number}`, the issue's URL (`{url}`) and "En progreso." | Draft PR body |
+| `start.prompt`, `start.resumePrompt` | Summarize the issue and follow `start-issue`, or resume from `{plan}` | Prompt Claude opens with |
+| `start.summaryPrompt`, `start.summaryPlanPrompt` | Summarize and wait | `--plan`'s prompt |
+| `start.cloudPrompt` | `/start-issue {number} --yes{flags}` | What `--cloud` asks the session; `{flags}` is `--new` or `--resume <branch>` |
+| `plans.dirs` | `docs/plans`, `docs/specs` | Where to look for the issue's plan: what the branch touched, or the document whose `prs:` names its PR |
+| `art` | `true` | `false` turns off Kuro in the closing messages. It shows only in a terminal; `NO_COLOR` turns off color |
+| `colors` | `critical-path` and `P1:` red, `P2:` orange, `P3:` yellow, `P4:` cyan | Session color by label prefix; the first match wins |
+| `labels` | The 8 below | Labels `labels sync` creates; the repo's are added to the default (see below) |
 
 ## Labels: `issue-flow labels sync`
 
 ```sh
-npx @ramon-sg/issue-flow labels sync --dry-run   # qué haría
-npx @ramon-sg/issue-flow labels sync             # crea los que faltan
-npx @ramon-sg/issue-flow labels sync --update    # también corrige color y descripción
+npx @ramon-sg/issue-flow labels sync --dry-run   # what it would do
+npx @ramon-sg/issue-flow labels sync             # creates the missing ones
+npx @ramon-sg/issue-flow labels sync --update    # also fixes color and description
 ```
 
-Crea en GitHub los labels de `labels` que el repo no tiene. Los nombres se comparan sin mayúsculas, como en GitHub: un `Bug` cuenta como `bug` y nunca se renombra. Uno que existe con otro color o descripción solo se avisa, salvo con `--update`. Nunca borra. `--json` da la lista con el estado de cada uno: `created`, `updated`, `ok`, `differs`, o `to-create` y `to-update` con `--dry-run`. Si GitHub rechaza uno, sigue con los demás, lo marca `failed` y sale con 1.
+Creates on GitHub the `labels` the repo does not have. Names are compared case-insensitively, as GitHub does: a `Bug` counts as `bug` and is never renamed. One that exists with another color or description is only reported, except with `--update`. It never deletes. `--json` gives the list with each one's status: `created`, `updated`, `ok`, `differs`, or `to-create` and `to-update` with `--dry-run`. If GitHub rejects one, it carries on with the rest, marks it `failed` and exits 1.
 
-| Label | Color | Descripción |
+| Label | Color | Description |
 |---|---|---|
 | `bug` | `d73a4a` | Something isn't working |
 | `enhancement` | `a2eeef` | New feature or request |
@@ -297,7 +330,7 @@ Crea en GitHub los labels de `labels` que el repo no tiene. Los nombres se compa
 | `P3: minor` | `FEF2C0` | Default when in doubt |
 | `P4: low` | `BFDADC` | Nice-to-have |
 
-Los tres primeros son los de GitHub, con sus colores y textos. A diferencia de `branch.types` y `colors`, lo que pone el repo **se suma** al default: un nombre reemplaza al de por defecto con ese nombre, y `null` lo quita. La taxonomía del repo va acá y no en el `project.md` de `github-issues`, porque con `claude-repo-guard` el agente no puede escribir en `.agents/skills/`:
+The first three are GitHub's, with their colors and texts. Unlike `branch.types` and `colors`, what the repo sets is **added** to the default: a name replaces the default one with that name, and `null` removes it. The repo's taxonomy goes here and not in `github-issues`' `project.md`, because with `claude-repo-guard` the agent cannot write to `.agents/skills/`:
 
 ```json
 {
@@ -309,31 +342,31 @@ Los tres primeros son los de GitHub, con sus colores y textos. A diferencia de `
 }
 ```
 
-## Desarrollo
+## Development
 
 ```sh
 npm install && npm test
 ```
 
-Usa [`github-rest`](https://github.com/ramon-sg/github-rest) para hablar con GitHub solo por REST (en la nube GraphQL está bloqueado) y [`skills-manager`](https://github.com/ramon-sg/skills-manager) para instalar las skills. Los tests de las skills comprueban que el catálogo y las carpetas coincidan, que ninguna nombre el proyecto del que salió, que cada comando de `issue-flow` que nombran exista, el script de `github-issues` y una instalación completa con `skills-manager`. Las skills generales (`planning`, `code-audit`, …) están en [`agent-skills`](https://github.com/ramon-sg/agent-skills).
+It uses [`github-rest`](https://github.com/ramon-sg/github-rest) to talk to GitHub through REST only (GraphQL is blocked in the cloud) and [`skills-manager`](https://github.com/ramon-sg/skills-manager) to install the skills. The skills' tests check that the catalog and the folders match, that none names the project it came from, that every `issue-flow` command they name exists, `github-issues`' script and a full install with `skills-manager`. The general skills (`planning`, `code-audit`, ...) are in [`agent-skills`](https://github.com/ramon-sg/agent-skills).
 
-## Publicar una versión
+## Publishing a version
 
-Una versión es una release `vX.Y.Z` en GitHub, con el mismo número que `package.json`. Al publicarla, GitHub Actions corre los tests y publica en npm con procedencia (`.github/workflows/publish.yml`). La tag es también la versión de las skills del flujo: `agent-kitchen` instala el catálogo en la tag de la versión del flujo, así que la CLI y sus skills van siempre juntas.
+A version is a `vX.Y.Z` release on GitHub, with the same number as `package.json`. When it is published, GitHub Actions runs the tests and publishes to npm with provenance (`.github/workflows/publish.yml`). The tag is also the version of the workflow's skills: `agent-kitchen` installs the catalog at the workflow version's tag, so the CLI and its skills always go together.
 
-1. Un PR que sube `version` en `package.json`.
-2. Después del merge, una release `v<versión>` sobre ese commit de `main`.
+1. A PR that bumps `version` in `package.json`.
+2. After the merge, a `v<version>` release on that `main` commit.
 
-El workflow se detiene si la tag no coincide con `package.json`.
+The workflow stops if the tag does not match `package.json`.
 
-**La primera versión (0.1.0) va a mano**, porque npm solo deja configurar la publicación desde GitHub en un paquete que ya existe:
+**The first version (0.1.0) goes by hand**, because npm only lets you set up publishing from GitHub on a package that already exists:
 
-1. Desde `main`, con sesión en npm (`npm login`): `npm publish --provenance=false`. La procedencia solo se genera dentro de un CI.
-2. En npmjs.com, configurar la publicación desde GitHub (trusted publishing) para `publish.yml`.
-3. Pushear la tag `v0.1.0` sin crear una release: la necesitan las skills y el `$schema`, y una release volvería a publicar la misma versión y fallaría.
+1. From `main`, logged in to npm (`npm login`): `npm publish --provenance=false`. Provenance is only generated inside a CI.
+2. On npmjs.com, set up publishing from GitHub (trusted publishing) for `publish.yml`.
+3. Push the `v0.1.0` tag without creating a release: the skills and the `$schema` need it, and a release would publish the same version again and fail.
 
-Desde 0.2.0, cada versión es una release y la publica el workflow.
+From 0.2.0 on, each version is a release and the workflow publishes it.
 
-## Licencia
+## License
 
 MIT

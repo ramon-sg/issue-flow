@@ -14,6 +14,8 @@ description: |
 argument-hint: "<número de issue> [--branch] [--resume <rama> | --new] [--yes]"
 ---
 
+Responde al usuario en el idioma en que te escribe.
+
 # Empezar una issue
 
 El flujo vive en `issue-flow issue start` (dependencia de desarrollo del
