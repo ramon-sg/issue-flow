@@ -98,9 +98,11 @@ export function sandbox() {
         ...env,
       };
     },
-    // Runs the CLI in a pseudo-terminal (`script`) and types `answer` once `[y/N]` shows,
-    // because a terminal drops what was typed before the question.
+    // Runs the CLI in a pseudo-terminal (`script`) and types `answer` once the question's
+    // mark shows (`[y/N]`, or `[s/N]` in Spanish: pass it as `mark`), because a terminal
+    // drops what was typed before the question.
     runTty(args, answer, options = {}) {
+      const mark = options.mark ?? "[y/N]";
       const env = { ...this.env(options), PATH: `${options.withoutClaude ? noClaude : bin}:/usr/bin:/bin` };
       // NOTE: `script` needs a real pipe as stdin (Node gives a socket), hence `cat |`.
       const run = process.platform === "darwin"
@@ -114,7 +116,7 @@ export function sandbox() {
         const timer = setTimeout(() => child.kill(), 20_000);
         child.stdout.setEncoding("utf8").on("data", (chunk) => {
           out += chunk;
-          if (!typed && out.includes("[y/N]")) {
+          if (!typed && out.includes(mark)) {
             typed = true;
             child.stdin.end(`${answer}\r`);
           }

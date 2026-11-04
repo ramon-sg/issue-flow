@@ -111,6 +111,33 @@ test("--dry-run shows the summary and changes nothing", () => {
   assert.deepEqual(s.claudeCalls(), []);
 });
 
+test("in Spanish the summary has the catalog's labels, and the English text is not there", () => {
+  const s = startSandbox();
+
+  const r = s.run(["0214", "--dry-run"], { env: { ISSUE_FLOW_LANG: "es" } });
+
+  assert.equal(r.status, 0, r.err);
+  for (const expected of [
+    "Resumen:      Cuando un reclamo termina en reembolso",
+    "Etiquetas:    enhancement · P1: urgent",
+    `Rama:         ${BRANCH}`,
+    `Modo:         worktree en ${WT}`,
+    "Permisos:     tu configuración (claude-repo-guard no está instalado)",
+    "Acciones:     crear la rama desde origin/main + commit vacío + push + PR en borrador (Closes #214) + asignarte la #214",
+  ])
+    assert.ok(r.out.includes(expected), expected);
+  assert.doesNotMatch(r.out, /Branch:|Actions:|Permissions:/);
+});
+
+test("in Spanish a usage-time StartError speaks Spanish too", () => {
+  const s = startSandbox();
+
+  const r = s.run(["999", "--dry-run"], { env: { ISSUE_FLOW_LANG: "es" } });
+
+  assert.equal(r.status, 1);
+  assert.match(r.err, /la issue #999 no existe en acme\/widgets/);
+});
+
 test("without a type label or a slug block it warns, names from the title and goes on", () => {
   const s = startSandbox();
   s.issue(214, { labels: [{ name: "area:api" }], body: "Sin bloque." });
@@ -534,6 +561,28 @@ test("after the session: a merged PR, a clean worktree and a yes delete the work
   assert.equal(existsSync(join(s.main, WT)), false);
   assert.equal(s.git(s.main, "branch", "--list", BRANCH), "");
   assert.deepEqual(s.sessionFiles(), []);
+});
+
+test("in Spanish the question is [s/N] and an s, si or sí answers yes", () => {
+  for (const answer of ["s", "SÍ", "si"]) {
+    const s = startSandbox();
+    s.run(["214", "--yes", "--no-launch"]);
+    s.advanceMain();
+
+    const r = s.run(["214", "--yes"], { input: `${answer}\n`, env: { ISSUE_FLOW_LANG: "es", FAKE_CLAUDE_MERGE: "900" } });
+
+    assert.equal(r.status, 0, r.err);
+    assert.match(r.err, /El PR se integró\. ¿Borrar el worktree .* y la rama local feat\/214-odoo-refund-notice\?.*\[s\/N\] /, answer);
+    assert.equal(existsSync(join(s.main, WT)), false, answer);
+  }
+  const s = startSandbox();
+  s.run(["214", "--yes", "--no-launch"]);
+  s.advanceMain();
+
+  const no = s.run(["214", "--yes"], { input: "n\n", env: { ISSUE_FLOW_LANG: "es", FAKE_CLAUDE_MERGE: "900" } });
+
+  assert.equal(no.status, 0, no.err);
+  assert.equal(existsSync(join(s.main, WT)), true);
 });
 
 test("after the session: a merged PR with a commit not pushed, or changes, deletes nothing", () => {

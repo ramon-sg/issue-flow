@@ -117,7 +117,7 @@ export async function prWorktree(options: PrWorktreeOptions, out: Output): Promi
   }
   const [command, ...args] = options.command.length > 0
     ? options.command
-    : ["claude", ...permissionArgs("default", path, mainRoot).args];
+    : ["claude", ...permissionArgs("default", path, mainRoot, out.t.start.permissions).args];
   if (command === undefined) return 0;
   const result = spawnSync(command, args, { cwd: path, stdio: "inherit" });
   if (result.error !== undefined) throw new StartError(`could not run ${command}: ${result.error.message}`);

@@ -11,6 +11,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import { homedir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 import { dirName, sessionName, type StartMode } from "./issue-text.js";
+import type { Messages } from "./messages/index.js";
 
 /** The file `claude-repo-guard` writes with the auto mode's classifier context. */
 export const AUTO_MODE_FILE = ".claude/repo-guard.auto-mode.json";
@@ -42,34 +43,36 @@ export interface PermissionArgs {
  * @param permissions - What the flags asked for.
  * @param workDir - Where Claude runs, or null if that folder does not exist yet.
  * @param mainRoot - The main checkout.
+ * @param t - The messages, for the label.
  * @returns The arguments and their label.
- * @example permissionArgs("default", wt, root).args // ["--settings", ".claude/repo-guard.auto-mode.json", "--permission-mode", "auto"]
+ * @example permissionArgs("default", wt, root, t).args // ["--settings", ".claude/repo-guard.auto-mode.json", "--permission-mode", "auto"]
  */
 export function permissionArgs(
   permissions: Permissions,
   workDir: string | null,
   mainRoot: string,
+  t: Messages["start"]["permissions"],
 ): PermissionArgs {
   if (permissions === "free")
     return {
       args: ["--settings", NO_SANDBOX, "--dangerously-skip-permissions"],
-      label: "none: no sandbox and no questions; deny rules still apply (--free)",
+      label: t.free,
     };
   if (permissions === "free-no-repo-deny")
     return {
       args: ["--settings", NO_SANDBOX, "--dangerously-skip-permissions"],
-      label: "none: no sandbox, no questions and no deny rules of the repo; yours still apply (--free --no-repo-deny)",
+      label: t.freeNoRepoDeny,
     };
-  if (permissions === "ask") return { args: [], label: "your settings (--ask-permissions)" };
+  if (permissions === "ask") return { args: [], label: t.ask };
   const file = workDir !== null && existsSync(join(workDir, AUTO_MODE_FILE))
     ? AUTO_MODE_FILE
     : existsSync(join(mainRoot, AUTO_MODE_FILE))
       ? join(mainRoot, AUTO_MODE_FILE)
       : null;
-  if (file === null) return { args: [], label: "your settings (claude-repo-guard is not installed)" };
+  if (file === null) return { args: [], label: t.noGuard };
   return {
     args: ["--settings", file, "--permission-mode", "auto"],
-    label: "auto mode, with claude-repo-guard's context",
+    label: t.auto,
   };
 }
 
@@ -171,9 +174,10 @@ function runClaude(cwd: string, args: string[]): void {
  * because a session only takes it from a command.
  * @param plan - Where, which branch and with what.
  * @param warn - Where a warning goes.
- * @example launchSession(plan, (text) => console.error(text))
+ * @param t - The messages, for the warning.
+ * @example launchSession(plan, (text) => console.error(text), messages("en"))
  */
-export function launchSession(plan: LaunchPlan, warn: (text: string) => void): void {
+export function launchSession(plan: LaunchPlan, warn: (text: string) => void, t: Messages): void {
   const saved = savedSession(plan.commonDir, plan.branch);
   if (saved !== null) {
     runClaude(plan.workDir, [...plan.permissions, "--resume", saved, plan.prompt]);
@@ -189,7 +193,7 @@ export function launchSession(plan: LaunchPlan, warn: (text: string) => void): v
       cwd: plan.workDir,
       stdio: "ignore",
     });
-    if (colored.status !== 0) warn("could not color the session; it opens without a color.");
+    if (colored.status !== 0) warn(t.start.warn.noColor);
   }
   if (sessionExists(id)) runClaude(plan.workDir, [...plan.permissions, "--resume", id, plan.prompt]);
   else runClaude(plan.workDir, [...plan.permissions, "--session-id", id, "-n", name, plan.prompt]);
