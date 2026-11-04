@@ -336,6 +336,7 @@ issue:start para esos. --no-repo-deny va después, como cualquier flag:
       branchLabel: "Rama",
       prLabel: "PR",
       prDraft: "en borrador",
+      prDraftOf: (number: number) => `#${number} (en borrador)`,
       planLabel: "Plan abierto",
       worktreeLabel: "Worktree",
       baseLabel: "Base",

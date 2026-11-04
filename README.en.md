@@ -63,7 +63,7 @@ What it does, in order:
    - **No live branches:** creates a new one, named as `issue branch` does. If that name was already used in a merged batch, it adds `-2`, `-3`...
    - **With one:** resumes it.
    - **With several:** in the terminal it asks which one to follow. With `--yes` you have to choose with `--resume <branch>` or `--new`.
-3. **Shows a summary and asks `[y/N]`.** An empty answer is no. In Spanish the question is `[s/N]` and `s`, `si`, `sí`, `y` and `yes` are accepted.
+3. **Shows a summary and asks `[y/N]`.** An empty answer is no. In Spanish the question is `[s/N]`; in both languages `y`, `yes`, `s`, `si` and `sí` are accepted.
 4. **Creates what is missing:**
    - the worktree, or with `--branch` the branch in this checkout;
    - the empty commit with `[skip ci]`, the push and the draft PR;
@@ -119,6 +119,7 @@ Only the terminal changes. What is written to GitHub (the initial commit, the PR
 | `bun run issue:start:free 34` | `bun run issue:start:free 34` |
 | `npm run issue:start:free 34` | `npm run issue:start:free 34` (with other options, `npm run issue:start:free -- 34 --no-repo-deny`) |
 | `pnpm issue:start:free 34` | `pnpm issue:start:free 34` |
+| `yarn issue:start:free 34` | `yarn issue:start:free 34` |
 | `issue-flow` or `npx` | `issue-flow issue start 34` |
 
 The script form is used only with the scripts `apply` installs (`issue:start` and `issue:start:free`); a script of someone else's that calls `issue-flow` falls back to `issue-flow issue start <n>`. The options that define how the session runs are repeated (`--free`, `--ask-permissions`, `--no-repo-deny`, `--namer`, `-R`, and `--lang` if you passed it as an option) and the one-off ones are not (`--new`, `--branch`, `--yes`, `--dry-run`, `--resume`, `--no-launch`, `--plan`).

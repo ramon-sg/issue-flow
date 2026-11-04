@@ -295,7 +295,7 @@ test("--cloud stops if the branch is checked out or only local, and a failed ses
   assert.equal(onlyLocal.status, 1);
   assert.match(onlyLocal.err, /is only local: push it or go on without --cloud/);
   assert.equal(failed.status, 1);
-  assert.match(failed.err, /could not open the cloud session/);
+  assert.match(failed.err, /could not open the cloud session/i);
 });
 
 test("--cloud with several branches passes the chosen one, or --new, to the session", () => {
@@ -382,7 +382,7 @@ test("--teleport without a session in the PR opens the list, and without a branc
   assert.match(list.out, /Session: {6}cloud \(chosen from teleport's list\)/);
   assert.deepEqual(s.claudeCalls()[0].args, ["--teleport"]);
   assert.equal(noBranch.status, 1);
-  assert.match(noBranch.err, /issue #214 has no branch: start it with 'issue-flow issue start 214 --cloud'/);
+  assert.match(noBranch.err, /issue #214 has no branch: start it with 'issue-flow issue start 214 --cloud'/i);
 });
 
 test("--here starts the issue in this checkout, notes the cloud session in the PR and prints the prompt", () => {
@@ -483,7 +483,7 @@ test("--here stops with uncommitted changes, without moving HEAD nor pushing", (
   const r = s.run(["214", "--here", "--yes"]);
 
   assert.equal(r.status, 1);
-  assert.match(r.err, /this checkout has uncommitted changes/);
+  assert.match(r.err, /this checkout has uncommitted changes/i);
   assert.equal(s.git(s.main, "rev-parse", "HEAD"), head);
   assert.equal(branchAt(s, s.main), "main");
   assert.equal(s.git(s.origin, "branch", "--list", "feat/*"), "");
@@ -534,7 +534,7 @@ test("--here stops if the branch is in another worktree", () => {
   const r = s.run(["214", "--here", "--yes"]);
 
   assert.equal(r.status, 1);
-  assert.ok(r.err.includes(`branch ${BRANCH} is already at ${other}:`), r.err);
+  assert.ok(r.err.includes(`Branch ${BRANCH} is already at ${other}:`), r.err);
   assert.equal(branchAt(s, s.main), "main");
 });
 

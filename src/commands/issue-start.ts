@@ -37,7 +37,7 @@ import {
   renameAdopted,
   withoutFresh,
 } from "../start-modes.js";
-import { type Adopted, again, StartError, type StartOptions, type StartState } from "../start-state.js";
+import { type Adopted, again, DeclinedError, StartError, type StartOptions, type StartState } from "../start-state.js";
 import { describeBranch, stepPlaceOf, summary } from "../start-summary.js";
 import { runSetup } from "../worktree-steps.js";
 import { branchPr, type WorkState, workState } from "../work-state.js";
@@ -130,7 +130,7 @@ function proposeNew(context: Context): string {
   const info = { number: issue.number, title: issue.title, body: issue.body, labels: context.labels };
   const { proposals, warnings } = proposeBranches([info], options.config, {
     cwd: context.mainRoot,
-    t: context.out.t,
+    t: options.plan ? messages("en") : context.out.t,
     ...(options.namer === undefined ? {} : { namer: options.namer }),
   });
   const [proposal] = proposals;
@@ -155,7 +155,7 @@ async function pickBranch(context: Context, describe: (branch: string) => string
   const answer = await ask(context.out, t.pick.which(candidates.length));
   if (/^n$/i.test(answer)) return null;
   const chosen = /^\d+$/.test(answer) ? candidates[Number(answer) - 1] : undefined;
-  if (chosen === undefined) throw new StartError(t.declined);
+  if (chosen === undefined) throw new DeclinedError(t.declined);
   return chosen;
 }
 
@@ -382,7 +382,7 @@ export async function issueStart(options: StartOptions, out: Output): Promise<nu
   out.stdout(summary(state, permissionArgs(options.permissions, existsSync(state.workDir) ? state.workDir : null, context.mainRoot, out.t.start.permissions)));
   if (options.dryRun) return 0;
   const asked = question(state);
-  if (!options.yes && state.adopted === null && !(await confirm(out, asked.text))) throw new StartError(asked.declined);
+  if (!options.yes && state.adopted === null && !(await confirm(out, asked.text))) throw new DeclinedError(asked.declined);
   if (state.mode === "cloud") return launchCloud(state, out);
   if (state.adopted !== null) renameAdopted(state);
   else if (state.mode === "here") prepareHere(state);
@@ -393,7 +393,7 @@ export async function issueStart(options: StartOptions, out: Output): Promise<nu
     return 0;
   }
   if (state.adopted !== null) {
-    readyHere({ out, options, branch }, plan);
+    readyHere({ out, options, branch }, plan, prNumber);
     return 0;
   }
   if (state.mode === "worktree") {

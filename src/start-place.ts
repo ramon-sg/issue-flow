@@ -276,7 +276,9 @@ export async function afterSession(state: StartState, lock: Lock): Promise<void>
   const { config, number } = state.options;
   const pr = await findPr(state.options.repo, branch).catch(() => null);
   if (pr?.state !== "MERGED") {
-    show(out, { mood: "ok", title: t.say.saved(number), next: { label: t.say.resume, command: again(state.options) } }, config);
+    const rows: [string, string][] = [[t.say.branchLabel, branch]];
+    if (pr !== null) rows.push([t.say.prLabel, pr.draft ? t.say.prDraftOf(pr.number) : `#${pr.number}`]);
+    show(out, { mood: "ok", title: t.say.saved(number), rows, next: { label: t.say.resume, command: again(state.options) } }, config);
     return;
   }
   if (!hasLocal(mainRoot, branch)) {

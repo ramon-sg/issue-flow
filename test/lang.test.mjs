@@ -17,6 +17,13 @@ test("the language is --lang, then ISSUE_FLOW_LANG, then Spanish; LANG is not re
   assert.equal(resolveLang(undefined, { ISSUE_FLOW_LANG: "" }), "es");
 });
 
+test("the language value is trimmed and case-insensitive", () => {
+  assert.equal(resolveLang(undefined, { ISSUE_FLOW_LANG: "EN" }), "en");
+  assert.equal(resolveLang(" Es ", {}), "es");
+  assert.equal(resolveLang(undefined, { ISSUE_FLOW_LANG: "  " }), "es");
+  assert.throws(() => resolveLang(" fr ", {}), /es or en/);
+});
+
 test("an unknown language is a usage error that names the two", () => {
   assert.throws(() => resolveLang("fr", {}), /es or en/);
   assert.throws(() => resolveLang(undefined, { ISSUE_FLOW_LANG: "fr" }), /ISSUE_FLOW_LANG expects es or en: fr/);

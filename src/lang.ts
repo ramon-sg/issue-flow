@@ -39,10 +39,11 @@ function isLang(value: string): value is Lang {
  * @example resolveLang(undefined, { ISSUE_FLOW_LANG: "en" }) // "en"
  */
 export function resolveLang(flag: string | undefined, env: NodeJS.ProcessEnv): Lang {
-  const fromEnv = env.ISSUE_FLOW_LANG === "" ? undefined : env.ISSUE_FLOW_LANG;
+  const fromEnv = env.ISSUE_FLOW_LANG?.trim() === "" ? undefined : env.ISSUE_FLOW_LANG;
   const source = flag !== undefined ? "--lang" : "ISSUE_FLOW_LANG";
   const value = flag ?? fromEnv;
   if (value === undefined) return "es";
-  if (!isLang(value)) throw new LangError(source, value);
-  return value;
+  const lang = value.trim().toLowerCase();
+  if (!isLang(lang)) throw new LangError(source, value);
+  return lang;
 }

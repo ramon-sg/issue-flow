@@ -18,7 +18,7 @@ npm run issue:start -- 42 --teleport  # traer la sesión a un worktree local
 
 1. **Lee la issue y elige la rama**, igual que el
    [flujo de terminal](terminal.md#qué-hace-por-debajo). Muestra el resumen
-   y pregunta `[y/N]`.
+   y pregunta `[s/N]`.
 2. **No crea nada acá.** Ni rama ni PR: eso lo hace la sesión de la nube.
    Se detiene si la rama ya está abierta en un checkout o existe solo en
    local, porque la nube no la vería.

@@ -181,7 +181,7 @@ usuario en el idioma en que escribe. Lo que publican en GitHub no cambia.
 
 ## Docs
 
-`README.md` queda en inglés y se agrega `README.es.md`, enlazados entre sí. `docs/`
+`README.md` sigue en español; `README.en.md` es la traducción al inglés, enlazados entre sí. `docs/`
 sigue en español.
 
 ## Tests

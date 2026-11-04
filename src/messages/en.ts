@@ -327,6 +327,7 @@ issue:start for those. --no-repo-deny goes after it, as any flag:
       branchLabel: "Branch",
       prLabel: "PR",
       prDraft: "draft",
+      prDraftOf: (number) => `#${number} (draft)`,
       planLabel: "Open plan",
       worktreeLabel: "Worktree",
       baseLabel: "Base",

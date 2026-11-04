@@ -60,3 +60,12 @@ test("--lang is repeated only as a flag, not from ISSUE_FLOW_LANG", () => {
   assert.equal(command(null, null, { lang: "en" }), "issue-flow issue start 34 --lang en");
   assert.equal(launchOf({ ISSUE_FLOW_LANG: "en" }, {}).flags.length, 0);
 });
+
+test("--cloud drops the permission flags and the free script, so the command does not fail", () => {
+  assert.equal(command("bun", "issue:start:free", { free: true }, "--cloud"), "bun run issue:start 34 --cloud");
+  assert.equal(command("npm", "issue:start:free", { free: true, "no-repo-deny": true }, "--cloud"), "npm run issue:start -- 34 --cloud");
+  assert.equal(command("pnpm", "issue:start", { "ask-permissions": true, namer: "claude" }, "--cloud"), "pnpm issue:start 34 --namer claude --cloud");
+  assert.equal(command(null, null, { "ask-permissions": true }, "--cloud"), "issue-flow issue start 34 --cloud");
+  assert.equal(command(null, null, { free: true, "no-repo-deny": true, repo: "o/r" }, "--cloud"), "issue-flow issue start 34 -R o/r --cloud");
+  assert.equal(command("bun", "issue:start:free", { free: true }, "--teleport"), "bun run issue:start:free 34 --teleport");
+});

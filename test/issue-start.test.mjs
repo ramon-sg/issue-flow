@@ -83,9 +83,9 @@ test("a closed issue, or one that does not exist, stops with 1", () => {
   const missing = s.run(["999", "--dry-run"]);
 
   assert.equal(closed.status, 1);
-  assert.match(closed.err, /issue #214 is CLOSED; not starting it/);
+  assert.match(closed.err, /issue #214 is CLOSED; not starting it/i);
   assert.equal(missing.status, 1);
-  assert.match(missing.err, /issue #999 does not exist in acme\/widgets/);
+  assert.match(missing.err, /issue #999 does not exist in acme\/widgets/i);
 });
 
 test("--dry-run shows the summary and changes nothing", () => {
@@ -135,7 +135,7 @@ test("in Spanish a usage-time StartError speaks Spanish too", () => {
   const r = s.run(["999", "--dry-run"], { env: { ISSUE_FLOW_LANG: "es" } });
 
   assert.equal(r.status, 1);
-  assert.match(r.err, /la issue #999 no existe en acme\/widgets/);
+  assert.match(r.err, /la issue #999 no existe en acme\/widgets/i);
 });
 
 test("without a type label or a slug block it warns, names from the title and goes on", () => {
@@ -157,6 +157,7 @@ test("no, or no answer, does nothing and exits with 1", () => {
 
   assert.equal(no.status, 1);
   assert.match(no.err, /Start the issue\? \[y\/N\] [\s\S]*did nothing/);
+  assert.doesNotMatch(no.err, /\[!\]/);
   assert.equal(empty.status, 1);
   assert.deepEqual(s.writes(), []);
   assert.equal(s.git(s.main, "branch", "--list", "feat/*"), "");
@@ -391,7 +392,7 @@ test("--resume takes one of the issue's branches, and refuses another's", () => 
 
   assert.match(ok.out, /Found: {8}branch fix\/214-old/);
   assert.equal(other.status, 1);
-  assert.match(other.err, /branch fix\/2140-x is not one of issue #214's/);
+  assert.match(other.err, /branch fix\/2140-x is not one of issue #214's/i);
 });
 
 test("--new with another open branch: the new PR is Part of, and the open one that closed it too", () => {
@@ -467,7 +468,7 @@ test("--branch: a dirty main checkout stops it; a clean one goes on the branch, 
   const r = s.run(["214", "--yes", "--branch"]);
 
   assert.equal(dirty.status, 1);
-  assert.match(dirty.err, /the main checkout has uncommitted changes/);
+  assert.match(dirty.err, /the main checkout has uncommitted changes/i);
   assert.equal(r.status, 0, r.err);
   assert.equal(s.git(s.main, "rev-parse", "--abbrev-ref", "HEAD"), BRANCH);
   assert.match(r.out, /Mode: {9}branch in the main checkout/);
@@ -483,7 +484,7 @@ test("--branch with local main ahead of origin stops it", () => {
   const r = s.run(["214", "--yes", "--branch"]);
 
   assert.equal(r.status, 1);
-  assert.match(r.err, /local main has commits that are not in origin\/main/);
+  assert.match(r.err, /local main has commits that are not in origin\/main/i);
   assert.equal(s.git(s.main, "branch", "--list", "feat/*"), "");
 });
 
@@ -509,7 +510,7 @@ test("a failed fetch stops it before reading the work", () => {
   const r = s.run(["214", "--yes", "--no-launch"]);
 
   assert.equal(r.status, 1);
-  assert.match(r.err, /could not fetch origin/);
+  assert.match(r.err, /could not fetch origin/i);
   assert.deepEqual(s.writes(), []);
 });
 
@@ -701,7 +702,7 @@ test("--branch stops if the branch is in a worktree, or the main checkout is dir
   const inWorktree = s.run(["214", "--dry-run", "--branch"]);
 
   assert.equal(dirty.status, 1);
-  assert.match(dirty.err, /the main checkout has uncommitted changes/);
+  assert.match(dirty.err, /the main checkout has uncommitted changes/i);
   assert.equal(inWorktree.status, 1);
   assert.match(inWorktree.err, /is already in the worktree .*; run without --branch/);
 });
@@ -777,7 +778,7 @@ test("a repo other than the checkout's origin stops it before reading the issue"
   const env = s.run(["214", "--dry-run"], { env: { GH_REPO: "acme/other" } });
 
   assert.equal(r.status, 1);
-  assert.match(r.err, /this checkout's origin is acme\/widgets, not acme\/other/);
+  assert.match(r.err, /this checkout's origin is acme\/widgets, not acme\/other/i);
   assert.deepEqual(s.ghCalls(), []);
   assert.equal(env.status, 1);
   assert.equal(s.git(s.origin, "branch", "--list", "feat/*"), "");
@@ -933,7 +934,42 @@ test("an issue start that fails in GitHub writes the error block on stderr and s
   const r = s.run(["999", "--dry-run"]);
 
   assert.equal(r.status, 1);
-  assert.match(r.err, /^ {2}\[!\] .*issue #999 does not exist in acme\/widgets/m);
+  assert.match(r.err, /^ {2}\[!\] .*Issue #999 does not exist in acme\/widgets/m);
   assert.doesNotMatch(r.err, /^issue-flow:/m);
   assert.equal(r.out, "");
+});
+
+test("--plan keeps the JSON warnings in English under ISSUE_FLOW_LANG=es", () => {
+  const s = startSandbox();
+  s.issue(214, { body: "Texto.\n\n**Slug de rama**\n`Cart Total`" });
+
+  const r = s.run(["214", "--plan"], { env: { ISSUE_FLOW_LANG: "es" } });
+
+  assert.equal(r.status, 0, r.err);
+  const { warnings } = JSON.parse(r.out);
+  assert.ok(warnings.length > 0);
+  assert.match(warnings.join(" "), /is not a valid slug; proposing another/);
+});
+
+test("the session-saved block carries the branch and the PR number, in both languages", () => {
+  for (const [lang, saved, draft] of [["en", /The session is saved/, /PR +#\d+ \(draft\)/], ["es", /Sesión guardada/, /PR +#\d+ \(en borrador\)/]]) {
+    const s = startSandbox();
+    const r = s.run(["214", "--yes"], { env: { ISSUE_FLOW_LANG: lang } });
+    assert.equal(r.status, 0, r.err);
+    assert.match(r.out, saved);
+    assert.match(r.out, new RegExp(`(Branch|Rama) +${BRANCH}`), lang);
+    assert.match(r.out, draft, `${lang}: ${r.out}`);
+  }
+});
+
+test("declining in Spanish is a plain line, not an error block, and the error titles are capitalized", () => {
+  const s = startSandbox();
+
+  const no = s.run(["214"], { input: "n\n", env: { ISSUE_FLOW_LANG: "es" } });
+  const missing = s.run(["999", "--dry-run"], { env: { ISSUE_FLOW_LANG: "es" } });
+
+  assert.equal(no.status, 1);
+  assert.doesNotMatch(no.err, /\[!\]/);
+  assert.match(no.err, /no se hizo nada\./);
+  assert.match(missing.err, /\[!\] [A-ZÁÉÍÓÚ]/);
 });

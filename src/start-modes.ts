@@ -233,12 +233,13 @@ export async function prCloudSession(repo: string, pr: number | null): Promise<s
  * Says the issue is on its branch with its draft PR, and where the plan to resume is.
  * @param state - The start.
  * @param plan - The open plan's path, or null.
- * @example readyHere(state, "docs/plans/open.md")
+ * @param pr - The PR number, if known.
+ * @example readyHere(state, "docs/plans/open.md", 900)
  */
-export function readyHere(state: Pick<StartState, "out" | "options" | "branch">, plan: string | null): void {
+export function readyHere(state: Pick<StartState, "out" | "options" | "branch">, plan: string | null, pr: number | null = null): void {
   const { out, options, branch } = state;
   const say = out.t.start.say;
-  const rows: [string, string][] = [[say.branchLabel, branch], [say.prLabel, say.prDraft]];
+  const rows: [string, string][] = [[say.branchLabel, branch], [say.prLabel, pr === null ? say.prDraft : say.prDraftOf(pr)]];
   if (plan !== null) rows.push([say.planLabel, plan]);
   show(out, { mood: "ok", title: say.ready(options.number), rows }, options.config);
 }
@@ -264,7 +265,7 @@ export async function finishHere(state: StartState, pr: number, prompt: string):
       warn(out, out.t.start.warn.noteSession(pr));
     }
   }
-  readyHere(state, null);
+  readyHere(state, null, pr);
   out.stdout(`Prompt: ${prompt}\n`);
 }
 
@@ -300,8 +301,8 @@ export function cloudFlags(state: StartState): string {
  */
 export function launchCloud(state: StartState, out: Output): number {
   const { options, mainRoot, base } = state;
+  const say = out.t.start.say;
   if (!options.launch || !inPath("claude")) {
-    const say = out.t.start.say;
     show(out, { mood: "ok", title: say.ready(options.number), next: { label: say.openCloud, command: again(options, "--cloud") } }, options.config);
     return 0;
   }
@@ -310,7 +311,6 @@ export function launchCloud(state: StartState, out: Output): number {
   forgetTypedAhead();
   if (spawnSync("claude", ["--cloud", prompt], { cwd: mainRoot, stdio: "inherit" }).status !== 0)
     throw new StartError(out.t.start.error.cloudOpenFailed);
-  const say = out.t.start.say;
   show(out, { mood: "ok", title: say.cloudOpen(options.number), next: { label: say.bringHere, command: again(options, "--teleport") } }, options.config);
   return 0;
 }

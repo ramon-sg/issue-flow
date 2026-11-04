@@ -63,7 +63,7 @@ Qué hace, en orden:
    - **Sin ramas vivas:** crea una nueva, con el nombre de `issue branch`. Si ese nombre ya se usó en una tanda mergeada, le suma `-2`, `-3`…
    - **Con una:** la retoma.
    - **Con varias:** en la terminal te pregunta cuál seguir. Con `--yes` hay que elegir con `--resume <rama>` o `--new`.
-3. **Muestra un resumen y pregunta `[y/N]`.** Una respuesta vacía es no. Con `--lang en` la pregunta es `[y/N]`; en español es `[s/N]` y acepta `s`, `si`, `sí`, `y` y `yes`.
+3. **Muestra un resumen y pregunta `[s/N]`.** Una respuesta vacía es no. Con `--lang en` la pregunta es `[y/N]`; en los dos idiomas se acepta `s`, `si`, `sí`, `y` y `yes`.
 4. **Crea lo que falta:**
    - el worktree, o con `--branch` la rama en este checkout;
    - el commit vacío con `[skip ci]`, el push y el PR en draft;
@@ -119,6 +119,7 @@ Solo cambia la terminal. Lo que se escribe en GitHub (el commit inicial, el cuer
 | `bun run issue:start:free 34` | `bun run issue:start:free 34` |
 | `npm run issue:start:free 34` | `npm run issue:start:free 34` (con otras opciones, `npm run issue:start:free -- 34 --no-repo-deny`) |
 | `pnpm issue:start:free 34` | `pnpm issue:start:free 34` |
+| `yarn issue:start:free 34` | `yarn issue:start:free 34` |
 | `issue-flow` o `npx` | `issue-flow issue start 34` |
 
 La forma de script solo se usa con los scripts que instala `apply` (`issue:start` y `issue:start:free`); un script ajeno que llame a `issue-flow` cae a `issue-flow issue start <n>`. Se repiten las opciones que definen cómo corre la sesión (`--free`, `--ask-permissions`, `--no-repo-deny`, `--namer`, `-R`, y `--lang` si lo pasaste como opción) y no las de una sola vez (`--new`, `--branch`, `--yes`, `--dry-run`, `--resume`, `--no-launch`, `--plan`).

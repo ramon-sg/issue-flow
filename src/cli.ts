@@ -19,9 +19,9 @@ import type { Permissions } from "./launch.js";
 import { LangError, resolveLang } from "./lang.js";
 import { show } from "./banner.js";
 import { launchOf } from "./launch-as.js";
-import { messages } from "./messages/index.js";
+import { DeclinedError } from "./start-state.js";
+import { type Messages, messages } from "./messages/index.js";
 import { type Output, processOutput, UsageError } from "./output.js";
-import type { Messages } from "./messages/index.js";
 import { usageOf } from "./usage.js";
 
 /** An issue number: digits only. */
@@ -378,7 +378,13 @@ function showError(error: unknown): void {
   } catch {
     // NOTE: an unreadable config only means the defaults.
   }
-  const [title = "", ...rest] = (error instanceof Error ? error.message : String(error)).split("\n");
+  if (error instanceof DeclinedError) {
+    out.stderr(`${error.message}\n`);
+    return;
+  }
+  const [first = "", ...rest] = (error instanceof Error ? error.message : String(error)).split("\n");
+  // NOTE: a message that opens with a branch or a path (`feat/7-x is checked out`) keeps its first letter.
+  const title = /^\p{L}+(\s|$)/u.test(first) ? first.charAt(0).toUpperCase() + first.slice(1) : first;
   show(out, { mood: "error", title, ...(rest.length > 0 ? { lines: rest } : {}) }, config, "stderr");
 }
 
