@@ -12,7 +12,7 @@ import { readWork, resolveRepo, viewIssue } from "@ramon-sg/github-rest";
 import { ask, confirm, forgetTypedAhead } from "../ask.js";
 import { show } from "../banner.js";
 import { branchType } from "../branch-name.js";
-import { checkedOutAt, checkoutRoot, git, gitLines, locateRepo, onOrigin, ownCommits } from "../git.js";
+import { checkedOutAt, checkoutRoot, failure, git, gitLines, locateRepo, onOrigin, ownCommits } from "../git.js";
 import { fill, issueColor, nextBranch } from "../issue-text.js";
 import { inPath, launchSession, permissionArgs, teleportSession } from "../launch.js";
 import { type Messages, messages } from "../messages/index.js";
@@ -102,7 +102,8 @@ async function readContext(options: StartOptions, out: Output): Promise<Context>
   const labels = issue.labels.map(({ name }) => name);
   if (branchType(config.branch.types, labels, issue.title) === null)
     note({ out, warnings }, (t) => t.start.warn.noTypeLabel(number));
-  if (!fetchOrigin(located.mainRoot, options.here)) throw new StartError(error.fetchFailed);
+  const fetched = await fetchOrigin(located.mainRoot, options.here, out, config);
+  if (!fetched.ok) throw new StartError(failure(error.fetchFailed, fetched, out.t));
   const read = await readWork(repo, [number], { cwd: located.mainRoot });
   for (const text of read.warnings) note({ out, warnings }, text);
   const entry = read.output.issues[0];

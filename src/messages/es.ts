@@ -253,7 +253,7 @@ issue:start para esos. --no-repo-deny va después, como cualquier flag:
       notOnGithub: "no está en GitHub",
       noIssue: (number: number, repo: string) => `la issue #${number} no existe en ${repo}.`,
       issueNotOpen: (number: number, state: string) => `la issue #${number} está ${state}; no se empieza.`,
-      fetchFailed: "no se pudo hacer fetch de origin.",
+      fetchFailed: "no se pudo hacer fetch de origin",
       claudeBranch: (branches: string) => `la issue tiene una rama de 'claude --worktree' (${branches}): abre esa sesión.`,
       noPropose: "no se pudo proponer una rama.",
       notHers: (branch: string, number: number, list: string) =>
@@ -357,6 +357,20 @@ issue:start para esos. --no-repo-deny va después, como cualquier flag:
       goIn: "Para entrar:",
     },
   },
+  credentials: {
+    title: "git no tiene credenciales de GitHub",
+    why: [
+      "Las necesita para hablar con origin (fetch y push).",
+      "issue-flow no deja que git pida usuario y contraseña: GitHub ya no acepta contraseñas.",
+    ],
+    fixLabel: "Para que git use tu sesión de gh (una sola vez):",
+    runNow: "¿Ejecutarlo ahora?",
+    noGh: "gh no está instalado",
+    installGh: "Instálalo desde https://cli.github.com y vuelve a intentarlo.",
+    failed: "gh auth setup-git no funcionó",
+    loginLabel: "Si gh no tiene sesión, inicia una y vuelve a intentarlo:",
+    done: "Listo: git usa tu sesión de gh. Se intenta de nuevo.",
+  },
   git: {
     untracked: (branch: string): string =>
       `no se pudo hacer que ${branch} siga a origin/${branch} (¿.git/config es de solo lectura, como en un sandbox?); haz push con 'git push origin HEAD'.`,
@@ -366,6 +380,7 @@ issue:start para esos. --no-repo-deny va después, como cualquier flag:
     updateDirty: (base: string, at: string): string =>
       `${base} está checked out en ${at} con cambios; no se actualizó. Ejecuta 'git pull --ff-only' ahí.`,
     updateMerge: (base: string, at: string): string => `no se pudo actualizar ${base} en ${at}; ejecuta 'git pull --ff-only' ahí.`,
+    noCredentials: "git no tiene credenciales de GitHub: ejecuta 'gh auth setup-git' y vuelve a intentarlo.",
   },
   denyRepo: {
     noFile: (file: string): string => `el repo no tiene ${file}: no hay reglas de denegación que quitar.`,

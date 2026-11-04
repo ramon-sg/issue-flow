@@ -1,9 +1,16 @@
 // Fake gh for the tests: answers `gh api --method M <path> [--input -]` with the routes in
 // FAKE_GH_ROUTES ({"GET repos/...": {status, body}}) and logs every call to FAKE_GH_LOG.
 // No route: 404 like gh. With FAKE_GH_WORLD, fake-github.mjs answers instead.
+// `gh auth setup-git` runs FAKE_GH_SETUP_GIT in a shell, if set, and exits with its status.
+import { spawnSync } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";
 
 const args = process.argv.slice(2);
+if (args[0] === "auth") {
+  appendFileSync(process.env.FAKE_GH_LOG, `${JSON.stringify({ method: "auth", path: args[1] })}\n`);
+  const setup = process.env.FAKE_GH_SETUP_GIT;
+  process.exit(setup === undefined ? 0 : (spawnSync("sh", ["-c", setup], { stdio: "inherit" }).status ?? 1));
+}
 const method = args[2];
 const path = args[3];
 const body = args.includes("--input") ? JSON.parse(readFileSync(0, "utf8")) : undefined;

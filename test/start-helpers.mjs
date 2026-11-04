@@ -45,6 +45,20 @@ export function rawIssue(number, extra = {}) {
   };
 }
 
+// An HTTP origin, in another process, that answers every request with 401: git there needs
+// credentials it does not have. The sandbox's origin points there until `stop`; `restore`
+// is a shell command that points it back (what a working `gh auth setup-git` amounts to).
+export async function originWithoutCredentials(s) {
+  const code = `require("node:http").createServer((_, res) => { res.writeHead(401, { "WWW-Authenticate": 'Basic realm="x"' }); res.end(); }).listen(0, "127.0.0.1", function () { console.log(this.address().port); });`;
+  const child = spawn(process.execPath, ["-e", code], { stdio: ["ignore", "pipe", "inherit"] });
+  const port = await new Promise((resolve) => child.stdout.once("data", (data) => resolve(String(data).trim())));
+  const http = `url.http://127.0.0.1:${port}/acme/widgets.git.insteadOf`;
+  s.git(s.main, "config", "--unset-all", `url.${s.origin}.insteadOf`);
+  s.git(s.main, "config", http, URL);
+  const restore = `git -C '${s.main}' config --unset-all '${http}' && git -C '${s.main}' config 'url.${s.origin}.insteadOf' '${URL}'`;
+  return { restore, stop: () => child.kill() };
+}
+
 export function startSandbox() {
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), "issue-start-")));
   const origin = join(tmp, "origin.git");

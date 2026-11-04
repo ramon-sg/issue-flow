@@ -14,7 +14,8 @@ import { join } from "node:path";
 import type { FlowConfig } from "../config.js";
 import { isObject } from "../config-base.js";
 import { canonicalPath } from "../docker.js";
-import { git, hasLocal, isClean, locateRepo, safeToDelete, worktrees } from "../git.js";
+import { git, hasLocal, lacksCredentials, isClean, locateRepo, safeToDelete, worktrees } from "../git.js";
+import type { Messages } from "../messages/index.js";
 import { type Output, warn } from "../output.js";
 import { copyWorktreeIncludes } from "../start-place.js";
 import { StartError } from "../start-state.js";
@@ -62,16 +63,20 @@ function field(input: Record<string, unknown>, key: string): string | null {
  * password: a hook has no terminal.
  * @param mainRoot - The main checkout.
  * @param base - The base branch.
- * @returns True if it was fetched.
+ * @param t - The messages.
+ * @returns Null if it was fetched; else why not.
  */
-function fetchBase(mainRoot: string, base: string): boolean {
+function fetchBase(mainRoot: string, base: string, t: Messages): string | null {
   const result = spawnSync("git", ["fetch", "-q", "origin", base], {
     cwd: mainRoot,
-    stdio: "ignore",
+    encoding: "utf8",
+    stdio: ["ignore", "ignore", "pipe"],
     timeout: FETCH_TIMEOUT_MS,
-    env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+    env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GCM_INTERACTIVE: "never" },
   });
-  return result.status === 0;
+  if (result.status === 0) return null;
+  const failed = t.hook.fetchFailed(base);
+  return lacksCredentials({ ok: false, out: "", err: result.stderr ?? "" }) ? `${failed} ${t.git.noCredentials}` : failed;
 }
 
 /**
@@ -103,8 +108,8 @@ export async function worktreeCreate(input: Record<string, unknown>, config: Flo
   const base = baseBranch(config, mainRoot);
   const stderrOnly: Output = { ...out, stdout: (text) => out.stderr(text) };
   if (!worktrees(mainRoot).some((entry) => entry.path === path)) {
-    if (!fetchBase(mainRoot, base))
-      warn(out, out.t.hook.fetchFailed(base));
+    const unfetched = fetchBase(mainRoot, base, out.t);
+    if (unfetched !== null) warn(out, unfetched);
     if (!git(mainRoot, ["rev-parse", "-q", "--verify", `origin/${base}^{commit}`]).ok)
       throw new StartError(out.t.hook.noOrigin(base));
     const add = hasLocal(mainRoot, branch)

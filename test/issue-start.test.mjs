@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { BRANCH, startSandbox, WT } from "./start-helpers.mjs";
+import { BRANCH, originWithoutCredentials, startSandbox, WT } from "./start-helpers.mjs";
 
 const AUTO = ["--settings", ".claude/repo-guard.auto-mode.json", "--permission-mode", "auto"];
 
@@ -500,6 +500,20 @@ test("--no-launch, or no claude in the PATH, leaves everything ready and says ho
   assert.match(flag.out, /^ {2}\[ok\] Ready - issue #214$/m);
   assert.match(flag.out, /^ {2}To open the Claude session:\n {4}issue-flow issue start 214$/m);
   assert.match(missing.out, /To open the Claude session:/);
+});
+
+test("without GitHub credentials, the fetch does not ask for a password: it says to run gh auth setup-git", async () => {
+  const s = startSandbox();
+  const origin = await originWithoutCredentials(s);
+  try {
+    const r = s.run(["214", "--yes", "--no-launch"]);
+
+    assert.equal(r.status, 1);
+    assert.match(r.err, /\[!\] git has no GitHub credentials\n[\s\S]*gh auth setup-git\n/);
+    assert.match(r.err, /\[!\] Could not fetch origin\n/);
+  } finally {
+    origin.stop();
+  }
 });
 
 test("a failed fetch stops it before reading the work", () => {
