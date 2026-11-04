@@ -9,6 +9,7 @@ export const OPTIONS = {
   repo: { type: "string", short: "R" },
   json: { type: "boolean" },
   help: { type: "boolean", short: "h" },
+  lang: { type: "string" },
   missing: { type: "boolean" },
   limit: { type: "string" },
   namer: { type: "string" },
@@ -37,7 +38,7 @@ export const OPTIONS = {
 /** The parsed flags. */
 export type Flags = ReturnType<typeof parseArgs<{ options: typeof OPTIONS; allowPositionals: true; strict: true }>>["values"];
 
-/** Flags each command takes, besides `--repo`, `--help` and `--namer`. */
+/** Flags each command takes, besides `--repo`, `--help`, `--lang` and `--namer`. */
 export const COMMAND_FLAGS: Record<string, (keyof Flags)[]> = {
   branch: ["json", "missing", "limit", "yes", "dry-run"],
   start: [

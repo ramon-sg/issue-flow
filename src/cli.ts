@@ -16,6 +16,8 @@ import { prWorktree } from "./commands/pr-worktree.js";
 import { ConfigError } from "./config-base.js";
 import { type FlowConfig, loadConfig, type Namer } from "./config.js";
 import type { Permissions } from "./launch.js";
+import { LangError, resolveLang } from "./lang.js";
+import { messages } from "./messages/index.js";
 import { type Output, processOutput, UsageError } from "./output.js";
 import { usageOf } from "./usage.js";
 
@@ -73,7 +75,7 @@ function namerOf(value: string | undefined): Namer | undefined {
  * @example ownFlags("worktree ports", { next: true })
  */
 export function ownFlags(command: string, flags: Flags): void {
-  const shared = command === "branch" || command === "start" ? ["repo", "help", "namer"] : ["repo", "help"];
+  const shared = command === "branch" || command === "start" ? ["repo", "help", "lang", "namer"] : ["repo", "help", "lang"];
   const allowed = new Set<string>([...shared, ...(COMMAND_FLAGS[command] ?? [])]);
   const other = Object.keys(flags).find((flag) => !allowed.has(flag));
   const name = command === "branch" || command === "start" ? `issue ${command}` : command;
@@ -334,15 +336,34 @@ async function runIssue(group: string | undefined, command: string | undefined, 
   return flags.missing ? branchMissing(options, out) : branchOf(rest.map(Number), options, out);
 }
 
-const out = processOutput();
-main(process.argv.slice(2), out, process.cwd()).then(
+/**
+ * The `--lang` value of some arguments, read before anything else.
+ * @param argv - The arguments.
+ * @returns The value, or undefined.
+ */
+function langFlagOf(argv: string[]): string | undefined {
+  const { values } = parseArgs({ args: splitArgs(argv).args, options: OPTIONS, allowPositionals: true, strict: false });
+  return typeof values.lang === "string" ? values.lang : undefined;
+}
+
+const argv = process.argv.slice(2);
+let lang;
+try {
+  lang = resolveLang(langFlagOf(argv), process.env);
+} catch (error) {
+  if (!(error instanceof LangError)) throw error;
+  process.stderr.write(`issue-flow: ${messages("es").lang.invalid(error.source, error.value)}\n${usageOf(commandWords(argv))}\n`);
+  process.exit(2);
+}
+const out = processOutput(lang);
+main(argv, out, process.cwd()).then(
   (code) => {
     process.exitCode = code;
   },
   (error: unknown) => {
     const usage = error instanceof UsageError;
     const config = error instanceof ConfigError;
-    out.stderr(`issue-flow: ${error instanceof Error ? error.message : String(error)}\n${usage ? `${usageOf(commandWords(process.argv.slice(2)))}\n` : ""}`);
+    out.stderr(`issue-flow: ${error instanceof Error ? error.message : String(error)}\n${usage ? `${usageOf(commandWords(argv))}\n` : ""}`);
     process.exitCode = usage || config ? 2 : 1;
   },
 );

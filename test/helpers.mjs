@@ -87,6 +87,7 @@ export function sandbox() {
       writeFileSync(files.gh, "");
       writeFileSync(files.claude, "");
       return {
+        ISSUE_FLOW_LANG: "en",
         HOME: tmp,
         PATH: withoutClaude ? noClaude : bin,
         FAKE_GH_ROUTES: files.routes,

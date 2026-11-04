@@ -163,6 +163,7 @@ export function startSandbox() {
           CLAUDE_CONFIG_DIR: files.config,
           FAKE_DOCKER_STATE: files.docker,
           FAKE_DOCKER_LOG: files.dockerLog,
+          ISSUE_FLOW_LANG: "en",
           ISSUE_FLOW_STATE_DIR: join(tmp, "state"),
           ...env,
         },
