@@ -109,6 +109,15 @@ test("labels merge over the default: a name replaces its default ignoring case, 
   assert.deepEqual(parseConfig(JSON.parse('{"labels": {"__proto__": {"color": "ffffff"}}}')).labels.__proto__, { color: "ffffff", description: "" });
 });
 
+test("art is a boolean that defaults to true", () => {
+  const s = sandbox();
+
+  assert.equal(loadConfig(s.repo).art, true);
+  s.config(JSON.stringify({ art: false }));
+  assert.equal(loadConfig(s.repo).art, false);
+  assert.throws(() => parseConfig({ art: "no" }), (error) => error instanceof ConfigError && /"art" must be true or false/.test(error.message));
+});
+
 test("a file that is not JSON is a ConfigError", () => {
   const s = sandbox();
   s.config("{ nope");

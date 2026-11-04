@@ -47,6 +47,8 @@ export interface FlowConfig {
   plans: { dirs: string[] };
   colors: Record<string, string>;
   labels: Record<string, LabelSpec>;
+  /** Whether the final messages draw Kuro beside the text. */
+  art: boolean;
 }
 
 /** The defaults, the same rules Abastio uses. */
@@ -104,6 +106,7 @@ export const DEFAULT_CONFIG: FlowConfig = {
     "P3: minor": { color: "FEF2C0", description: "Default when in doubt" },
     "P4: low": { color: "BFDADC", description: "Nice-to-have" },
   },
+  art: true,
 };
 
 /** The colors a Claude session takes with `/color`. */
@@ -292,6 +295,19 @@ function labelsSection(value: unknown): Record<string, LabelSpec> {
 }
 
 /**
+ * The `art` option: whether the final messages draw Kuro.
+ * @param value - What the file says, or undefined.
+ * @returns The value, or the default.
+ * @throws ConfigError if it is not a boolean.
+ * @example artSection(false) // false
+ */
+function artSection(value: unknown): boolean {
+  if (value === undefined) return DEFAULT_CONFIG.art;
+  if (typeof value !== "boolean") throw new ConfigError(`${CONFIG_PATH}: "art" must be true or false.`);
+  return value;
+}
+
+/**
  * Validates a parsed config and fills in the defaults.
  * @param raw - The parsed JSON.
  * @returns The config.
@@ -300,7 +316,7 @@ function labelsSection(value: unknown): Record<string, LabelSpec> {
  */
 export function parseConfig(raw: unknown): FlowConfig {
   if (!isObject(raw)) throw new ConfigError(`${CONFIG_PATH} must be a JSON object.`);
-  onlyKeys(raw, ["repo", "baseBranch", "branch", "worktrees", "start", "plans", "colors", "labels"], "");
+  onlyKeys(raw, ["repo", "baseBranch", "branch", "worktrees", "start", "plans", "colors", "labels", "art"], "");
   const repo = text(raw.repo, "repo", null);
   if (repo !== null && !REPO.test(repo))
     throw new ConfigError(`${CONFIG_PATH}: "repo" must be owner/repo.`);
@@ -313,6 +329,7 @@ export function parseConfig(raw: unknown): FlowConfig {
     plans: plansSection(raw.plans),
     colors: colorsSection(raw.colors),
     labels: labelsSection(raw.labels),
+    art: artSection(raw.art),
   };
 }
 

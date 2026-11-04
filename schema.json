@@ -311,6 +311,11 @@
         "P3: minor": { "color": "FEF2C0", "description": "Default when in doubt" },
         "P4: low": { "color": "BFDADC", "description": "Nice-to-have" }
       }
+    },
+    "art": {
+      "description": "Whether the final messages draw Kuro, the mascot, beside the text. Set to false for plain text.",
+      "type": "boolean",
+      "default": true
     }
   },
   "$defs": {
