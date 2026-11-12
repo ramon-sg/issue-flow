@@ -261,7 +261,7 @@ They live in `skills/` and `skills-catalog.json` lists them. They are installed 
 |---|---|---|---|
 | `github-issues` | Issues | A short issue with a three-line header, verifiable criteria and its branch slug; checks duplicates and the word cap | - |
 | `start-issue` | Issues | Starts an issue from a session with `issue-flow issue start`, locally, in a worktree or in the cloud | - |
-| `finish-pr` | PRs | Audit, up-to-date documents, ready, review and CI, and the check that it can be merged; stops before the merge with a report of what is missing and how to clean up | `pr-review-comments` |
+| `finish-pr` | PRs | Audit, up-to-date documents, ready, review and CI, and the check that it can be merged; stops before the merge with a report of what is missing, how to clean up and what comes next (another plan stage or sub-issue) | `pr-review-comments` |
 | `close-pr` | PRs | Runs `finish-pr` and, if it is ready, merges with a merge commit and cleans the branch and the worktree | `finish-pr` |
 | `pr-review-comments` | PRs | Verifies each comment and check against the code, proposes a plan, applies what is approved and answers the threads | `github-issues` |
 | `pr-worktree` | PRs | Reviews a PR in its worktree with `issue-flow pr worktree`, without touching the main checkout | `close-pr` |

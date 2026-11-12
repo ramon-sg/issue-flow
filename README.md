@@ -261,7 +261,7 @@ Viven en `skills/` y `skills-catalog.json` las lista. Se instalan con [`skills-m
 |---|---|---|---|
 | `github-issues` | Issues | Una issue corta con cabecera de tres líneas, criterios comprobables y el slug de su rama; comprueba duplicados y el tope de palabras | — |
 | `start-issue` | Issues | Empieza una issue desde una sesión con `issue-flow issue start`, en local, en un worktree o en la nube | — |
-| `finish-pr` | PRs | Auditoría, documentos al día, ready, revisión y CI, y el chequeo de que se puede mergear; se detiene antes del merge con un reporte de qué falta y cómo limpiar | `pr-review-comments` |
+| `finish-pr` | PRs | Auditoría, documentos al día, ready, revisión y CI, y el chequeo de que se puede mergear; se detiene antes del merge con un reporte de qué falta, cómo limpiar y qué sigue (otra etapa del plan u otra sub-issue) | `pr-review-comments` |
 | `close-pr` | PRs | Corre `finish-pr` y, si quedó listo, mergea con merge commit y limpia la rama y el worktree | `finish-pr` |
 | `pr-review-comments` | PRs | Verifica cada comentario y check contra el código, propone un plan, aplica lo aprobado y responde los hilos | `github-issues` |
 | `pr-worktree` | PRs | Revisa un PR en su worktree con `issue-flow pr worktree`, sin tocar el checkout principal | `close-pr` |

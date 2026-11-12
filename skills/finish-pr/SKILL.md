@@ -268,26 +268,31 @@ lo usa tras su merge):
   git branch -d <rama>`. Si `-d` falla, nunca `-D`: algo quedó sin mergear.
 
 **Qué sigue** (va en `Siguiente:`; `close-pr` también lo usa en su
-reporte). El reporte no termina en `Pendiente:` si queda trabajo por
-delante. Hay trabajo por delante en dos casos:
+reporte). Hay trabajo por delante en dos casos:
 
-- **Otra etapa del plan:** la respuesta del Paso 3 fue "quedan etapas". La
-  siguiente es la primera que el plan no da por hecha.
+- **Otra etapa del plan:** la respuesta del Paso 3 fue "quedan etapas". Si
+  el Paso 3 no corrió en esta vuelta (Paso 1), léelo del plan: quedan
+  etapas si no las da todas por hechas. La siguiente es la primera que el
+  plan no da por hecha.
 - **Otra sub-issue abierta de la misma issue madre.** La issue es la de
-  `Closes` o `Part of` en el cuerpo del PR. Por REST, también en la nube:
+  `Closes` o `Part of` en el cuerpo del PR; `<owner>/<repo>` sale del
+  `origin`. Por REST, también en la nube:
 
   ```bash
-  gh api repos/<owner>/<repo>/issues/<issue>/parent --jq '{number, title}'   # 404: no tiene madre
-  gh api repos/<owner>/<repo>/issues/<madre>/sub_issues \
+  gh api repos/<owner>/<repo>/issues/<issue>/parent --jq '{number, title}'
+  gh api 'repos/<owner>/<repo>/issues/<madre>/sub_issues?per_page=100' \
     --jq '.[] | select(.state == "open") | "\(.number)\t\(.title)"'
   ```
 
-  Sin contar la issue de este PR, que sigue abierta hasta el merge. La
-  siguiente es la primera abierta en el orden de la madre.
+  Si `parent` sale con `Not Found (HTTP 404)`, la issue no tiene madre: no
+  es un error. Si además tiene sub-issues, la madre es ella misma: mira las
+  suyas. Sin contar la issue de este PR, que sigue abierta hasta el merge,
+  la siguiente es la primera abierta en el orden de la madre.
 
-Si no hay ninguno de los dos, el reporte no lleva `Siguiente:`. Si hay,
-`Siguiente:` nombra la etapa o la sub-issue y ofrece dos caminos, y después
-del reporte va el prompt en un bloque de código, listo para pegar:
+Si hay los dos, va la etapa: es de la misma issue. Si no hay ninguno, el
+reporte no lleva `Siguiente:`. Si hay, `Siguiente:` nombra la etapa o la
+sub-issue y ofrece dos caminos, y después del reporte va el prompt en un
+bloque de código, listo para pegar:
 
 ```text
 Siguiente:  la <etapa N del plan | sub-issue #<m>>: <nombre>
@@ -301,6 +306,10 @@ La anterior quedó en el PR #<n> (<mergeado | listo para mergear | falta <qué>>
 Pendiente de antes: <lo de `Pendiente:`, o "nada">.
 Empieza con /start-issue <issue de la etapa o #<m>>.
 ```
+
+Una etapa de la misma issue empieza después del merge del PR #<n>: antes,
+`start-issue` retomaría esta rama. Si el PR no está mergeado, el camino 1
+y el prompt lo dicen ("después del merge del PR #<n>").
 
 Solo se ofrece: no empieces lo siguiente hasta que el usuario lo pida.
 

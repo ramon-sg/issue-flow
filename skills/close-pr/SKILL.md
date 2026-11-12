@@ -76,9 +76,10 @@ Siguiente:  <solo si queda trabajo por delante>
 
 `Siguiente:` y el prompt para una sesión limpia salen como dice "Qué sigue"
 en el Paso 8 de `finish-pr`: otra etapa del plan u otra sub-issue abierta de
-la misma issue madre. El PR ya está mergeado, así que el prompt lo dice. Sin
-trabajo por delante, el reporte termina en `Pendiente:`. Solo se ofrece: no
-empieces lo siguiente hasta que el usuario lo pida.
+la misma issue madre. Usa lo que encontró `finish-pr`; solo cambia el estado
+del PR a `mergeado`. Sin trabajo por delante, el reporte termina en
+`Pendiente:`. Solo se ofrece: no empieces lo siguiente hasta que el usuario
+lo pida.
 
-Si `finish-pr` se detuvo antes del merge (Paso 1), su reporte ya trae
+Si te detuviste en el Paso 0 o el Paso 1, el reporte de `finish-pr` ya trae
 `Siguiente:` cuando corresponde.
