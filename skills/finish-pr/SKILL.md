@@ -247,6 +247,7 @@ Quién:      <tú | un revisor | CI | nadie>
 Hecho:      <auditoría, documentos, push, ready: lo que se hizo en esta vuelta o ya estaba>
 Pendiente:  <issues propuestas, checks que el usuario decidió ignorar, o "nada">
 Después:    <cómo limpiar, abajo>
+Siguiente:  <solo si queda trabajo por delante: abajo>
 ```
 
 Por qué puede faltar algo: no hay review aprobado, un check falla o sigue
@@ -265,6 +266,43 @@ lo usa tras su merge):
   commitear ni sin push, y adelanta la base local a la de origin.
 - **Checkout principal:** `git checkout <base> && git pull --ff-only &&
   git branch -d <rama>`. Si `-d` falla, nunca `-D`: algo quedó sin mergear.
+
+**Qué sigue** (va en `Siguiente:`; `close-pr` también lo usa en su
+reporte). El reporte no termina en `Pendiente:` si queda trabajo por
+delante. Hay trabajo por delante en dos casos:
+
+- **Otra etapa del plan:** la respuesta del Paso 3 fue "quedan etapas". La
+  siguiente es la primera que el plan no da por hecha.
+- **Otra sub-issue abierta de la misma issue madre.** La issue es la de
+  `Closes` o `Part of` en el cuerpo del PR. Por REST, también en la nube:
+
+  ```bash
+  gh api repos/<owner>/<repo>/issues/<issue>/parent --jq '{number, title}'   # 404: no tiene madre
+  gh api repos/<owner>/<repo>/issues/<madre>/sub_issues \
+    --jq '.[] | select(.state == "open") | "\(.number)\t\(.title)"'
+  ```
+
+  Sin contar la issue de este PR, que sigue abierta hasta el merge. La
+  siguiente es la primera abierta en el orden de la madre.
+
+Si no hay ninguno de los dos, el reporte no lleva `Siguiente:`. Si hay,
+`Siguiente:` nombra la etapa o la sub-issue y ofrece dos caminos, y después
+del reporte va el prompt en un bloque de código, listo para pegar:
+
+```text
+Siguiente:  la <etapa N del plan | sub-issue #<m>>: <nombre>
+            1. Seguir en esta sesión: dime y la empiezo.
+            2. Sesión limpia (rinde mejor): pega el prompt de abajo.
+```
+
+```text
+Sigue con la <etapa N, "<nombre>", del plan <ruta> | sub-issue #<m>, "<título>", de la issue madre #<madre>>.
+La anterior quedó en el PR #<n> (<mergeado | listo para mergear | falta <qué>>).
+Pendiente de antes: <lo de `Pendiente:`, o "nada">.
+Empieza con /start-issue <issue de la etapa o #<m>>.
+```
+
+Solo se ofrece: no empieces lo siguiente hasta que el usuario lo pida.
 
 ## Notas
 

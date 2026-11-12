@@ -71,4 +71,14 @@ Commit:     <sha del merge>
 Rama:       <rama> borrada en origin; la local, con el worktree
 Documentos: <plan o docs al día, o "no aplica">
 Pendiente:  <issues propuestas, checks que el usuario decidió ignorar, o "nada">
+Siguiente:  <solo si queda trabajo por delante>
 ```
+
+`Siguiente:` y el prompt para una sesión limpia salen como dice "Qué sigue"
+en el Paso 8 de `finish-pr`: otra etapa del plan u otra sub-issue abierta de
+la misma issue madre. El PR ya está mergeado, así que el prompt lo dice. Sin
+trabajo por delante, el reporte termina en `Pendiente:`. Solo se ofrece: no
+empieces lo siguiente hasta que el usuario lo pida.
+
+Si `finish-pr` se detuvo antes del merge (Paso 1), su reporte ya trae
+`Siguiente:` cuando corresponde.
