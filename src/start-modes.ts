@@ -220,17 +220,17 @@ export function prepareHere(state: StartState): void {
 }
 
 /**
- * The cloud session noted in the PR's body, or null (no PR, none noted, or the PR cannot
- * be read).
+ * What `issue start` reads of the PR it resumes: the cloud session noted in its body and
+ * its title. Both null with no PR, or a PR that cannot be read.
  * @param repo - The repo.
  * @param pr - The PR, or null.
- * @returns The id, or null.
- * @example await prCloudSession("acme/widgets", 7)
+ * @returns The id and the title.
+ * @example await readResumedPr("acme/widgets", 7) // { cloudSession: null, title: "Avisar" }
  */
-export async function prCloudSession(repo: string, pr: number | null): Promise<string | null> {
-  if (pr === null) return null;
+export async function readResumedPr(repo: string, pr: number | null): Promise<{ cloudSession: string | null; title: string | null }> {
+  if (pr === null) return { cloudSession: null, title: null };
   const found = await getPr(repo, pr).catch(() => null);
-  return found === null ? null : cloudSessionOf(found.body);
+  return found === null ? { cloudSession: null, title: null } : { cloudSession: cloudSessionOf(found.body), title: found.title };
 }
 
 /**

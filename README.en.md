@@ -67,7 +67,8 @@ What it does, in order:
 4. **Creates what is missing:**
    - the worktree, or with `--branch` the branch in this checkout;
    - the empty commit with `[skip ci]`, the push and the draft PR;
-   - reopens the closed PR of a branch being resumed, and assigns you the issue.
+   - reopens the closed PR of a branch being resumed, and assigns you the issue;
+   - if the resumed PR's title is not the one it would get today (the issue was renamed, or `start.prTitle` changed), the summary shows both and updates it.
 
    The PR says `Closes #n`, or `Part of #n` if the issue has another live branch; in that case the other open PRs that closed it also become `Part of`. The worktree gets the ignored files listed in `.worktreeinclude` (credentials, for example), like `claude --worktree`.
 5. **Opens Claude in the same terminal** with a prompt and the priority's color.

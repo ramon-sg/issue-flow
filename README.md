@@ -67,7 +67,8 @@ Qué hace, en orden:
 4. **Crea lo que falta:**
    - el worktree, o con `--branch` la rama en este checkout;
    - el commit vacío con `[skip ci]`, el push y el PR en draft;
-   - reabre el PR cerrado de una rama que se retoma, y te asigna la issue.
+   - reabre el PR cerrado de una rama que se retoma, y te asigna la issue;
+   - si el PR retomado tiene otro título que el que le pondría hoy (la issue se renombró, o cambió `start.prTitle`), el resumen muestra los dos y lo actualiza.
 
    El PR dice `Closes #n`, o `Part of #n` si la issue tiene otra rama viva; en ese caso los otros PRs abiertos que la cerraban también pasan a `Part of`. El worktree recibe los archivos ignorados que lista `.worktreeinclude` (credenciales, por ejemplo), como `claude --worktree`.
 5. **Abre Claude en la misma terminal** con un pedido y el color de la prioridad.

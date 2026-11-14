@@ -5,7 +5,7 @@
  */
 import type { IssueView } from "@ramon-sg/github-rest";
 import type { FlowConfig, Namer } from "./config.js";
-import type { PrKind, StartMode } from "./issue-text.js";
+import type { PrKind, StartMode, TitleDrift } from "./issue-text.js";
 import type { Permissions } from "./launch.js";
 import type { Launch } from "./launch-as.js";
 import type { Output } from "./output.js";
@@ -67,6 +67,8 @@ export interface StartState {
   plan: string | null;
   adopted: Adopted | null;
   cloudSession: string | null;
+  /** The resumed PR's title and the one it should have, if they differ. */
+  titleDrift: TitleDrift | null;
 }
 
 /** Flags that `--cloud` refuses. */

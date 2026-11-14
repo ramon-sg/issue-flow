@@ -200,6 +200,7 @@ issue:start para esos. --no-repo-deny va después, como cualquier flag:
       draftPr: (first: string) => `PR en borrador (${first})`,
       partOf: (number: number, prs: string) => `Part of #${number} en los PR abiertos (${prs})`,
       reopen: (number: number) => `reabrir el PR #${number}`,
+      retitle: (number: number) => `actualizar el título del PR #${number}`,
       assign: (number: number) => `asignarte la #${number}`,
       noteSession: "anotar la sesión en el PR",
       onlySession: "ninguna: solo abrir la sesión",
@@ -209,6 +210,7 @@ issue:start para esos. --no-repo-deny va después, como cualquier flag:
     found: {
       branch: (text: string) => `rama ${text}`,
       pr: (number: number, state: string) => `PR #${number}, ${state}`,
+      prTitle: (current: string, expected: string) => `título del PR "${current}"; esperado "${expected}"`,
       worktree: (where: string) => `worktree en ${where}`,
     },
     round: (next: number, prs: string) => `${next} (ya integrado: ${prs})`,
@@ -318,6 +320,7 @@ issue:start para esos. --no-repo-deny va después, como cualquier flag:
       othersPartOf: (other: number, number: number) =>
         `no se pudo cambiar el PR #${other} a Part of #${number}; edítalo a mano.`,
       assignFailed: (number: number) => `no se pudo asignarte la issue #${number}.`,
+      retitleFailed: (number: number) => `no se pudo actualizar el título del PR #${number}; edítalo a mano.`,
       badPattern: (pattern: string, file: string) => `se omite "${pattern}" de ${file}: no es un patrón válido.`,
       copyFailed: (file: string) => `no se pudo copiar ${file} al worktree.`,
       denyShared: "otra sesión usa este worktree: las reglas de denegación del repo se quedan.",

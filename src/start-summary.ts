@@ -79,6 +79,7 @@ export function plannedActions(state: StartState): string {
       actions.push(t.action.partOf(number, others.map((pr) => `#${pr}`).join(", ")));
   }
   if (state.pr?.state === "CLOSED") actions.push(t.action.reopen(state.pr.number));
+  if (state.pr !== null && state.titleDrift !== null) actions.push(t.action.retitle(state.pr.number));
   if (state.issue.assignees.length === 0) actions.push(t.action.assign(number));
   if (state.mode === "here" && remoteSession !== null && !sameCloudSession(state.cloudSession, remoteSession))
     actions.push(t.action.noteSession);
@@ -136,6 +137,7 @@ function branchLines(state: StartState): string[] {
   if (state.found !== null) {
     const found = [t.found.branch(describeBranch(state, state.branch, false))];
     if (state.pr !== null) found.push(t.found.pr(state.pr.number, state.pr.state));
+    if (state.titleDrift !== null) found.push(t.found.prTitle(state.titleDrift.current, state.titleDrift.expected));
     if (state.mode === "worktree" && existsSync(state.workDir))
       found.push(t.found.worktree(relative(state.mainRoot, state.workDir)));
     return [line(t.label.found, found.join("\n")), line(t.label.planned, state.plan ?? t.no)];
