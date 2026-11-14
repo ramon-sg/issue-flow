@@ -32,6 +32,10 @@ npm run issue:start -- 42 --branch    # sin worktree, en esta carpeta
      tiene otra rama viva) y trae la URL de la issue.
    - Reabre el PR si la rama retomada lo tenía cerrado, y te asigna la issue
      si no tiene a nadie.
+   - Si el PR retomado tiene otro título que el que le pondría hoy (la issue
+     se renombró, o cambió `start.prTitle`), el resumen muestra el actual y el
+     esperado, y al confirmar lo actualiza. Con solo `start.prLanguage` no se
+     compara: el título lo escribe la sesión.
 5. **Prepara el worktree.** Copia los archivos ignorados que lista
    `.worktreeinclude` (credenciales, `.env`) y corre los pasos de
    `worktrees.setup`: instalar dependencias, levantar Docker, darle un bloque

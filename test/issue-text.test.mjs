@@ -12,6 +12,7 @@ import {
   nextBranch,
   prBody,
   prTitle,
+  titleDrift,
   sameCloudSession,
   sessionName,
   withCloudSession,
@@ -144,4 +145,14 @@ test("prTitle: the issue's title by default, a neutral one with a language, or t
   assert.equal(prTitle(start(null, "English"), 4, "Avisar a Odoo"), "Issue #4");
   assert.equal(prTitle(start("[#{number}] {title}", "English"), 4, "Avisar a Odoo"), "[#4] Avisar a Odoo");
   assert.equal(prTitle(start("{title}", null), 4, "Pide {number}"), "Pide {number}");
+});
+
+test("titleDrift: both titles when the PR's differs from prTitle's, null when they match or the session writes it", () => {
+  const start = (prTitle, prLanguage) => ({ prTitle, prLanguage });
+
+  assert.deepEqual(titleDrift(start(null, null), 4, "Nuevo", "Viejo"), { current: "Viejo", expected: "Nuevo" });
+  assert.equal(titleDrift(start(null, null), 4, "Nuevo", "Nuevo "), null);
+  assert.deepEqual(titleDrift(start("[#{number}] {title}", null), 4, "Nuevo", "Nuevo"), { current: "Nuevo", expected: "[#4] Nuevo" });
+  assert.equal(titleDrift(start("[#{number}] {title}", "English"), 4, "Nuevo", "[#4] Nuevo"), null);
+  assert.equal(titleDrift(start(null, "English"), 4, "Nuevo", "Notify Odoo"), null);
 });

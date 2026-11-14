@@ -164,6 +164,13 @@ export async function publish(state: StartState): Promise<number> {
     if (state.kind === "part") await markOthersPartOf(state);
   }
   if (state.pr?.state === "CLOSED") await updatePr(options.repo, number, { state: "open" });
+  if (state.pr !== null && state.titleDrift !== null) {
+    try {
+      await updatePr(options.repo, number, { title: state.titleDrift.expected });
+    } catch {
+      warn(state.out, t.warn.retitleFailed(number));
+    }
+  }
   if (state.issue.assignees.length === 0) {
     try {
       await assign(options.repo, options.number, ["@me"]);

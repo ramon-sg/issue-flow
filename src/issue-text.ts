@@ -162,6 +162,34 @@ export function prTitle(
   return fill(template, { number: String(number), title });
 }
 
+/** A resumed PR whose title is not the one `issue start` would give it today. */
+export interface TitleDrift {
+  current: string;
+  expected: string;
+}
+
+/**
+ * Whether a resumed PR's title drifted from the one `prTitle` gives now (the issue was
+ * renamed, or the template changed). With the PRs in another language and no template the
+ * session writes the title, so there is nothing to compare.
+ * @param start - `start.prTitle` and `start.prLanguage`.
+ * @param number - The issue.
+ * @param title - The issue's title.
+ * @param current - The PR's title.
+ * @returns Both titles, or null if they match or there is nothing to compare.
+ * @example titleDrift({ prTitle: null, prLanguage: null }, 4, "Nuevo", "Viejo") // { current: "Viejo", expected: "Nuevo" }
+ */
+export function titleDrift(
+  start: { prTitle: string | null; prLanguage: string | null },
+  number: number,
+  title: string,
+  current: string,
+): TitleDrift | null {
+  if (start.prTitle === null && start.prLanguage !== null) return null;
+  const expected = prTitle(start, number, title);
+  return expected.trim() === current.trim() ? null : { current, expected };
+}
+
 /** What the prompt adds when the PRs go in another language. */
 const PR_LANGUAGE_PROMPT =
   "El PR va en {language}: si su título no está en {language}, ponle un título en {language} que diga qué hace, con `npx @ramon-sg/github-rest pr edit <pr> --title \"…\"`.";

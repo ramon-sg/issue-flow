@@ -13,7 +13,7 @@ import { ask, confirm, forgetTypedAhead } from "../ask.js";
 import { show } from "../banner.js";
 import { branchType } from "../branch-name.js";
 import { checkedOutAt, checkoutRoot, failure, git, gitLines, locateRepo, onOrigin, ownCommits } from "../git.js";
-import { fill, issueColor, nextBranch, withPrLanguage } from "../issue-text.js";
+import { fill, issueColor, nextBranch, titleDrift, withPrLanguage } from "../issue-text.js";
 import { inPath, launchSession, permissionArgs, teleportSession } from "../launch.js";
 import { type Messages, messages } from "../messages/index.js";
 import { emitJson, type Output, warn } from "../output.js";
@@ -30,9 +30,9 @@ import {
   placeAdopted,
   placeCloud,
   placeHere,
-  prCloudSession,
   prepareHere,
   readAdopted,
+  readResumedPr,
   readyHere,
   renameAdopted,
   withoutFresh,
@@ -187,7 +187,7 @@ async function chooseExisting(context: Context, proposed: () => string): Promise
     return null;
   }
   if (options.yes) throw new StartError(error.manyYes(count, list));
-  const partial = { ...context, found: null, branch: "", pr: null, kind: "closes", mode: "worktree", workDir: "", plan: null, cloudSession: null } as const;
+  const partial = { ...context, found: null, branch: "", pr: null, kind: "closes", mode: "worktree", workDir: "", plan: null, cloudSession: null, titleDrift: null } as const;
   return pickBranch(context, (branch) => describeBranch(partial, branch, true), proposed());
 }
 
@@ -379,8 +379,9 @@ export async function issueStart(options: StartOptions, out: Output): Promise<nu
   const plan = found !== null
     ? findPlan(planQuery(context), branch, pr?.number ?? null)
     : findOpenPlan(planQuery(context), context.work.mergedPrs);
-  const cloudSession = await prCloudSession(options.repo, pr?.number ?? null);
-  const state: StartState = { ...context, found, branch, pr, kind, ...placeOf(context, branch, found), plan, cloudSession };
+  const read = await readResumedPr(options.repo, pr?.number ?? null);
+  const drift = read.title === null ? null : titleDrift(options.config.start, options.number, context.issue.title, read.title);
+  const state: StartState = { ...context, found, branch, pr, kind, ...placeOf(context, branch, found), plan, cloudSession: read.cloudSession, titleDrift: drift };
   out.stdout(summary(state, permissionArgs(options.permissions, existsSync(state.workDir) ? state.workDir : null, context.mainRoot, out.t.start.permissions)));
   if (options.dryRun) return 0;
   const asked = question(state);
