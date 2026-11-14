@@ -61,3 +61,55 @@ test("a body whose header does not start with its label fails", () => {
   assert.equal(r.status, 1);
   assert.match(r.stdout, /La línea 1 de la cabecera debe empezar con '\*\*Qué falla:\*\*'/);
 });
+
+test("a branch type picks the template: fix is a bug, any other type is a feature", () => {
+  const dir = skillCopy();
+  const feature = bugBody(5, { header: "**Qué se pide:**" });
+
+  const fix = check(dir, bugBody(5), "fix");
+  const chore = check(dir, feature, "chore");
+  const choreWithBug = check(dir, bugBody(5), "chore");
+
+  assert.equal(fix.status, 0, fix.stdout);
+  assert.match(fix.stdout, /^OK: bug,/);
+  assert.equal(chore.status, 0, chore.stdout);
+  assert.match(chore.stdout, /^OK: feature,/);
+  assert.equal(choreWithBug.status, 1);
+  assert.match(choreWithBug.stdout, /'\*\*Qué se pide:\*\*'/);
+});
+
+test("a kind that is not a branch type is refused", () => {
+  const dir = skillCopy();
+
+  const r = check(dir, bugBody(5), "Not A Type");
+
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /tipo de rama/);
+});
+
+test("--split-cap prints 8 hours by default and the hours that project.md sets", () => {
+  const dir = skillCopy();
+  const cap = () => spawnSync("bash", [join(dir, "check-issue.sh"), "--split-cap"], { encoding: "utf8" });
+
+  const none = cap();
+  cpSync(join(dir, "project.md.template"), join(dir, "project.md"));
+  const template = cap();
+  writeFileSync(join(dir, "project.md"), "# github-issues\n\n## Topes\n\nPartir en sub-issues sobre: 12 h\n");
+  const raised = cap();
+
+  assert.equal(none.status, 0, none.stderr);
+  assert.equal(none.stdout, "8\n");
+  assert.equal(template.stdout, "8\n");
+  assert.equal(raised.stdout, "12\n");
+});
+
+test("--split-cap warns and keeps 8 hours when project.md's line is unreadable", () => {
+  const dir = skillCopy();
+  writeFileSync(join(dir, "project.md"), "Partir en sub-issues sobre: un día\n");
+
+  const r = spawnSync("bash", [join(dir, "check-issue.sh"), "--split-cap"], { encoding: "utf8" });
+
+  assert.equal(r.status, 0);
+  assert.equal(r.stdout, "8\n");
+  assert.match(r.stderr, /no se pudo leer/);
+});

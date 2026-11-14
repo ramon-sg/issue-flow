@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Comprueba que el cuerpo de una issue respete la forma de `github-issues`.
-# Uso: bash <carpeta de la skill>/check-issue.sh <archivo-del-cuerpo> <bug|feature>
+# Uso: bash <carpeta de la skill>/check-issue.sh <archivo-del-cuerpo> <tipo>
+#      bash <carpeta de la skill>/check-issue.sh --split-cap
+# Con --split-cap imprime el tope en horas sobre el que una issue se parte en
+# sub-issues: la línea "Partir en sub-issues sobre: <n> h" de project.md, u 8.
+# El tipo es el de rama (`fix`, `feat`, `docs`, `chore`…, según `branch.types.labels` de
+# `.agents/flow.json`): `fix` usa la plantilla de bug y cualquier otro, la de feature.
+# `bug` y `feature` también valen, para nombrar la plantilla directo.
 # Sale con 1 y la lista de problemas si algo falla; con 0 si todo está bien.
 # Los topes salen de la tabla "## Topes" del project.md de esta carpeta; un tipo
 # que no está ahí (o sin project.md) usa los de la skill.
@@ -9,16 +15,32 @@
 
 set -euo pipefail
 
+project="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/project.md"
+
+if [ "${1:-}" = "--split-cap" ]; then
+  hours=8
+  if [ -f "$project" ]; then
+    line=$(tr -d '\r' < "$project" | grep -E '^Partir en sub-issues sobre:' | head -n 1 || true)
+    if [[ "$line" =~ ^Partir\ en\ sub-issues\ sobre:[[:space:]]*\**([0-9]{1,3})[[:space:]]*h\**[[:space:]]*$ ]] && [ "${BASH_REMATCH[1]}" -gt 0 ]; then
+      hours=$((10#${BASH_REMATCH[1]}))
+    elif [ -n "$line" ]; then
+      echo "Aviso: la línea \"Partir en sub-issues sobre:\" de project.md no se pudo leer (un número de horas entre 1 y 999, como \"8 h\"); uso 8 h." >&2
+    fi
+  fi
+  echo "$hours"
+  exit 0
+fi
+
 source_body="${1:-}"
 kind="${2:-}"
-[ -n "$source_body" ] && [ -f "$source_body" ] || { echo "Uso: check-issue.sh <archivo> <bug|feature>" >&2; exit 2; }
+[ -n "$source_body" ] && [ -f "$source_body" ] || { echo "Uso: check-issue.sh <archivo> <tipo de rama: fix, feat, docs…>" >&2; exit 2; }
+# Un tipo de rama tiene la forma de TYPE en src/config.ts.
+[[ "$kind" =~ ^[a-z0-9][a-z0-9._-]*$ ]] || { echo "El tipo debe ser un tipo de rama en minúsculas (fix, feat, docs…), o bug o feature." >&2; exit 2; }
 case "$kind" in
-  bug) max_words=150; first_label='**Qué falla:**' ;;
-  feature) max_words=250; first_label='**Qué se pide:**' ;;
-  *) echo "El tipo debe ser bug o feature (spike y documentation usan feature)." >&2; exit 2 ;;
+  bug | fix) kind=bug; max_words=150; first_label='**Qué falla:**' ;;
+  *) kind=feature; max_words=250; first_label='**Qué se pide:**' ;;
 esac
 
-project="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/project.md"
 if [ -f "$project" ]; then
   cap=$(tr -d '\r' < "$project" | awk -v kind="$kind" '
     /^## / { inside = ($0 == "## Topes"); next }

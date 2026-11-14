@@ -193,6 +193,16 @@
           "minLength": 1,
           "default": "{keyword} #{number}\n\nIssue: {url}\n\nEn progreso."
         },
+        "prTitle": {
+          "description": "Title of the draft PR; {number} and {title} are the issue's. Unset: the issue's title, or \"Issue #{number}\" when prLanguage is set.",
+          "type": "string",
+          "minLength": 1
+        },
+        "prLanguage": {
+          "description": "Language the PRs are written in when it is not the issues' (\"English\"). The draft PR does not copy the issue's title and the session's prompt asks for a title in this language.",
+          "type": "string",
+          "minLength": 1
+        },
         "prompt": {
           "description": "Prompt Claude opens with on a new branch; {number}, {title} (text anyone can write in the issue: better left out).",
           "type": "string",

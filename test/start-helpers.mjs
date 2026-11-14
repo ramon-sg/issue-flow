@@ -115,7 +115,7 @@ export function startSandbox() {
       world.issues[number] = rawIssue(number, extra);
     },
     pull(pull) {
-      world.pulls.push({ state: "open", body: "", ...pull });
+      world.pulls.push({ state: "open", title: rawIssue(214).title, body: "", ...pull });
     },
     // A branch in origin, one commit ahead of main if `commit`, without a local copy.
     pushBranch(name, { commit = false, file = null } = {}) {

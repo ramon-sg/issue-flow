@@ -39,6 +39,10 @@ export interface FlowConfig {
   start: {
     commitMessage: string;
     prBody: string;
+    /** Template of the draft PR's title; null: the issue's title, or a neutral one with `prLanguage`. */
+    prTitle: string | null;
+    /** Language the PRs are written in, when it is not the issues'; null: the issues'. */
+    prLanguage: string | null;
     prompt: string;
     resumePrompt: string;
     summaryPrompt: string;
@@ -79,6 +83,8 @@ export const DEFAULT_CONFIG: FlowConfig = {
   start: {
     commitMessage: "chore: empieza el trabajo en la issue #{number} [skip ci]",
     prBody: "{keyword} #{number}\n\nIssue: {url}\n\nEn progreso.",
+    prTitle: null,
+    prLanguage: null,
     prompt:
       "Issue #{number}. Lee la issue con `npx @ramon-sg/github-rest issue view {number}`, resúmela en lenguaje llano y sigue la skill start-issue para elegir el flujo.",
     resumePrompt:
@@ -189,28 +195,21 @@ function branchSection(value: unknown, t: Messages): FlowConfig["branch"] {
 }
 
 /**
- * A section made only of optional strings (`start`).
+ * The `start` section: optional strings, with `null` for the ones that are off by default.
  * @param value - The section, or undefined.
- * @param name - Its key.
- * @param fallback - Its defaults.
  * @param t - The messages.
  * @returns The section.
  * @throws ConfigError if something is invalid.
  */
-function textSection<T extends Record<string, string>>(
-  value: unknown,
-  name: string,
-  fallback: T,
-  t: Messages,
-): T {
+function startSection(value: unknown, t: Messages): FlowConfig["start"] {
+  const fallback = DEFAULT_CONFIG.start;
   if (value === undefined) return fallback;
-  if (!isObject(value))
-    throw configError(t.config.mustBeObject(name));
-  onlyKeys(value, Object.keys(fallback), name, t);
-  const out: Record<string, string> = {};
+  if (!isObject(value)) throw configError(t.config.mustBeObject("start"));
+  onlyKeys(value, Object.keys(fallback), "start", t);
+  const out: Record<string, string | null> = {};
   for (const [key, standard] of Object.entries(fallback))
-    out[key] = text(value[key], `${name}.${key}`, standard, t);
-  return out as T;
+    out[key] = text(value[key], `start.${key}`, standard, t);
+  return out as FlowConfig["start"];
 }
 
 /**
@@ -333,7 +332,7 @@ export function parseConfig(raw: unknown, t: Messages = messages("en")): FlowCon
     baseBranch: text(raw.baseBranch, "baseBranch", null, t),
     branch: branchSection(raw.branch, t),
     worktrees: worktreesSection(raw.worktrees, DEFAULT_CONFIG.worktrees, t),
-    start: textSection(raw.start, "start", DEFAULT_CONFIG.start, t),
+    start: startSection(raw.start, t),
     plans: plansSection(raw.plans, t),
     colors: colorsSection(raw.colors, t),
     labels: labelsSection(raw.labels, t),

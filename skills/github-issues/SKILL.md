@@ -3,13 +3,14 @@ name: github-issues
 description: |
   Crea una issue corta y fácil de entender en el repo (o en otro): cabecera
   de tres líneas, plantilla según sea bug o feature, criterios de aceptación
-  verificables, labels, slug de rama y assignee. Revisa duplicados, muestra
-  el borrador y crea solo con confirmación. Solo REST, así que funciona
-  también en la nube de Claude.
+  verificables, labels, slug de rama y assignee. Revisa duplicados, parte en
+  sub-issues lo que pasa del tope de horas, muestra el borrador y crea solo
+  con confirmación. Solo REST, así que funciona también en la nube de Claude.
   Usar cuando: (1) El usuario pide crear una issue, (2) Un hallazgo fuera de
   alcance debe quedar registrado en vez de arreglarse en el momento, (3) Hay
   que registrar un bug o una mejora, (4) Un plan deja trabajo para después o
-  para otro repo, (5) Hay que adjuntar una captura a una issue.
+  para otro repo, (5) Hay que adjuntar una captura a una issue, (6) Una
+  issue es grande y hay que partirla en sub-issues.
 ---
 
 Responde al usuario en el idioma en que te escribe.
@@ -68,7 +69,14 @@ parte, se enlaza.
 
 Infiere todo y déjalo editable en el borrador.
 
-- **Tipo**, siempre uno: `bug`, `enhancement`, `spike` o `documentation`.
+- **Tipo**, siempre uno: una label de `branch.types.labels` en
+  `.agents/flow.json`, el mismo mapa label → tipo de rama que usa
+  `issue-flow`. Sin `flow.json` o sin esa clave, valen las de GitHub:
+  `bug` (`fix`), `enhancement` (`feat`), `documentation` (`docs`) y `spike`
+  (`spike`). Si el repo define las suyas (`{"feature": "feat", "chore":
+  "chore"}`), se ofrecen solo esas y no se piden las de GitHub.
+  El tipo de rama elige la plantilla: `fix` es un bug; cualquier otro
+  (`feat`, `docs`, `spike`, `chore`…), una feature.
 - **El resto**, con la taxonomía de `project.md`. Sin taxonomía, solo los
   labels que ya existen:
 
@@ -90,7 +98,8 @@ Infiere todo y déjalo editable en el borrador.
   Un label que no está en esa lista no se crea: se propone sumarlo a
   `labels` en `.agents/flow.json` (no al `project.md`, que con
   `claude-repo-guard` el agente no puede escribir). Nada se crea sin OK.
-- **Tamaño grande** (de días): se propone dividir antes de crearla.
+- **Tamaño:** estima las horas del trabajo (código, tests y review). Si pasa
+  del tope, se parte en el paso 4.
 - **Label de agente:** solo si `project.md` define uno y la issue cumple
   todas sus condiciones. Si falta una, no va, y el borrador dice cuál.
 
@@ -104,8 +113,8 @@ activa, sin relleno.
 **Título:** la tarea o el síntoma, en 10 palabras o menos, sin la solución
 ni punto final ("El detalle del pedido no se actualiza al volver").
 
-**Bug** (150 palabras como máximo, sin contar los pasos, el error ni los
-logs: en un bug son lo que más ayuda a resolverlo):
+**Bug**, tipo de rama `fix` (150 palabras como máximo, sin contar los
+pasos, el error ni los logs: en un bug son lo que más ayuda a resolverlo):
 
 ```markdown
 **Qué falla:** <quién hace qué y qué ve, frente a lo esperado>.
@@ -132,7 +141,7 @@ Error: `<texto exacto, copiado>`   (si hay un error; si no, se omite)
 `<slug>`
 ```
 
-**Feature, spike o documentación** (250 palabras como máximo):
+**Feature**, cualquier otro tipo de rama (250 palabras como máximo):
 
 ```markdown
 **Qué se pide:** <el resultado, para quién>.
@@ -163,28 +172,64 @@ Reglas:
 - **El cuerpo se basta solo:** nada de "como conversamos" ni rutas locales.
   En otro repo, los archivos de este van con su URL de GitHub.
 - **Nunca** secretos, tokens, URLs firmadas ni datos personales.
-- Si no cabe en el tope, son dos issues, o es una feature que necesita plan
-  (`planning`, si está instalada).
+- Si no cabe en el tope de palabras, son dos issues (paso 4), o es una
+  feature que necesita plan (`planning`, si está instalada).
 
 Comprueba el cuerpo antes de mostrarlo:
 
 ```bash
-bash <carpeta de esta skill>/check-issue.sh <archivo-del-cuerpo> <bug|feature>
+bash <carpeta de esta skill>/check-issue.sh <archivo-del-cuerpo> <tipo de rama>
 ```
 
-Spike y documentación usan `feature`. Los topes salen de `project.md`.
+El tipo de rama es el de la label (`fix`, `feat`, `chore`…): `fix` se
+revisa como bug y cualquier otro como feature. Los topes salen de
+`project.md`.
 
 **Slug de rama:** solo el slug, en inglés, en minúsculas, con guiones y de
 40 caracteres como máximo; describe el cambio (`order-detail-refresh`). La
 rama completa la arma `issue-flow` con la plantilla del repo
 (`branch.template` en `.agents/flow.json`, por defecto
-`<tipo>/<número>-<slug>`), con el número de la issue y el tipo del label
-(`bug` → `fix`, `enhancement` → `feat`, `documentation` → `docs`, `spike` →
-`spike`). Así el cuerpo se escribe antes de que la issue tenga número y no
-queda viejo si cambia el label. A las issues que ya existen sin el bloque se
+`<tipo>/<número>-<slug>`), con el número de la issue y el tipo de rama
+del label según `branch.types.labels` (por defecto `bug` → `fix`,
+`enhancement` → `feat`, `documentation` → `docs`, `spike` → `spike`). Así
+el cuerpo se escribe antes de que la issue tenga número y no queda viejo
+si cambia el label. A las issues que ya existen sin el bloque se
 les agrega con `npx @ramon-sg/issue-flow issue branch --missing`.
 
-## 4. Mostrar el borrador y esperar el OK
+## 4. Partir lo que pasa del tope
+
+Una issue grande se estima mal y deja un PR que nadie revisa bien. El tope,
+en horas, sale de `project.md` (8 h si no dice nada):
+
+```bash
+bash <carpeta de esta skill>/check-issue.sh --split-cap
+```
+
+Si la estimación del paso 2 no pasa del tope, sigue al paso 5. Si pasa:
+
+- **Bug (`fix`):** no se parte al crearlo, porque antes de conocer la causa
+  no se sabe qué hay que hacer. Se crea entero y el primer criterio es
+  buscar la causa con tiempo fijo ("en 2 h como máximo, la causa queda
+  escrita en la issue o hay una hipótesis descartada"). Con la causa a la
+  vista, si el arreglo pasa del tope, se parte entonces con este paso.
+- **Trabajo que no se sabe cómo hacer:** tampoco se parte; va como `spike`
+  con tiempo fijo, o a `planning` si está instalada.
+- **Trabajo conocido:** se parte en una **issue madre** y sus **sub-issues**:
+  - La madre es la issue completa, con la plantilla de su tipo: qué se
+    pide, por qué y cuándo está hecho todo. Sus criterios son los del
+    conjunto; no repite los de cada sub-issue.
+  - Cada sub-issue es una issue completa (plantilla, criterios, slug de
+    rama) que cabe en el tope de horas, con el mismo tipo, labels y
+    assignee que la madre.
+  - **La primera funciona de punta a punta y alguien la puede probar:** un
+    camino angosto que cruza todas las capas (por ejemplo, un solo campo
+    desde el formulario hasta la base), no "el modelo" o "la API". Las
+    siguientes lo ensanchan, y cada una deja algo que se puede probar.
+  - Van en el orden en que se hacen. Si una necesita otra, lo dice en
+    "Dónde mirar" por su título; el número todavía no existe.
+  - Cada cuerpo pasa `check-issue.sh` por separado.
+
+## 5. Mostrar el borrador y esperar el OK
 
 ```
 Repo:           <owner>/<repo>
@@ -195,11 +240,18 @@ Rama:           <tipo>/<n>-<slug>   (slug de rama: <slug>)
 Assignee:       <login>
 Duplicados:     ninguno | #12 (parcial, enlazada)
 Para un agente: sí | no (falta: <condición>) | el repo no usa ese label
+Estimación:     <h> h (tope <tope> h)
 
 <cuerpo>
 ```
 
-## 5. Crear (REST)
+Si se parte, es **un solo borrador**: la madre con el bloque de arriba y,
+debajo, cada sub-issue numerada en orden con su título, su estimación, su
+rama y su cuerpo. Las labels, el assignee y los duplicados se dicen una vez
+en la madre. Un solo OK crea todas; si el usuario cambia una, se muestra el
+borrador entero otra vez.
+
+## 6. Crear (REST)
 
 ```bash
 body_file=$(mktemp "${TMPDIR:-/tmp}/issue-body.XXXXXX")   # o en el scratchpad
@@ -214,6 +266,21 @@ Es una sola llamada: el cuerpo no lleva el número, así que no hay nada que
 reemplazar después. Devuelve el número y la URL. Si avisa que GitHub ignoró
 un label o un assignee, dilo. Devuelve la URL y la rama
 (`<tipo>/<número>-<slug>`).
+
+**Con sub-issues:** crea la madre, después cada sub-issue en orden y cuelga
+cada una de la madre. El endpoint pide el `id` de la sub-issue, no su
+número:
+
+```bash
+id=$(gh api repos/<owner>/<repo>/issues/<sub> --jq .id)
+gh api -X POST repos/<owner>/<repo>/issues/<madre>/sub_issues -F sub_issue_id="$id"
+```
+
+`-F` manda el `id` como número, que es lo que pide el endpoint (`-f` lo
+manda como texto). Si colgar una falla (el repo no tiene sub-issues, falta
+permiso), la issue ya existe: no la borres ni la crees de nuevo. Dilo, y
+con OK agrega a la madre la lista de las que faltan (`- [ ] #<sub>`).
+Devuelve la URL de la madre y, por cada sub-issue, su URL y su rama.
 
 ## Adjuntar imágenes
 

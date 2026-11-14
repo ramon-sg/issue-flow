@@ -33,9 +33,11 @@ El PR en draft es la señal pública de "esto ya lo tomó alguien"; no
 significa que haya algo listo para revisar.
 
 **El PR va en español** (título, cuerpo y commits), salvo que `project.md`
-diga otro idioma en "Idioma". `issue-flow` usa el título de la issue y, para
-el cuerpo y el commit de inicio, `start.prBody` y `start.commitMessage` de
-`.agents/flow.json`, que por defecto están en español. Si `project.md` pide
+diga otro idioma en "Idioma". `issue-flow` usa el título de la issue (o
+`start.prTitle`) y, para el cuerpo y el commit de inicio, `start.prBody` y
+`start.commitMessage` de `.agents/flow.json`, que por defecto están en
+español. Con `start.prLanguage`, el PR se abre como `Issue #<n>` y el
+título lo pones tú en el Paso 5. Si `project.md` pide
 otro idioma y esos textos no lo siguen, dilo en el resumen del Paso 2.
 
 **Lo propio de este repo está en `project.md`**, en esta misma carpeta: qué
@@ -154,20 +156,34 @@ npx @ramon-sg/github-rest pr view <pr>
 npx @ramon-sg/github-rest pr edit <pr> --body-file <archivo>
 ```
 
+Si `.agents/flow.json` tiene `start.prLanguage` y el título del PR no está
+en ese idioma, ponle uno en ese idioma que diga qué hace el PR:
+
+```bash
+npx @ramon-sg/github-rest pr edit <pr> --title "<título>"
+```
+
 Lo demás del cuerpo (`Closes`, la URL, la sesión de la nube) queda igual.
 Si el cuerpo ya no dice `En progreso.` (alguien lo escribió, o se retoma un
 PR con resumen), no lo toques. Lo cubre el OK del inicio: es parte de
 publicar el PR, y en el Paso 2 se nombra junto al PR en draft.
 
-Después, lo que diga `project.md`. Sin nada propio:
+Después, lo que diga `project.md`. Sin nada propio, el primer paso sale del
+tipo de rama de la issue, no del nombre de su label: es el que `issue-flow`
+le dio a la rama, según `branch.types.labels` de `.agents/flow.json` (por
+defecto `bug` → `fix`, `enhancement` → `feat`, `documentation` → `docs`,
+`spike` → `spike`). Así un repo con `{"feature": "feat", "chore": "chore"}`
+sigue la misma tabla.
 
-| Issue | Primer paso |
+| Tipo de rama | Primer paso |
 |---|---|
-| `bug` | Un test que reproduce el bug y falla por esa causa |
-| `enhancement` que se describe en una frase | El primer test del comportamiento nuevo |
-| `enhancement` con más de un paso o con dudas | Un plan con `planning`, si está instalada, en esta misma rama |
+| `fix` | Un test que reproduce el bug y falla por esa causa |
+| `feat` que se describe en una frase | El primer test del comportamiento nuevo |
+| `feat` con más de un paso o con dudas | Un plan con `planning`, si está instalada, en esta misma rama |
 | `spike` | Las preguntas que tiene que responder, y el informe en el PR |
-| `documentation` | Editar |
+| `docs` | Editar |
+| Otro (`chore`, `refactor`…) | Como `feat`: el primer test si cambia lo que se ve, o editar si no |
+| Sin tipo | Pregunta qué tipo es antes de seguir |
 
 Para dejar el PR listo sin mergearlo, `finish-pr`; para cerrarlo con merge,
 `close-pr`. Después del merge,

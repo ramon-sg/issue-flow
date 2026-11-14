@@ -1,7 +1,7 @@
 // A GitHub with state, for the tests of `issue start`: fake-gh.mjs hands the call here when
 // FAKE_GH_WORLD names a JSON file. It answers the REST calls github-rest makes for one repo,
 // reads the branches from a real bare origin, and saves PRs it creates or edits back to the
-// file. GraphQL always fails, as in Claude's cloud. `pullsFail` makes listing PRs fail.
+// file. GraphQL always fails, as in Claude's cloud. `pullsFail` makes listing PRs fail and `retitleFails` changing a PR's title.
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 
@@ -100,7 +100,9 @@ export function handle(method, path, body) {
     const pull = world.pulls.find((item) => item.number === Number(match[1]));
     if (pull === undefined) return answer(404, { message: "Not Found" });
     if (method === "PATCH") {
+      if (world.retitleFails && body.title !== undefined) return answer(403, { message: "Forbidden" });
       if (body.body !== undefined) pull.body = body.body;
+      if (body.title !== undefined) pull.title = body.title;
       if (body.state !== undefined) pull.state = body.state;
       save();
     }

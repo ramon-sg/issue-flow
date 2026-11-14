@@ -67,7 +67,8 @@ Qué hace, en orden:
 4. **Crea lo que falta:**
    - el worktree, o con `--branch` la rama en este checkout;
    - el commit vacío con `[skip ci]`, el push y el PR en draft;
-   - reabre el PR cerrado de una rama que se retoma, y te asigna la issue.
+   - reabre el PR cerrado de una rama que se retoma, y te asigna la issue;
+   - si el PR retomado tiene otro título que el que le pondría hoy (la issue se renombró, o cambió `start.prTitle`), el resumen muestra los dos y lo actualiza.
 
    El PR dice `Closes #n`, o `Part of #n` si la issue tiene otra rama viva; en ese caso los otros PRs abiertos que la cerraban también pasan a `Part of`. El worktree recibe los archivos ignorados que lista `.worktreeinclude` (credenciales, por ejemplo), como `claude --worktree`.
 5. **Abre Claude en la misma terminal** con un pedido y el color de la prioridad.
@@ -259,7 +260,7 @@ Viven en `skills/` y `skills-catalog.json` las lista. Se instalan con [`skills-m
 
 | Skill | Categoría | Para qué sirve | Trae también |
 |---|---|---|---|
-| `github-issues` | Issues | Una issue corta con cabecera de tres líneas, criterios comprobables y el slug de su rama; comprueba duplicados y el tope de palabras | — |
+| `github-issues` | Issues | Una issue corta con cabecera de tres líneas, criterios comprobables y el slug de su rama; comprueba duplicados y el tope de palabras, y parte en sub-issues la que pasa del tope de horas (8 h) | — |
 | `start-issue` | Issues | Empieza una issue desde una sesión con `issue-flow issue start`, en local, en un worktree o en la nube | — |
 | `finish-pr` | PRs | Auditoría, documentos al día, ready, revisión y CI, y el chequeo de que se puede mergear; se detiene antes del merge con un reporte de qué falta, cómo limpiar y qué sigue (otra etapa del plan u otra sub-issue) | `pr-review-comments` |
 | `close-pr` | PRs | Corre `finish-pr` y, si quedó listo, mergea con merge commit y limpia la rama y el worktree | `finish-pr` |
@@ -297,13 +298,15 @@ Todo es opcional; sin el archivo valen los valores por defecto. Una clave descon
 | `branch.template` | `{type}/{number}-{slug}` | Nombre de la rama; necesita `{number}` y `{slug}` |
 | `branch.namer` | `claude` | `claude` o `title` |
 | `branch.claudeModel` | `haiku` | Modelo de `claude -p` |
-| `branch.types` | Los de arriba | Tipo por label y por prefijo; cada mapa reemplaza al de por defecto |
+| `branch.types` | Los de arriba | Tipo por label y por prefijo; cada mapa reemplaza al de por defecto. `github-issues` y `start-issue` toman de `branch.types.labels` las labels de tipo |
 | `worktrees.dir` | `.claude/worktrees` | Dónde van los worktrees |
 | `worktrees.setup`, `worktrees.teardown` | Ninguno | Pasos para preparar y limpiar un worktree (ver arriba) |
 | `worktrees.ports` | Apagado | `true` para bloques de 10 desde 20000, o `{ start, blockSize, blocks }` |
 | `worktrees.dockerProjects` | Ninguno | Prefijos de los proyectos de Compose de los worktrees |
 | `start.commitMessage` | `chore: empieza el trabajo en la issue #{number} [skip ci]` | Commit vacío inicial |
 | `start.prBody` | `{keyword} #{number}`, la URL de la issue (`{url}`) y "En progreso." | Cuerpo del PR en draft |
+| `start.prTitle` | El título de la issue | Título del PR en draft; `{number}` y `{title}` son los de la issue |
+| `start.prLanguage` | Apagado | Idioma de los PR si no es el de las issues (`"English"`): el PR se abre como `Issue #{number}` y el prompt pide un título en ese idioma |
 | `start.prompt`, `start.resumePrompt` | Resumir la issue y seguir `start-issue`, o retomar desde `{plan}` | Pedido con que se abre Claude |
 | `start.summaryPrompt`, `start.summaryPlanPrompt` | Resumir y esperar | Pedido de `--plan` |
 | `start.cloudPrompt` | `/start-issue {number} --yes{flags}` | Lo que `--cloud` le pide a la sesión; `{flags}` es `--new` o `--resume <rama>` |

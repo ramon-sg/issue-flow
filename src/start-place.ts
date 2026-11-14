@@ -12,7 +12,7 @@ import { confirm } from "./ask.js";
 import { show } from "./banner.js";
 import { fromOrigin } from "./credentials.js";
 import { checkedOutAt, currentBranch, failure, git, gitLines, hasLocal, isClean, onOrigin, safeToDelete, trackOrigin, untracked, updateBase } from "./git.js";
-import { bodyToPartOf, dirName, fill, prBody, type StartMode } from "./issue-text.js";
+import { bodyToPartOf, dirName, fill, prBody, prTitle, type StartMode } from "./issue-text.js";
 import { forgetSession } from "./launch.js";
 import type { Messages } from "./messages/index.js";
 import { type Output, warn } from "./output.js";
@@ -155,7 +155,7 @@ export async function publish(state: StartState): Promise<number> {
     const created = await createPr(options.repo, {
       head: branch,
       base: state.base,
-      title: state.issue.title,
+      title: prTitle(options.config.start, options.number, state.issue.title),
       body: prBody(options.config.start.prBody, options.number, state.kind, state.issue.url),
       draft: true,
     });
@@ -164,6 +164,13 @@ export async function publish(state: StartState): Promise<number> {
     if (state.kind === "part") await markOthersPartOf(state);
   }
   if (state.pr?.state === "CLOSED") await updatePr(options.repo, number, { state: "open" });
+  if (state.pr !== null && state.titleDrift !== null) {
+    try {
+      await updatePr(options.repo, number, { title: state.titleDrift.expected });
+    } catch {
+      warn(state.out, t.warn.retitleFailed(number));
+    }
+  }
   if (state.issue.assignees.length === 0) {
     try {
       await assign(options.repo, options.number, ["@me"]);
