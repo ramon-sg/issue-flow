@@ -68,7 +68,14 @@ parte, se enlaza.
 
 Infiere todo y déjalo editable en el borrador.
 
-- **Tipo**, siempre uno: `bug`, `enhancement`, `spike` o `documentation`.
+- **Tipo**, siempre uno: una label de `branch.types.labels` en
+  `.agents/flow.json`, el mismo mapa label → tipo de rama que usa
+  `issue-flow`. Sin `flow.json` o sin esa clave, valen las de GitHub:
+  `bug` (`fix`), `enhancement` (`feat`), `documentation` (`docs`) y `spike`
+  (`spike`). Si el repo define las suyas (`{"feature": "feat", "chore":
+  "chore"}`), se ofrecen solo esas y no se piden las de GitHub.
+  El tipo de rama elige la plantilla: `fix` es un bug; cualquier otro
+  (`feat`, `docs`, `spike`, `chore`…), una feature.
 - **El resto**, con la taxonomía de `project.md`. Sin taxonomía, solo los
   labels que ya existen:
 
@@ -104,8 +111,8 @@ activa, sin relleno.
 **Título:** la tarea o el síntoma, en 10 palabras o menos, sin la solución
 ni punto final ("El detalle del pedido no se actualiza al volver").
 
-**Bug** (150 palabras como máximo, sin contar los pasos, el error ni los
-logs: en un bug son lo que más ayuda a resolverlo):
+**Bug**, tipo de rama `fix` (150 palabras como máximo, sin contar los
+pasos, el error ni los logs: en un bug son lo que más ayuda a resolverlo):
 
 ```markdown
 **Qué falla:** <quién hace qué y qué ve, frente a lo esperado>.
@@ -132,7 +139,7 @@ Error: `<texto exacto, copiado>`   (si hay un error; si no, se omite)
 `<slug>`
 ```
 
-**Feature, spike o documentación** (250 palabras como máximo):
+**Feature**, cualquier otro tipo de rama (250 palabras como máximo):
 
 ```markdown
 **Qué se pide:** <el resultado, para quién>.
@@ -169,19 +176,22 @@ Reglas:
 Comprueba el cuerpo antes de mostrarlo:
 
 ```bash
-bash <carpeta de esta skill>/check-issue.sh <archivo-del-cuerpo> <bug|feature>
+bash <carpeta de esta skill>/check-issue.sh <archivo-del-cuerpo> <tipo de rama>
 ```
 
-Spike y documentación usan `feature`. Los topes salen de `project.md`.
+El tipo de rama es el de la label (`fix`, `feat`, `chore`…): `fix` se
+revisa como bug y cualquier otro como feature. Los topes salen de
+`project.md`.
 
 **Slug de rama:** solo el slug, en inglés, en minúsculas, con guiones y de
 40 caracteres como máximo; describe el cambio (`order-detail-refresh`). La
 rama completa la arma `issue-flow` con la plantilla del repo
 (`branch.template` en `.agents/flow.json`, por defecto
-`<tipo>/<número>-<slug>`), con el número de la issue y el tipo del label
-(`bug` → `fix`, `enhancement` → `feat`, `documentation` → `docs`, `spike` →
-`spike`). Así el cuerpo se escribe antes de que la issue tenga número y no
-queda viejo si cambia el label. A las issues que ya existen sin el bloque se
+`<tipo>/<número>-<slug>`), con el número de la issue y el tipo de rama
+del label según `branch.types.labels` (por defecto `bug` → `fix`,
+`enhancement` → `feat`, `documentation` → `docs`, `spike` → `spike`). Así
+el cuerpo se escribe antes de que la issue tenga número y no queda viejo
+si cambia el label. A las issues que ya existen sin el bloque se
 les agrega con `npx @ramon-sg/issue-flow issue branch --missing`.
 
 ## 4. Mostrar el borrador y esperar el OK

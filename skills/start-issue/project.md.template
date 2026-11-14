@@ -32,10 +32,10 @@ Va directo solo si se cumplen las tres: puedes señalar la línea que falla
 (o el lugar del cambio), el arreglo cabe en un archivo más su test, y la
 issue tiene uno o dos criterios. Si falta una, va a plan.
 
-| Issue | Flujo | Primer paso |
+| Tipo de rama | Flujo | Primer paso |
 |---|---|---|
-| `bug` con causa clara | Directo | Un test que reproduce el bug |
-| `enhancement` con más de un paso | `planning` con `type: feature` | Conversar y escribir el plan |
+| `fix` con causa clara | Directo | Un test que reproduce el bug |
+| `feat` con más de un paso | `planning` con `type: feature` | Conversar y escribir el plan |
 -->
 
 ## Encontrar la causa de un bug

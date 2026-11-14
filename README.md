@@ -298,7 +298,7 @@ Todo es opcional; sin el archivo valen los valores por defecto. Una clave descon
 | `branch.template` | `{type}/{number}-{slug}` | Nombre de la rama; necesita `{number}` y `{slug}` |
 | `branch.namer` | `claude` | `claude` o `title` |
 | `branch.claudeModel` | `haiku` | Modelo de `claude -p` |
-| `branch.types` | Los de arriba | Tipo por label y por prefijo; cada mapa reemplaza al de por defecto |
+| `branch.types` | Los de arriba | Tipo por label y por prefijo; cada mapa reemplaza al de por defecto. `github-issues` y `start-issue` toman de `branch.types.labels` las labels de tipo |
 | `worktrees.dir` | `.claude/worktrees` | Dónde van los worktrees |
 | `worktrees.setup`, `worktrees.teardown` | Ninguno | Pasos para preparar y limpiar un worktree (ver arriba) |
 | `worktrees.ports` | Apagado | `true` para bloques de 10 desde 20000, o `{ start, blockSize, blocks }` |

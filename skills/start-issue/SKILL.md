@@ -168,15 +168,22 @@ Si el cuerpo ya no dice `En progreso.` (alguien lo escribió, o se retoma un
 PR con resumen), no lo toques. Lo cubre el OK del inicio: es parte de
 publicar el PR, y en el Paso 2 se nombra junto al PR en draft.
 
-Después, lo que diga `project.md`. Sin nada propio:
+Después, lo que diga `project.md`. Sin nada propio, el primer paso sale del
+tipo de rama de la issue, no del nombre de su label: es el que `issue-flow`
+le dio a la rama, según `branch.types.labels` de `.agents/flow.json` (por
+defecto `bug` → `fix`, `enhancement` → `feat`, `documentation` → `docs`,
+`spike` → `spike`). Así un repo con `{"feature": "feat", "chore": "chore"}`
+sigue la misma tabla.
 
-| Issue | Primer paso |
+| Tipo de rama | Primer paso |
 |---|---|
-| `bug` | Un test que reproduce el bug y falla por esa causa |
-| `enhancement` que se describe en una frase | El primer test del comportamiento nuevo |
-| `enhancement` con más de un paso o con dudas | Un plan con `planning`, si está instalada, en esta misma rama |
+| `fix` | Un test que reproduce el bug y falla por esa causa |
+| `feat` que se describe en una frase | El primer test del comportamiento nuevo |
+| `feat` con más de un paso o con dudas | Un plan con `planning`, si está instalada, en esta misma rama |
 | `spike` | Las preguntas que tiene que responder, y el informe en el PR |
-| `documentation` | Editar |
+| `docs` | Editar |
+| Otro (`chore`, `refactor`…) | Como `feat`: el primer test si cambia lo que se ve, o editar si no |
+| Sin tipo | Pregunta qué tipo es antes de seguir |
 
 Para dejar el PR listo sin mergearlo, `finish-pr`; para cerrarlo con merge,
 `close-pr`. Después del merge,

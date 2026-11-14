@@ -298,7 +298,7 @@ Everything is optional; without the file the defaults apply. An unknown key is a
 | `branch.template` | `{type}/{number}-{slug}` | Branch name; needs `{number}` and `{slug}` |
 | `branch.namer` | `claude` | `claude` or `title` |
 | `branch.claudeModel` | `haiku` | `claude -p`'s model |
-| `branch.types` | The ones above | Type by label and by prefix; each map replaces the default one |
+| `branch.types` | The ones above | Type by label and by prefix; each map replaces the default one. `github-issues` and `start-issue` take the type labels from `branch.types.labels` |
 | `worktrees.dir` | `.claude/worktrees` | Where the worktrees go |
 | `worktrees.setup`, `worktrees.teardown` | None | Steps to prepare and clean a worktree (see above) |
 | `worktrees.ports` | Off | `true` for blocks of 10 from 20000, or `{ start, blockSize, blocks }` |
