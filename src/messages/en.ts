@@ -193,6 +193,7 @@ issue:start for those. --no-repo-deny goes after it, as any flag:
       draftPr: (first) => `draft PR (${first})`,
       partOf: (number, prs) => `Part of #${number} in the open PRs (${prs})`,
       reopen: (number) => `reopen PR #${number}`,
+      retitle: (number) => `update the title of PR #${number}`,
       assign: (number) => `assign #${number} to @me`,
       noteSession: "note the session in the PR",
       onlySession: "none: only open the session",
@@ -202,6 +203,7 @@ issue:start for those. --no-repo-deny goes after it, as any flag:
     found: {
       branch: (text) => `branch ${text}`,
       pr: (number, state) => `PR #${number}, ${state}`,
+      prTitle: (current, expected) => `PR title "${current}"; expected "${expected}"`,
       worktree: (where) => `worktree at ${where}`,
     },
     round: (next, prs) => `${next} (already merged: PR ${prs})`,
@@ -309,6 +311,7 @@ issue:start for those. --no-repo-deny goes after it, as any flag:
         `the issue already has ${count} branches (${list}): proposing a new one. To resume one: ${command}.`,
       othersPartOf: (other, number) => `could not turn PR #${other} into Part of #${number}; edit it by hand.`,
       assignFailed: (number) => `could not assign issue #${number} to you.`,
+      retitleFailed: (number) => `could not update the title of PR #${number}; edit it by hand.`,
       badPattern: (pattern, file) => `skipping "${pattern}" of ${file}: it is not a valid pattern.`,
       copyFailed: (file) => `could not copy ${file} to the worktree.`,
       denyShared: "another session uses this worktree: the repo's deny rules stay.",

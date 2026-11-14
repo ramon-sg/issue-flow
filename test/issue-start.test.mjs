@@ -1014,3 +1014,53 @@ test("start.prTitle is the draft PR's template", () => {
   assert.equal(r.status, 0, r.err);
   assert.equal(s.writes()[0].body.title, "[#214] Avisar devoluciones a Odoo");
 });
+
+test("resuming a PR whose title is not the issue's shows both and, with a yes, updates it", () => {
+  const s = startSandbox();
+  s.pushBranch(BRANCH, { commit: true });
+  s.pull({ number: 210, branch: BRANCH, title: "Abrir sesiones de Claude", body: "Closes #214" });
+
+  const dry = s.run(["214", "--dry-run"]);
+  const no = s.run(["214", "--no-launch"], { input: "n\n" });
+  const yes = s.run(["214", "--yes", "--no-launch"]);
+
+  assert.equal(dry.status, 0, dry.err);
+  assert.match(dry.out, /PR #210, OPEN\n {14}PR title "Abrir sesiones de Claude"; expected "Avisar devoluciones a Odoo"/);
+  assert.match(dry.out, /update the title of PR #210/);
+  assert.equal(no.status, 1);
+  assert.equal(yes.status, 0, yes.err);
+  assert.deepEqual(s.writes().map((call) => [call.method, call.path, call.body]), [
+    ["PATCH", "repos/acme/widgets/pulls/210", { title: "Avisar devoluciones a Odoo" }],
+    ["POST", "repos/acme/widgets/issues/214/assignees", { assignees: ["me"] }],
+  ]);
+  assert.equal(s.load().pulls[0].title, "Avisar devoluciones a Odoo");
+});
+
+test("the expected PR title follows start.prTitle, and with only start.prLanguage it is not compared", () => {
+  const s = startSandbox();
+  s.pushBranch(BRANCH, { commit: true });
+  s.pull({ number: 210, branch: BRANCH, title: "Notify Odoo of refunds", body: "Closes #214" });
+  mkdirSync(join(s.main, ".agents"), { recursive: true });
+  const flow = join(s.main, ".agents", "flow.json");
+
+  writeFileSync(flow, '{ "start": { "prLanguage": "English" } }\n');
+  const language = s.run(["214", "--dry-run"]);
+  writeFileSync(flow, '{ "start": { "prTitle": "[#{number}] {title}" } }\n');
+  const template = s.run(["214", "--dry-run"]);
+
+  assert.equal(language.status, 0, language.err);
+  assert.doesNotMatch(language.out, /PR title|update the title/);
+  assert.match(template.out, /PR title "Notify Odoo of refunds"; expected "\[#214\] Avisar devoluciones a Odoo"/);
+});
+
+test("a PR title GitHub refuses to change only warns", () => {
+  const s = startSandbox();
+  s.pushBranch(BRANCH, { commit: true });
+  s.pull({ number: 210, branch: BRANCH, title: "Viejo", body: "Closes #214" });
+  s.world.retitleFails = true;
+
+  const r = s.run(["214", "--yes", "--no-launch"]);
+
+  assert.equal(r.status, 0, r.err);
+  assert.match(r.err, /could not update the title of PR #210; edit it by hand\./);
+});
