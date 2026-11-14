@@ -297,7 +297,7 @@ bloque de código, listo para pegar:
 ```text
 Siguiente:  la <etapa N del plan | sub-issue #<m>>: <nombre>
             1. Seguir en esta sesión: dime y la empiezo.
-            2. Sesión limpia (rinde mejor): pega el prompt de abajo.
+            2. Sesión limpia (rinde mejor): /clear y pega el prompt de abajo.
 ```
 
 ```text
