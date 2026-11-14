@@ -260,7 +260,7 @@ They live in `skills/` and `skills-catalog.json` lists them. They are installed 
 
 | Skill | Category | What it is for | Also brings |
 |---|---|---|---|
-| `github-issues` | Issues | A short issue with a three-line header, verifiable criteria and its branch slug; checks duplicates and the word cap | - |
+| `github-issues` | Issues | A short issue with a three-line header, verifiable criteria and its branch slug; checks duplicates and the word cap, and splits into sub-issues one over the hours cap (8 h) | - |
 | `start-issue` | Issues | Starts an issue from a session with `issue-flow issue start`, locally, in a worktree or in the cloud | - |
 | `finish-pr` | PRs | Audit, up-to-date documents, ready, review and CI, and the check that it can be merged; stops before the merge with a report of what is missing and how to clean up | `pr-review-comments` |
 | `close-pr` | PRs | Runs `finish-pr` and, if it is ready, merges with a merge commit and cleans the branch and the worktree | `finish-pr` |

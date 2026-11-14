@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Comprueba que el cuerpo de una issue respete la forma de `github-issues`.
 # Uso: bash <carpeta de la skill>/check-issue.sh <archivo-del-cuerpo> <tipo>
+#      bash <carpeta de la skill>/check-issue.sh --split-cap
+# Con --split-cap imprime el tope en horas sobre el que una issue se parte en
+# sub-issues: la línea "Partir en sub-issues sobre: <n> h" de project.md, u 8.
 # El tipo es el de rama (`fix`, `feat`, `docs`, `chore`…, según `branch.types.labels` de
 # `.agents/flow.json`): `fix` usa la plantilla de bug y cualquier otro, la de feature.
 # `bug` y `feature` también valen, para nombrar la plantilla directo.
@@ -12,6 +15,22 @@
 
 set -euo pipefail
 
+project="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/project.md"
+
+if [ "${1:-}" = "--split-cap" ]; then
+  hours=8
+  if [ -f "$project" ]; then
+    line=$(tr -d '\r' < "$project" | grep -E '^Partir en sub-issues sobre:' | head -n 1 || true)
+    if [[ "$line" =~ ^Partir\ en\ sub-issues\ sobre:[[:space:]]*\**([0-9]{1,3})[[:space:]]*h\**[[:space:]]*$ ]] && [ "${BASH_REMATCH[1]}" -gt 0 ]; then
+      hours=$((10#${BASH_REMATCH[1]}))
+    elif [ -n "$line" ]; then
+      echo "Aviso: la línea \"Partir en sub-issues sobre:\" de project.md no se pudo leer (un número de horas entre 1 y 999, como \"8 h\"); uso 8 h." >&2
+    fi
+  fi
+  echo "$hours"
+  exit 0
+fi
+
 source_body="${1:-}"
 kind="${2:-}"
 [ -n "$source_body" ] && [ -f "$source_body" ] || { echo "Uso: check-issue.sh <archivo> <tipo de rama: fix, feat, docs…>" >&2; exit 2; }
@@ -22,7 +41,6 @@ case "$kind" in
   *) kind=feature; max_words=250; first_label='**Qué se pide:**' ;;
 esac
 
-project="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/project.md"
 if [ -f "$project" ]; then
   cap=$(tr -d '\r' < "$project" | awk -v kind="$kind" '
     /^## / { inside = ($0 == "## Topes"); next }
