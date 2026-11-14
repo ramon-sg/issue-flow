@@ -46,6 +46,11 @@ un tipo que borres usa el de la skill.
 | bug | 150 |
 | feature | 250 |
 
+Una issue de trabajo conocido que se estime en más de estas horas se parte
+en una issue madre y sus sub-issues (`check-issue.sh --split-cap` la lee):
+
+Partir en sub-issues sobre: 8 h
+
 ## Dónde mirar
 
 Nada propio: las rutas salen del código.

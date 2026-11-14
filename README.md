@@ -260,7 +260,7 @@ Viven en `skills/` y `skills-catalog.json` las lista. Se instalan con [`skills-m
 
 | Skill | Categoría | Para qué sirve | Trae también |
 |---|---|---|---|
-| `github-issues` | Issues | Una issue corta con cabecera de tres líneas, criterios comprobables y el slug de su rama; comprueba duplicados y el tope de palabras | — |
+| `github-issues` | Issues | Una issue corta con cabecera de tres líneas, criterios comprobables y el slug de su rama; comprueba duplicados y el tope de palabras, y parte en sub-issues la que pasa del tope de horas (8 h) | — |
 | `start-issue` | Issues | Empieza una issue desde una sesión con `issue-flow issue start`, en local, en un worktree o en la nube | — |
 | `finish-pr` | PRs | Auditoría, documentos al día, ready, revisión y CI, y el chequeo de que se puede mergear; se detiene antes del merge con un reporte de qué falta y cómo limpiar | `pr-review-comments` |
 | `close-pr` | PRs | Corre `finish-pr` y, si quedó listo, mergea con merge commit y limpia la rama y el worktree | `finish-pr` |

@@ -86,3 +86,30 @@ test("a kind that is not a branch type is refused", () => {
   assert.equal(r.status, 2);
   assert.match(r.stderr, /tipo de rama/);
 });
+
+test("--split-cap prints 8 hours by default and the hours that project.md sets", () => {
+  const dir = skillCopy();
+  const cap = () => spawnSync("bash", [join(dir, "check-issue.sh"), "--split-cap"], { encoding: "utf8" });
+
+  const none = cap();
+  cpSync(join(dir, "project.md.template"), join(dir, "project.md"));
+  const template = cap();
+  writeFileSync(join(dir, "project.md"), "# github-issues\n\n## Topes\n\nPartir en sub-issues sobre: 12 h\n");
+  const raised = cap();
+
+  assert.equal(none.status, 0, none.stderr);
+  assert.equal(none.stdout, "8\n");
+  assert.equal(template.stdout, "8\n");
+  assert.equal(raised.stdout, "12\n");
+});
+
+test("--split-cap warns and keeps 8 hours when project.md's line is unreadable", () => {
+  const dir = skillCopy();
+  writeFileSync(join(dir, "project.md"), "Partir en sub-issues sobre: un día\n");
+
+  const r = spawnSync("bash", [join(dir, "check-issue.sh"), "--split-cap"], { encoding: "utf8" });
+
+  assert.equal(r.status, 0);
+  assert.equal(r.stdout, "8\n");
+  assert.match(r.stderr, /no se pudo leer/);
+});
