@@ -304,6 +304,8 @@ Everything is optional; without the file the defaults apply. An unknown key is a
 | `worktrees.dockerProjects` | None | Prefixes of the worktrees' Compose projects |
 | `start.commitMessage` | `chore: empieza el trabajo en la issue #{number} [skip ci]` | Initial empty commit |
 | `start.prBody` | `{keyword} #{number}`, the issue's URL (`{url}`) and "En progreso." | Draft PR body |
+| `start.prTitle` | The issue's title | Draft PR title; `{number}` and `{title}` are the issue's |
+| `start.prLanguage` | Off | Language of the PRs when it is not the issues' (`"English"`): the PR opens as `Issue #{number}` and the prompt asks for a title in that language |
 | `start.prompt`, `start.resumePrompt` | Summarize the issue and follow `start-issue`, or resume from `{plan}` | Prompt Claude opens with |
 | `start.summaryPrompt`, `start.summaryPlanPrompt` | Summarize and wait | `--plan`'s prompt |
 | `start.cloudPrompt` | `/start-issue {number} --yes{flags}` | What `--cloud` asks the session; `{flags}` is `--new` or `--resume <branch>` |

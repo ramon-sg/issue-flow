@@ -11,6 +11,7 @@ import {
   issueOfBranch,
   nextBranch,
   prBody,
+  prTitle,
   sameCloudSession,
   sessionName,
   withCloudSession,
@@ -134,4 +135,13 @@ test("issueOfBranch: <n>- at the start or after a /, and nothing else", () => {
   assert.equal(issueOfBranch("ramon/sub/214-x"), 214);
   assert.equal(issueOfBranch("feat/x-214-y"), null);
   assert.equal(issueOfBranch("feat/214"), null);
+});
+
+test("prTitle: the issue's title by default, a neutral one with a language, or the template", () => {
+  const start = (prTitle, prLanguage) => ({ prTitle, prLanguage });
+
+  assert.equal(prTitle(start(null, null), 4, "Avisar a Odoo"), "Avisar a Odoo");
+  assert.equal(prTitle(start(null, "English"), 4, "Avisar a Odoo"), "Issue #4");
+  assert.equal(prTitle(start("[#{number}] {title}", "English"), 4, "Avisar a Odoo"), "[#4] Avisar a Odoo");
+  assert.equal(prTitle(start("{title}", null), 4, "Pide {number}"), "Pide {number}");
 });

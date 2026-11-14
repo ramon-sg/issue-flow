@@ -33,9 +33,11 @@ El PR en draft es la señal pública de "esto ya lo tomó alguien"; no
 significa que haya algo listo para revisar.
 
 **El PR va en español** (título, cuerpo y commits), salvo que `project.md`
-diga otro idioma en "Idioma". `issue-flow` usa el título de la issue y, para
-el cuerpo y el commit de inicio, `start.prBody` y `start.commitMessage` de
-`.agents/flow.json`, que por defecto están en español. Si `project.md` pide
+diga otro idioma en "Idioma". `issue-flow` usa el título de la issue (o
+`start.prTitle`) y, para el cuerpo y el commit de inicio, `start.prBody` y
+`start.commitMessage` de `.agents/flow.json`, que por defecto están en
+español. Con `start.prLanguage`, el PR se abre como `Issue #<n>` y el
+título lo pones tú en el Paso 5. Si `project.md` pide
 otro idioma y esos textos no lo siguen, dilo en el resumen del Paso 2.
 
 **Lo propio de este repo está en `project.md`**, en esta misma carpeta: qué
@@ -152,6 +154,13 @@ Lenguaje llano, sin detalles de implementación, en el idioma del PR.
 ```bash
 npx @ramon-sg/github-rest pr view <pr>
 npx @ramon-sg/github-rest pr edit <pr> --body-file <archivo>
+```
+
+Si `.agents/flow.json` tiene `start.prLanguage` y el título del PR no está
+en ese idioma, ponle uno en ese idioma que diga qué hace el PR:
+
+```bash
+npx @ramon-sg/github-rest pr edit <pr> --title "<título>"
 ```
 
 Lo demás del cuerpo (`Closes`, la URL, la sesión de la nube) queda igual.

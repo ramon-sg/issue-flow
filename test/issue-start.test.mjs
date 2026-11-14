@@ -987,3 +987,30 @@ test("declining in Spanish is a plain line, not an error block, and the error ti
   assert.match(no.err, /no se hizo nada\./);
   assert.match(missing.err, /\[!\] [A-ZÁÉÍÓÚ]/);
 });
+
+test("with start.prLanguage the draft PR does not copy the issue's title and the prompt asks for one", () => {
+  const s = startSandbox();
+  mkdirSync(join(s.main, ".agents"), { recursive: true });
+  writeFileSync(join(s.main, ".agents", "flow.json"), '{ "start": { "prLanguage": "English" } }\n');
+
+  const plan = JSON.parse(s.run(["214", "--plan"]).out);
+  const r = s.run(["214", "--yes"]);
+
+  assert.equal(r.status, 0, r.err);
+  assert.equal(s.writes()[0].body.title, "Issue #214");
+  for (const prompt of [plan.prompt, sessions(s)[0].args.at(-1)]) {
+    assert.match(prompt, /título en English/);
+    assert.match(prompt, /pr edit <pr> --title/);
+  }
+});
+
+test("start.prTitle is the draft PR's template", () => {
+  const s = startSandbox();
+  mkdirSync(join(s.main, ".agents"), { recursive: true });
+  writeFileSync(join(s.main, ".agents", "flow.json"), '{ "start": { "prTitle": "[#{number}] {title}" } }\n');
+
+  const r = s.run(["214", "--yes", "--no-launch"]);
+
+  assert.equal(r.status, 0, r.err);
+  assert.equal(s.writes()[0].body.title, "[#214] Avisar devoluciones a Odoo");
+});
