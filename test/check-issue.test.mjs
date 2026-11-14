@@ -61,3 +61,28 @@ test("a body whose header does not start with its label fails", () => {
   assert.equal(r.status, 1);
   assert.match(r.stdout, /La línea 1 de la cabecera debe empezar con '\*\*Qué falla:\*\*'/);
 });
+
+test("a branch type picks the template: fix is a bug, any other type is a feature", () => {
+  const dir = skillCopy();
+  const feature = bugBody(5, { header: "**Qué se pide:**" });
+
+  const fix = check(dir, bugBody(5), "fix");
+  const chore = check(dir, feature, "chore");
+  const choreWithBug = check(dir, bugBody(5), "chore");
+
+  assert.equal(fix.status, 0, fix.stdout);
+  assert.match(fix.stdout, /^OK: bug,/);
+  assert.equal(chore.status, 0, chore.stdout);
+  assert.match(chore.stdout, /^OK: feature,/);
+  assert.equal(choreWithBug.status, 1);
+  assert.match(choreWithBug.stdout, /'\*\*Qué se pide:\*\*'/);
+});
+
+test("a kind that is not a branch type is refused", () => {
+  const dir = skillCopy();
+
+  const r = check(dir, bugBody(5), "Not A Type");
+
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /tipo de rama/);
+});
