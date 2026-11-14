@@ -141,6 +141,42 @@ export function fill(template: string, values: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (whole, name: string) => values[name] ?? whole);
 }
 
+/** The draft PR's title when the PRs go in another language and there is no template. */
+const NEUTRAL_PR_TITLE = "Issue #{number}";
+
+/**
+ * The draft PR's title: the config's template, else the issue's title, or a neutral one
+ * when the PRs go in another language (the session writes the real one).
+ * @param start - `start.prTitle` and `start.prLanguage`.
+ * @param number - The issue.
+ * @param title - The issue's title.
+ * @returns The title.
+ * @example prTitle({ prTitle: null, prLanguage: "English" }, 4, "Avisar") // "Issue #4"
+ */
+export function prTitle(
+  start: { prTitle: string | null; prLanguage: string | null },
+  number: number,
+  title: string,
+): string {
+  const template = start.prTitle ?? (start.prLanguage === null ? "{title}" : NEUTRAL_PR_TITLE);
+  return fill(template, { number: String(number), title });
+}
+
+/** What the prompt adds when the PRs go in another language. */
+const PR_LANGUAGE_PROMPT =
+  "El PR va en {language}: si su título no está en {language}, ponle un título en {language} que diga qué hace, con `npx @ramon-sg/github-rest pr edit <pr> --title \"…\"`.";
+
+/**
+ * The session's prompt, with the request for a PR title when the PRs go in another language.
+ * @param prompt - The prompt.
+ * @param language - `start.prLanguage`.
+ * @returns The prompt.
+ * @example withPrLanguage("Issue #4.", null) // "Issue #4."
+ */
+export function withPrLanguage(prompt: string, language: string | null): string {
+  return language === null ? prompt : `${prompt} ${fill(PR_LANGUAGE_PROMPT, { language })}`;
+}
+
 /**
  * The draft PR's body from the config's template.
  * @param template - The template, with `{keyword}`, `{number}` and `{url}`.

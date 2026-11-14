@@ -143,3 +143,17 @@ test("schema.json has the same keys and defaults as the code", async () => {
   assert.deepEqual(props.colors.additionalProperties.enum, SESSION_COLORS);
   assert.deepEqual(props.labels.default, DEFAULT_CONFIG.labels);
 });
+
+test("start.prTitle and start.prLanguage: off by default, any non-empty text when given", () => {
+  assert.equal(DEFAULT_CONFIG.start.prTitle, null);
+  assert.equal(DEFAULT_CONFIG.start.prLanguage, null);
+
+  const config = parseConfig({ start: { prTitle: "[#{number}] {title}", prLanguage: "English" } });
+
+  assert.equal(config.start.prTitle, "[#{number}] {title}");
+  assert.equal(config.start.prLanguage, "English");
+  assert.equal(config.start.prBody, DEFAULT_CONFIG.start.prBody);
+  assert.throws(() => parseConfig({ start: { prLanguage: "" } }), /start\.prLanguage/);
+  assert.throws(() => parseConfig({ start: { prTitle: 4 } }), /start\.prTitle/);
+  assert.throws(() => parseConfig({ start: { prTitel: "x" } }), /start\.prTitel/);
+});

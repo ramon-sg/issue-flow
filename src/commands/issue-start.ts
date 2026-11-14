@@ -13,7 +13,7 @@ import { ask, confirm, forgetTypedAhead } from "../ask.js";
 import { show } from "../banner.js";
 import { branchType } from "../branch-name.js";
 import { checkedOutAt, checkoutRoot, failure, git, gitLines, locateRepo, onOrigin, ownCommits } from "../git.js";
-import { fill, issueColor, nextBranch } from "../issue-text.js";
+import { fill, issueColor, nextBranch, withPrLanguage } from "../issue-text.js";
 import { inPath, launchSession, permissionArgs, teleportSession } from "../launch.js";
 import { type Messages, messages } from "../messages/index.js";
 import { emitJson, type Output, warn } from "../output.js";
@@ -231,7 +231,8 @@ function promptFor(context: Pick<Context, "options" | "issue">, plan: string | n
   const template = onlySummary
     ? plan === null ? start.summaryPrompt : start.summaryPlanPrompt
     : plan === null ? start.prompt : start.resumePrompt;
-  return fill(template, { number: String(context.issue.number), title: context.issue.title, plan: plan ?? "" });
+  const prompt = fill(template, { number: String(context.issue.number), title: context.issue.title, plan: plan ?? "" });
+  return withPrLanguage(prompt, start.prLanguage);
 }
 
 /**

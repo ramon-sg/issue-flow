@@ -304,6 +304,8 @@ Todo es opcional; sin el archivo valen los valores por defecto. Una clave descon
 | `worktrees.dockerProjects` | Ninguno | Prefijos de los proyectos de Compose de los worktrees |
 | `start.commitMessage` | `chore: empieza el trabajo en la issue #{number} [skip ci]` | Commit vacío inicial |
 | `start.prBody` | `{keyword} #{number}`, la URL de la issue (`{url}`) y "En progreso." | Cuerpo del PR en draft |
+| `start.prTitle` | El título de la issue | Título del PR en draft; `{number}` y `{title}` son los de la issue |
+| `start.prLanguage` | Apagado | Idioma de los PR si no es el de las issues (`"English"`): el PR se abre como `Issue #{number}` y el prompt pide un título en ese idioma |
 | `start.prompt`, `start.resumePrompt` | Resumir la issue y seguir `start-issue`, o retomar desde `{plan}` | Pedido con que se abre Claude |
 | `start.summaryPrompt`, `start.summaryPlanPrompt` | Resumir y esperar | Pedido de `--plan` |
 | `start.cloudPrompt` | `/start-issue {number} --yes{flags}` | Lo que `--cloud` le pide a la sesión; `{flags}` es `--new` o `--resume <rama>` |
