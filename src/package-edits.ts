@@ -106,6 +106,14 @@ export const GITHUB_REST = "@ramon-sg/github-rest";
 export const START_SCRIPT = "issue:start";
 export const FREE_SCRIPT = "issue:start:free";
 
+/** The scripts older versions added (the `issue-flow` binary of the repo's own dependency). */
+export const LEGACY_SCRIPTS: Record<string, string> = {
+  "issue:start": "issue-flow issue start",
+  "issue:start:free": "issue-flow issue start --free",
+  "worktree:prune": "issue-flow worktree prune",
+  "pr:worktree": "issue-flow pr worktree",
+};
+
 /** The scripts `apply` adds. */
 const FLOW_SCRIPTS: Record<string, string> = {
   "issue:start": "issue-flow issue start",

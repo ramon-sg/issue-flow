@@ -407,6 +407,10 @@ issue:start for those. --no-repo-deny goes after it, as any flag:
     keptRest: (name, version, needed) => `kept ${name} ${version} (the skills need ${needed} or newer: raise it)`,
     keptFree: (free, start) =>
       `kept scripts: ${free}, which skips the repo's own ${start}: make it run that one with --free, or delete it`,
+    toolPinned: (name, from, to) => `tools: ${name} ${from === null ? "" : `${from} → `}${to}`,
+    scriptSet: (name) => `scripts: ${name}`,
+    droppedDependency: (field, name) => `${field}: without ${name}`,
+    droppedScript: (name) => `scripts: without ${name} (old version)`,
   },
   steps: {
     onlyExpects: (config, names, only) => `--only expects a setup step of ${config} (${names === "" ? "it has none" : names}): ${only}`,

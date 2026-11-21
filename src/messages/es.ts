@@ -417,6 +417,10 @@ issue:start para esos. --no-repo-deny va después, como cualquier flag:
       `se mantiene ${name} ${version} (las skills necesitan ${needed} o más reciente: súbelo)`,
     keptFree: (free: string, start: string): string =>
       `se mantiene scripts: ${free}, que se salta el ${start} del repo: haz que ejecute ese con --free, o bórralo`,
+    toolPinned: (name: string, from: string | null, to: string): string => `tools: ${name} ${from === null ? "" : `${from} → `}${to}`,
+    scriptSet: (name: string): string => `scripts: ${name}`,
+    droppedDependency: (field: string, name: string): string => `${field}: sin ${name}`,
+    droppedScript: (name: string): string => `scripts: sin ${name} (versión anterior)`,
   },
   steps: {
     onlyExpects: (config: string, names: string, only: string): string =>
