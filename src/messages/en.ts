@@ -60,7 +60,7 @@ apply leaves the repo as this version needs it: .agents/flow.json (the first tim
 the recipes its files suggest), .agents/runner.json (the runner, Bun or Node, and the exact
 issue-flow and github-rest it runs), the shortcuts in package.json and the hooks, with no
 devDependencies (it removes the old ones); it never lowers a version, and refuses a newer
-issue-flow. doctor checks them. agent-kitchen apply runs apply at the version
+issue-flow or a range in package.json. doctor checks them. agent-kitchen apply runs apply at the version
 it picks, along with the skills, agent-cloud-kit and claude-repo-guard. init and upgrade still
 run apply, with a warning, until 0.4.0.
 
@@ -562,6 +562,7 @@ issue:start for those. --no-repo-deny goes after it, as any flag:
     hookMissing: (file, hint) => `not in ${file}: ${hint}`,
     hookAt: (found, ours, hint) => `at ${found}, this is ${ours}: ${hint}`,
     pinsName: "tool pins",
+    scriptRunner: (name, runner, hint) => `the version matches, but the "${name}" shortcut is not written for ${runner}, the runner in runner.json: ${hint}`,
     hookRunner: (runner, hint) => `the version matches, but the hook is not written for ${runner}, the runner in runner.json: ${hint}`,
     noLegacy: "no issue-flow or github-rest",
     legacyLeft: (names, hint) => `${names} still in package.json; they live in .agents/runner.json now: remove them with apply (${hint})`,

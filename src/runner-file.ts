@@ -41,7 +41,10 @@ export function readRunnerFile(root: string): RunnerConfig | null {
 }
 
 /** What stands for the `github-rest` command when `runner.json` cannot say. */
-const GITHUB_REST_FALLBACK = `${GITHUB_REST} (con el ejecutor y la versión de ${RUNNER_FILE})`;
+export const GITHUB_REST_FALLBACK = GITHUB_REST;
+
+/** The sentence that follows a prompt that had to use the fallback. */
+export const GITHUB_REST_NOTE = `(Corre ${GITHUB_REST} con el ejecutor y la versión de ${RUNNER_FILE}.)`;
 
 /**
  * The command that runs `github-rest`, for the prompts: the repo's runner and pinned

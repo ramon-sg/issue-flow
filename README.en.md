@@ -123,9 +123,9 @@ Only the terminal changes. What is written to GitHub (the initial commit, the PR
 | `npm run issue:start:free 34` | `npm run issue:start:free 34` (with other options, `npm run issue:start:free -- 34 --no-repo-deny`) |
 | `pnpm issue:start:free 34` | `pnpm issue:start:free 34` |
 | `yarn issue:start:free 34` | `yarn issue:start:free 34` |
-| `bunx --bun @ramon-sg/issue-flow@<v>` (with Node, `npx --yes`) | `issue-flow issue start 34` |
+| `bunx --bun @ramon-sg/issue-flow@<v>` (with Node, `npx --yes`) | `bunx --bun @ramon-sg/issue-flow@<v> issue start 34` (with Node, `npx --yes`; the one in `runner.json`) |
 
-The script form is used only with the scripts `apply` installs (`issue:start` and `issue:start:free`); a script of someone else's that calls `issue-flow` falls back to `issue-flow issue start <n>`. The options that define how the session runs are repeated (`--free`, `--ask-permissions`, `--no-repo-deny`, `--namer`, `-R`, and `--lang` if you passed it as an option) and the one-off ones are not (`--new`, `--branch`, `--yes`, `--dry-run`, `--resume`, `--no-launch`, `--plan`).
+The script form is used only with the scripts `apply` installs (`issue:start` and `issue:start:free`); a script of someone else's that calls `issue-flow` falls back to that same form with the runner (without `runner.json`, to `issue-flow issue start <n>`). The options that define how the session runs are repeated (`--free`, `--ask-permissions`, `--no-repo-deny`, `--namer`, `-R`, and `--lang` if you passed it as an option) and the one-off ones are not (`--new`, `--branch`, `--yes`, `--dry-run`, `--resume`, `--no-launch`, `--plan`).
 
 ## Worktrees: prepare, clean and delete
 
@@ -182,7 +182,7 @@ issue-flow pr worktree 42 --no-setup    # without the setup steps
 
 ## Orca and Paseo: `issue-flow adapter`
 
-`orca.yaml` and `paseo.json` only call the adapter, which leaves the worktree like one from `issue start`:
+`orca.yaml` and `paseo.json` only call the adapter, which leaves the worktree like one from `issue start`. `doctor` checks that those commands carry the version in `runner.json`; update them after an `apply`:
 
 ```yaml
 # orca.yaml
@@ -309,7 +309,7 @@ Everything is optional; without the file the defaults apply. An unknown key is a
 | `start.prBody` | `{keyword} #{number}`, the issue's URL (`{url}`) and "En progreso." | Draft PR body |
 | `start.prTitle` | The issue's title | Draft PR title; `{number}` and `{title}` are the issue's |
 | `start.prLanguage` | Off | Language of the PRs when it is not the issues' (`"English"`): the PR opens as `Issue #{number}` and the prompt asks for a title in that language |
-| `start.prompt`, `start.resumePrompt` | Summarize the issue and follow `start-issue`, or resume from `{plan}` | Prompt Claude opens with; `{githubRest}` is the `github-rest` command with the runner and version of `.agents/runner.json` (or, without them, a sentence pointing at that file) |
+| `start.prompt`, `start.resumePrompt` | Summarize the issue and follow `start-issue`, or resume from `{plan}` | Prompt Claude opens with; `{githubRest}` is the `github-rest` command with the runner and version of `.agents/runner.json` (or, without them, the bare package name, and the prompt ends with a sentence pointing at that file) |
 | `start.summaryPrompt`, `start.summaryPlanPrompt` | Summarize and wait | `--plan`'s prompt; they also take `{githubRest}` |
 | `start.cloudPrompt` | `/start-issue {number} --yes{flags}` | What `--cloud` asks the session; `{flags}` is `--new` or `--resume <branch>` |
 | `plans.dirs` | `docs/plans`, `docs/specs` | Where to look for the issue's plan: what the branch touched, or the document whose `prs:` names its PR |

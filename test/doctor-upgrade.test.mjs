@@ -331,3 +331,48 @@ test("apply refuses to run in a worktree, and leaves the main checkout alone", (
   assert.match(r.err, /run apply in the main checkout/);
   assert.equal(readFileSync(join(s.main, "package.json"), "utf8"), before);
 });
+
+// The adapter commands a repo pastes into paseo.json and orca.yaml, at a version.
+function adapterFiles(s, version) {
+  const spec = `bunx --bun @ramon-sg/issue-flow@${version}`;
+  writeFileSync(join(s.main, "paseo.json"), JSON.stringify({ worktree: { setup: [`${spec} adapter setup`], teardown: `${spec} adapter archive` } }));
+  writeFileSync(join(s.main, "orca.yaml"), `setupAgentStartupPolicy: wait-for-setup\nscripts:\n  setup: ${spec} adapter setup\n  archive: ${spec} adapter archive\n`);
+}
+
+test("doctor fails when the adapter commands in paseo.json and orca.yaml are at another version, and passes at this one", () => {
+  const s = setUp();
+
+  adapterFiles(s, VERSION);
+  const ok = s.cli(["doctor"], { env: npxEnv(s) });
+  adapterFiles(s, "0.0.1");
+  const old = s.cli(["doctor"], { env: npxEnv(s) });
+
+  assert.equal(ok.status, 0, ok.out);
+  assert.equal(old.status, 1);
+  assert.match(old.out, /✗ .*not pinned to .* in: bunx --bun @ramon-sg\/issue-flow@0\.0\.1 adapter setup/);
+  assert.match(old.out, /not pinned to .* in: bunx --bun @ramon-sg\/issue-flow@0\.0\.1 adapter archive/);
+  assert.match(old.out, /in: {3}setup: bunx --bun @ramon-sg\/issue-flow@0\.0\.1 adapter setup/);
+});
+
+test("doctor names a paseo.json or an orca.yaml alone", () => {
+  const s = setUp();
+  writeFileSync(join(s.main, "orca.yaml"), "scripts:\n  setup: bunx --bun @ramon-sg/issue-flow@0.0.1 adapter setup\n");
+
+  const r = s.cli(["doctor"], { env: npxEnv(s) });
+
+  assert.equal(r.status, 1);
+  assert.match(r.out, /not pinned to .* in: .*issue-flow@0\.0\.1 adapter setup/);
+});
+
+test("doctor fails when a shortcut is written for another runner than runner.json", () => {
+  const s = setUp();
+  const runner = readRepoJson(s, ".agents/runner.json");
+  runner.runner = "node";
+  writeFileSync(join(s.main, ".agents", "runner.json"), JSON.stringify(runner));
+
+  const r = s.cli(["doctor"], { env: npxEnv(s) });
+
+  assert.equal(r.status, 1);
+  assert.match(r.out, /✗ tool pins: the version matches, but the "issue:start" shortcut is not written for node/);
+  assert.match(r.out, /"pr:worktree" shortcut/);
+});

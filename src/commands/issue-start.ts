@@ -20,7 +20,7 @@ import { emitJson, type Output, warn } from "../output.js";
 import { findOpenPlan, findPlan, type PlanQuery } from "../plan-doc.js";
 import { proposeBranches } from "../propose.js";
 import { type Lifted, liftRepoDeny, restoreRepoDeny } from "../repo-deny.js";
-import { githubRestCommand } from "../runner-file.js";
+import { GITHUB_REST_FALLBACK, GITHUB_REST_NOTE, githubRestCommand } from "../runner-file.js";
 import { type Lock, lockWorktree, unlockWorktree } from "../session-lock.js";
 import { afterSession, choosePlace, copyWorktreeIncludes, prepareBranch, publish } from "../start-place.js";
 import {
@@ -234,7 +234,9 @@ function promptFor(context: Pick<Context, "options" | "issue" | "mainRoot">, pla
     : plan === null ? start.prompt : start.resumePrompt;
   const githubRest = githubRestCommand(context.mainRoot);
   const prompt = fill(template, { number: String(context.issue.number), title: context.issue.title, plan: plan ?? "", githubRest });
-  return withPrLanguage(prompt, start.prLanguage, githubRest);
+  const full = withPrLanguage(prompt, start.prLanguage, githubRest);
+  const used = githubRest === GITHUB_REST_FALLBACK && (template.includes("{githubRest}") || start.prLanguage !== null);
+  return used ? `${full} ${GITHUB_REST_NOTE}` : full;
 }
 
 /**

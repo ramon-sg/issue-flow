@@ -13,9 +13,11 @@ import { CONFIG_PATH, ConfigError } from "../config-base.js";
 import { loadConfig } from "../config.js";
 import { locateRepo } from "../git.js";
 import { type Messages, messages } from "../messages/index.js";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { Output } from "../output.js";
 import { dependencyVersion, GITHUB_REST, reaches } from "../package-edits.js";
-import { FLOW_OWNED, applyCommand, readRunnerFile } from "../runner-file.js";
+import { FLOW_OWNED, applyCommand, flowScripts, readRunnerFile } from "../runner-file.js";
 import { HOOK_EVENTS, hookCommand, hookVersions, ourHookCommands } from "../settings-hooks.js";
 import { isStaleSchema, ownVersions, PACKAGE, readJson, SETTINGS_FILE, SetupError } from "../setup-files.js";
 
@@ -114,7 +116,53 @@ function toolChecks(root: string, versions: { issueFlow: string; githubRest: str
 function pinChecks(root: string, settings: Record<string, unknown> | null, t: Messages): Check[] {
   const scripts = readJson(root, "package.json", t)?.scripts;
   const ours = typeof scripts === "object" && scripts !== null ? Object.values(scripts).filter((text): text is string => typeof text === "string" && text.includes(FLOW_OWNED)) : [];
-  return fromLibrary(checkToolPins(root, PACKAGE, [...ourHookCommands(settings), ...ours]), t.doctor.pinsName);
+  return fromLibrary(checkToolPins(root, PACKAGE, [...ourHookCommands(settings), ...ours, ...adapterCommands(root)]), t.doctor.pinsName);
+}
+
+/**
+ * The adapter commands the repo pastes into `paseo.json` (`worktree.setup`, `worktree.teardown`)
+ * and `orca.yaml` (the lines that name issue-flow at a version). A missing or unreadable file adds nothing.
+ * @param root - The repo.
+ * @returns The command texts.
+ */
+function adapterCommands(root: string): string[] {
+  const texts: string[] = [];
+  const paseo = join(root, "paseo.json");
+  if (existsSync(paseo)) {
+    try {
+      const worktree = (JSON.parse(readFileSync(paseo, "utf8")) as { worktree?: { setup?: unknown; teardown?: unknown } } | null)?.worktree;
+      const { setup, teardown } = worktree ?? {};
+      for (const item of [...(Array.isArray(setup) ? setup : [setup]), teardown]) if (typeof item === "string") texts.push(item);
+    } catch {
+      // NOTE: a file that is not ours to parse is not ours to judge.
+    }
+  }
+  const orca = join(root, "orca.yaml");
+  if (existsSync(orca)) texts.push(...readFileSync(orca, "utf8").split("\n").filter((line) => line.includes(FLOW_OWNED)));
+  return texts;
+}
+
+/**
+ * Checks that each flow-owned shortcut is written for the runner of `runner.json`.
+ * @param root - The repo.
+ * @param hint - What fixes it.
+ * @param t - The messages.
+ * @returns The failed checks (none if all agree or there is nothing to compare).
+ */
+function scriptChecks(root: string, hint: string, t: Messages): Check[] {
+  const read = readRunner(root);
+  if (!("config" in read) || read.config === null) return [];
+  const runner = effectiveRunner(read.config);
+  const scripts = readJson(root, "package.json", t)?.scripts;
+  if (typeof scripts !== "object" || scripts === null) return [];
+  const pinned = Object.hasOwn(read.config.tools, PACKAGE) ? read.config.tools[PACKAGE] : undefined;
+  if (pinned === undefined) return [];
+  return Object.entries(flowScripts(runner, pinned)).flatMap(([name, command]) => {
+    const found = (scripts as Record<string, unknown>)[name];
+    if (typeof found !== "string" || !found.includes(FLOW_OWNED) || found === command) return [];
+    if (!found.includes(`${FLOW_OWNED}${pinned}`)) return [];
+    return [{ name: t.doctor.pinsName, ok: false, detail: t.doctor.scriptRunner(name, runner, hint) }];
+  });
 }
 
 /**
@@ -181,6 +229,7 @@ export function doctor(cwd: string, json: boolean, out: Output): number {
       ...fromLibrary(checkRunner(root)),
       ...toolChecks(root, versions, t),
       ...pinChecks(root, settings, t),
+      ...scriptChecks(root, hint, t),
       ...hookChecks(root, settings, versions.issueFlow, hint, t),
       legacyCheck(root, hint, t),
     ];

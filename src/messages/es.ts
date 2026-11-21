@@ -66,7 +66,7 @@ apply deja el repo como esta versión lo necesita: .agents/flow.json (la primera
 las recetas que sugieren sus archivos), .agents/runner.json (el ejecutor, Bun o Node, y los
 issue-flow y github-rest exactos que corre), los atajos de package.json y los hooks, sin
 devDependencies (quita las antiguas); nunca baja una versión, y rechaza un issue-flow más
-nuevo. doctor los revisa. agent-kitchen apply ejecuta
+nuevo o un rango en package.json. doctor los revisa. agent-kitchen apply ejecuta
 apply en la versión que elige, junto con las skills, agent-cloud-kit y claude-repo-guard.
 init y upgrade todavía ejecutan apply, con una advertencia, hasta la 0.4.0.
 
@@ -573,6 +573,7 @@ issue:start para esos. --no-repo-deny va después, como cualquier flag:
     hookMissing: (file: string, hint: string): string => `no está en ${file}: ${hint}`,
     hookAt: (found: string, ours: string, hint: string): string => `en ${found}, esta es ${ours}: ${hint}`,
     pinsName: "pins de herramientas",
+    scriptRunner: (name: string, runner: string, hint: string): string => `la versión coincide, pero el atajo "${name}" no está escrito para ${runner}, el ejecutor de runner.json: ${hint}`,
     hookRunner: (runner: string, hint: string): string => `la versión coincide, pero el hook no está escrito para ${runner}, el ejecutor de runner.json: ${hint}`,
     noLegacy: "sin issue-flow ni github-rest",
     legacyLeft: (names: string, hint: string): string => `${names} siguen en package.json; ahora van en .agents/runner.json: quítalas con apply (${hint})`,

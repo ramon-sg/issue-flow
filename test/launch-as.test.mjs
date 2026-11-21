@@ -2,7 +2,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { launchOf } from "../dist/launch-as.js";
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { again } from "../dist/start-state.js";
+import { startSandbox } from "./start-helpers.mjs";
 
 const AGENT = {
   bun: "bun/1.4.4 npm/? node/v26.3.0 darwin arm64",
@@ -16,7 +20,7 @@ function command(manager, event, flags = {}, extra) {
   const env = {};
   if (manager !== null) env.npm_config_user_agent = AGENT[manager];
   if (event !== null) env.npm_lifecycle_event = event;
-  return again({ number: 34, launchedAs: launchOf(env, flags) }, extra);
+  return again({ number: 34, cwd: mkdtempSync(join(tmpdir(), "flow-again-")), launchedAs: launchOf(env, flags) }, extra);
 }
 
 test("bun repeats `bun run <script>`, with the flags that came", () => {
@@ -68,4 +72,16 @@ test("--cloud drops the permission flags and the free script, so the command doe
   assert.equal(command(null, null, { "ask-permissions": true }, "--cloud"), "issue-flow issue start 34 --cloud");
   assert.equal(command(null, null, { free: true, "no-repo-deny": true, repo: "o/r" }, "--cloud"), "issue-flow issue start 34 -R o/r --cloud");
   assert.equal(command("bun", "issue:start:free", { free: true }, "--teleport"), "bun run issue:start:free 34 --teleport");
+});
+
+test("without a script, the resume command runs the issue-flow pinned in runner.json with its runner", () => {
+  const s = startSandbox();
+  mkdirSync(join(s.main, ".agents"), { recursive: true });
+  const pin = (runner) => writeFileSync(join(s.main, ".agents", "runner.json"), JSON.stringify({ runner, tools: { "@ramon-sg/issue-flow": "0.6.0" } }));
+  const resume = (extra) => again({ number: 34, cwd: s.main, launchedAs: launchOf({}, { free: true }) }, extra);
+
+  pin("bun");
+  assert.equal(resume(), "bunx --bun @ramon-sg/issue-flow@0.6.0 issue start 34 --free");
+  pin("node");
+  assert.equal(resume("--cloud"), "npx --yes @ramon-sg/issue-flow@0.6.0 issue start 34 --cloud");
 });

@@ -39,6 +39,8 @@ test("the packed CLI runs init outside this repo, with its own version and recip
   const versions = spawnSync(process.execPath, [cli, "--version", "--json"], { cwd: repo, encoding: "utf8" });
   assert.equal(versions.status, 0, versions.stderr);
   assert.deepEqual(JSON.parse(versions.stdout), { version: own.version, githubRest: "0.6.0", runner: "1.0.0" });
+  const plain = spawnSync(process.execPath, [cli, "--version"], { cwd: repo, encoding: "utf8" });
+  assert.equal(plain.stdout, `${own.version}\n`);
 
   // NOTE: a PATH with only fake bun and bunx, so the run neither needs Bun nor runs a tool.
   const bin = join(dir, "bin");
