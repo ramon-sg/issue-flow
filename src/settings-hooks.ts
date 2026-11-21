@@ -7,6 +7,7 @@
  * way `agent-cloud-kit init` sees it and does not add its own, and a hook of `agent-cloud-kit`
  * already there is dropped, so it does not run twice.
  */
+import { toolCommandText, type Runner } from "@ramon-sg/runner";
 import { isObject } from "./config-base.js";
 import type { Messages } from "./messages/index.js";
 import { PACKAGE, SETTINGS_FILE, SetupError } from "./setup-files.js";
@@ -30,14 +31,15 @@ export const HOOK_EVENTS = Object.keys(HOOK_COMMANDS);
 /**
  * The command of one of the hooks, at a version.
  * @param event - The hook event.
+ * @param runner - The repo's runner (`bunx --bun` or `npx --yes`).
  * @param version - This package's version.
  * @returns The command.
- * @example hookCommand("WorktreeCreate", "0.1.0") // "npx --yes @ramon-sg/issue-flow@0.1.0 hook worktree-create"
+ * @example hookCommand("WorktreeCreate", "bun", "0.1.0") // "bunx --bun @ramon-sg/issue-flow@0.1.0 hook worktree-create"
  */
-export function hookCommand(event: string, version: string): string {
+export function hookCommand(event: string, runner: Runner, version: string): string {
   const hook = HOOK_COMMANDS[event];
   if (hook === undefined) throw new SetupError(`unknown hook event ${event}.`);
-  return `npx --yes ${PACKAGE}@${version} ${hook.sub}${hook.note}`;
+  return toolCommandText(runner, PACKAGE, version, hook.sub.split(" ")) + hook.note;
 }
 
 /** A hook of a settings entry, as Claude Code keeps it. */
@@ -85,13 +87,14 @@ function hooksOf(entry: Record<string, unknown>): Hook[] {
  * the missing ones. In `SessionStart` it drops an `agent-cloud-kit session` hook that is not
  * ours.
  * @param settings - The settings, or null if there is no file.
+ * @param runner - The repo's runner: a hook of ours with another runner is rewritten.
  * @param version - This package's version.
  * @param t - The messages, for the changes and the errors.
  * @returns The new settings and what changed, one line each.
  * @throws SetupError if `hooks` or an event of it is not what Claude Code expects.
- * @example registerHooks(null, "0.1.0", t).changes // ["added the SessionStart hook", …]
+ * @example registerHooks(null, "bun", "0.1.0", t).changes // ["added the SessionStart hook", …]
  */
-export function registerHooks(settings: Record<string, unknown> | null, version: string, t: Messages): { settings: Record<string, unknown>; changes: string[] } {
+export function registerHooks(settings: Record<string, unknown> | null, runner: Runner, version: string, t: Messages): { settings: Record<string, unknown>; changes: string[] } {
   const next = { ...(settings ?? {}) };
   const hooks = next.hooks ?? {};
   if (!isObject(hooks)) throw new SetupError(t.setup.hooksNotObject(SETTINGS_FILE));
@@ -99,7 +102,7 @@ export function registerHooks(settings: Record<string, unknown> | null, version:
   const changes: string[] = [];
   for (const event of HOOK_EVENTS) {
     const entries = entriesOf(hooks, event, t);
-    const command = hookCommand(event, version);
+    const command = hookCommand(event, runner, version);
     let found = false;
     const kept = entries.map((entry) => {
       const inner = hooksOf(entry).flatMap((hook): Hook[] => {
@@ -107,7 +110,7 @@ export function registerHooks(settings: Record<string, unknown> | null, version:
         if (current !== null) {
           found = true;
           if (hook.command === command) return [hook];
-          changes.push(t.setup.movedHook(event, current, version));
+          changes.push(current === version ? t.setup.rewroteHook(event, runner) : t.setup.movedHook(event, current, version));
           return [{ ...hook, command }];
         }
         if (event === "SessionStart" && typeof hook.command === "string" && hook.command.includes(CLOUD_MARKER)) {
@@ -142,4 +145,19 @@ export function hookVersions(settings: Record<string, unknown> | null): Record<s
     versions[event] = commands.map((command) => ourVersion(command, event)).find((found) => found !== null) ?? null;
   }
   return versions;
+}
+
+/**
+ * The commands of our hooks in the settings, whatever their version or runner.
+ * @param settings - The settings, or null.
+ * @returns The commands.
+ * @example ourHookCommands(settings) // ["bunx --bun @ramon-sg/issue-flow@0.1.0 hook worktree-create", …]
+ */
+export function ourHookCommands(settings: Record<string, unknown> | null): string[] {
+  const hooks = isObject(settings?.hooks) ? settings.hooks : {};
+  return HOOK_EVENTS.flatMap((event) => {
+    const entries = Array.isArray(hooks[event]) ? (hooks[event] as unknown[]).filter(isObject) : [];
+    return entries.flatMap((entry) => hooksOf(entry).map((hook) => hook.command))
+      .filter((command): command is string => ourVersion(command, event) !== null);
+  });
 }

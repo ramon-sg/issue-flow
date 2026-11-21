@@ -411,6 +411,7 @@ issue:start para esos. --no-repo-deny va después, como cualquier flag:
     hooksNotObject: (file: string): string => `${file}: "hooks" no es un objeto; arréglalo y ejecuta de nuevo.`,
     hooksNotList: (file: string, event: string): string => `${file}: hooks.${event} no es una lista de entradas; arréglalo y ejecuta de nuevo.`,
     movedHook: (event: string, from: string, to: string): string => `se movió el hook ${event} de ${from} a ${to}`,
+    rewroteHook: (event: string, runner: string): string => `se reescribió el hook ${event} para usar ${runner}`,
     droppedCloud: (marker: string): string => `se quitó el hook SessionStart de ${marker}: lo ejecuta issue-flow session`,
     addedHook: (event: string): string => `se agregó el hook ${event}`,
     keptRest: (name: string, version: string, needed: string): string =>

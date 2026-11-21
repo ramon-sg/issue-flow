@@ -111,7 +111,7 @@ test("apply moves issue-flow, the hooks and the schema to the version that runs,
   assert.deepEqual(calls, { npx: [], npm: [] });
   assert.deepEqual(readRepoJson(s, "package.json").devDependencies, { "@ramon-sg/issue-flow": VERSION, "@ramon-sg/github-rest": REST, "@ramon-sg/skills-manager": "1.0.0" });
   const settings = readRepoJson(s, ".claude/settings.json");
-  assert.match(settings.hooks.SessionStart[0].hooks[0].command, new RegExp(`^npx --yes @ramon-sg/issue-flow@${VERSION.replaceAll(".", "\\.")} session `));
+  assert.match(settings.hooks.SessionStart[0].hooks[0].command, new RegExp(`^bunx --bun @ramon-sg/issue-flow@${VERSION.replaceAll(".", "\\.")} session `));
   assert.equal(settings.hooks.SessionStart.length, 1);
   assert.equal(readRepoJson(s, ".agents/flow.json").$schema, `https://raw.githubusercontent.com/ramon-sg/issue-flow/v${VERSION}/schema.json`);
   assert.equal(again.out, `Already at issue-flow ${VERSION}.\n`);

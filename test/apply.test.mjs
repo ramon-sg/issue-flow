@@ -12,7 +12,7 @@ import { npxCalls, npxEnv, readRepoJson, withNpx } from "./init-helpers.mjs";
 
 const OWN = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const VERSION = OWN.version;
-const SESSION = `npx --yes @ramon-sg/issue-flow@${VERSION} session # runs agent-cloud-kit session in the cloud`;
+const SESSION = `bunx --bun @ramon-sg/issue-flow@${VERSION} session # runs agent-cloud-kit session in the cloud`;
 
 const CLI = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 
@@ -62,7 +62,7 @@ test("apply --yes sets an empty repo up: config, package.json and hooks, and run
   assert.equal(pkg.scripts["issue:start:free"], "issue-flow issue start --free");
   const settings = readRepoJson(s, ".claude/settings.json");
   assert.deepEqual(commandsOf(settings, "SessionStart"), [SESSION]);
-  assert.deepEqual(commandsOf(settings, "WorktreeCreate"), [`npx --yes @ramon-sg/issue-flow@${VERSION} hook worktree-create`]);
+  assert.deepEqual(commandsOf(settings, "WorktreeCreate"), [`bunx --bun @ramon-sg/issue-flow@${VERSION} hook worktree-create`]);
   assert.equal(settings.hooks.WorktreeRemove[0].hooks[0].timeout, 600);
   assert.equal(existsSync(join(s.main, ".claude", "repo-guard.config.json")), false);
   assert.deepEqual(npxCalls(s), []);

@@ -402,6 +402,7 @@ issue:start for those. --no-repo-deny goes after it, as any flag:
     hooksNotObject: (file) => `${file}: "hooks" is not an object; fix it and run again.`,
     hooksNotList: (file, event) => `${file}: hooks.${event} is not a list of entries; fix it and run again.`,
     movedHook: (event, from, to) => `moved the ${event} hook from ${from} to ${to}`,
+    rewroteHook: (event, runner) => `rewrote the ${event} hook to use ${runner}`,
     droppedCloud: (marker) => `dropped the ${marker} SessionStart hook: issue-flow session runs it`,
     addedHook: (event) => `added the ${event} hook`,
     keptRest: (name, version, needed) => `kept ${name} ${version} (the skills need ${needed} or newer: raise it)`,

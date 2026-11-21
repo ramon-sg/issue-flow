@@ -176,7 +176,7 @@ async function plan(root: string, versions: OwnVersions, options: ApplyOptions, 
   }
   parseConfig(raw, t);
   const pkg = withFlowPackages(readJson(root, "package.json", t), versions, t);
-  const hooks = registerHooks(readJson(root, SETTINGS_FILE, t), versions.issueFlow, t);
+  const hooks = registerHooks(readJson(root, SETTINGS_FILE, t), "bun", versions.issueFlow, t); // provisional: the real runner comes with the runner.json wiring
   const file = (path: string, value: Record<string, unknown>, changes: string[], kept: string[] = []): Planned => ({
     path,
     value,
