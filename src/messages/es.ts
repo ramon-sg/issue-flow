@@ -63,9 +63,10 @@ Paseo: setup cuando crean un worktree (sus pasos y, si vino de una issue, issue 
 WorktreeCreate y WorktreeRemove de Claude Code para claude --worktree.
 
 apply deja el repo como esta versión lo necesita: .agents/flow.json (la primera vez, con
-las recetas que sugieren sus archivos), issue-flow en esta versión y github-rest y los
-scripts si faltan en package.json, y los hooks; no cambia ninguna otra versión, y rechaza
-un issue-flow más nuevo o un rango. doctor los revisa. npx agent-kitchen apply ejecuta
+las recetas que sugieren sus archivos), .agents/runner.json (el ejecutor, Bun o Node, y los
+issue-flow y github-rest exactos que corre), los atajos de package.json y los hooks, sin
+devDependencies (quita las antiguas); nunca baja una versión, y rechaza un issue-flow más
+nuevo. doctor los revisa. npx agent-kitchen apply ejecuta
 apply en la versión que elige, junto con las skills, agent-cloud-kit y claude-repo-guard.
 init y upgrade todavía ejecutan apply, con una advertencia, hasta la 0.4.0.
 
@@ -422,6 +423,7 @@ issue:start para esos. --no-repo-deny va después, como cualquier flag:
     scriptSet: (name: string): string => `scripts: ${name}`,
     droppedDependency: (field: string, name: string): string => `${field}: sin ${name}`,
     droppedScript: (name: string): string => `scripts: sin ${name} (versión anterior)`,
+    keptScript: (name: string): string => `se mantiene scripts: ${name}, que el repo tiene con otro comando`,
   },
   steps: {
     onlyExpects: (config: string, names: string, only: string): string =>
@@ -549,6 +551,8 @@ issue:start para esos. --no-repo-deny va después, como cualquier flag:
     nothingWritten: "no se escribió nada: los archivos del repo sugieren recetas; pasa --yes para tomarlas, o --recipe para elegir.",
     passYes: "pasa --yes o --recipe",
     reviewCommit: "revisa el diff y haz commit",
+    askNode: "Bun no está instalado: ¿usar Node?",
+    nothingWrittenRunner: "no se escribió nada: Bun no está instalado y no se aceptó Node; pasa --yes para usar Node.",
     already: (version: string): string => `Ya está en issue-flow ${version}.`,
     writes: (version: string): string => `issue-flow ${version}:`,
     wouldWrite: (version: string): string => `issue-flow ${version} escribiría:`,

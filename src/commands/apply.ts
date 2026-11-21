@@ -2,21 +2,24 @@
  * @file `issue-flow apply [--yes] [--dry-run] [--json] [--recipe <name>,...]`: leaves the
  * repo as the version that runs needs it, and running it again changes nothing. It writes
  * `.agents/flow.json` the first time (from `paseo.json` if the repo has one, plus the recipes
- * it picks), runs the config's migrations, pins `@ramon-sg/issue-flow` to this version, adds
- * `github-rest` and the scripts if they are missing, and moves the hooks and the `$schema`
- * to this version. It changes no other version: who updates picks the version by picking
- * which one to run (`npx @ramon-sg/issue-flow@<version> apply`). It refuses when the repo
- * already has a newer issue-flow, or a range, since the hooks need an exact one. The skills,
- * `agent-cloud-kit` and `claude-repo-guard` are `agent-kitchen`'s, which runs this command.
+ * it picks), runs the config's migrations, and writes `.agents/runner.json` (the runner,
+ * Bun or Node, and the exact `@ramon-sg/issue-flow` and `github-rest` it runs), the hooks
+ * and the `package.json` shortcuts with that runner. It adds no devDependency and removes
+ * the ones older versions added. It never lowers a version: who updates picks the version by
+ * picking which one to run. It refuses when the repo already has a newer issue-flow, or a
+ * range, since the hooks need an exact one. The skills, `agent-cloud-kit` and
+ * `claude-repo-guard` are `agent-kitchen`'s, which runs this command.
  */
+import { effectiveRunner, RUNNER_FILE, type Runner, writeRunnerConfig, writeScripts } from "@ramon-sg/runner";
 import { confirm } from "../ask.js";
 import { CONFIG_PATH, isObject } from "../config-base.js";
 import { parseConfig } from "../config.js";
 import { checkoutRoot, locateRepo } from "../git.js";
 import { type Messages, messages } from "../messages/index.js";
 import { emitJson, type Output, UsageError, warn } from "../output.js";
-import { dependencyVersion, isNewer, withFlowPackages } from "../package-edits.js";
+import { dependencyVersion, GITHUB_REST, isNewer } from "../package-edits.js";
 import { applyRecipe, detectedRecipes, loadRecipes, projectPrefix, type Recipe } from "../recipes.js";
+import { FLOW_OWNED, flowScripts, loadRunnerFile, pickScripts, predictScripts, readRunnerFile, withFlowTools, withoutLegacy } from "../runner-file.js";
 import { hookVersions, registerHooks } from "../settings-hooks.js";
 import { isStaleSchema, type OwnVersions, ownVersions, PACKAGE, packageManager, readJson, schemaUrl, SETTINGS_FILE, SetupError, writeJson } from "../setup-files.js";
 
@@ -120,18 +123,21 @@ async function pickRecipes(root: string, options: ApplyOptions, fresh: boolean, 
 }
 
 /**
- * Refuses to move the repo back, or to pin over a range: package.json must have an exact
- * issue-flow, and neither it nor any hook may be newer than this one.
+ * Refuses to move the repo back, or to pin over a range: package.json (the old way) must
+ * have an exact issue-flow, and neither it, runner.json nor any hook may be newer than this one.
  * @param root - The repo.
  * @param versions - This package's versions.
  * @param t - The messages.
- * @throws SetupError if the repo has a newer issue-flow or one that is not exact.
+ * @throws SetupError if the repo has a newer issue-flow or one that is not exact, or its
+ * runner.json cannot be used.
  */
 function checkVersion(root: string, versions: OwnVersions, t: Messages): void {
   const pinned = dependencyVersion(readJson(root, "package.json", t), PACKAGE);
   if (pinned !== null && !EXACT.test(pinned))
     throw new SetupError(t.apply.notExact(pinned, versions.issueFlow, PACKAGE));
+  const tool = readRunnerFile(root)?.tools[PACKAGE];
   const found = [
+    ...(tool === undefined ? [] : [{ where: RUNNER_FILE, version: tool }]),
     ...(pinned === null ? [] : [{ where: "package.json", version: pinned.replace(/^=/, "") }]),
     ...Object.values(hookVersions(readJson(root, SETTINGS_FILE, t)))
       .filter((version): version is string => version !== null)
@@ -145,25 +151,66 @@ function checkVersion(root: string, versions: OwnVersions, t: Messages): void {
 /** A file `apply` writes, with what changes in it and what it keeps as the repo had it. */
 interface Planned {
   path: string;
-  value: Record<string, unknown>;
   changes: string[];
   kept: string[];
+  /** Writes it to the repo. */
+  write: (root: string) => void;
 }
 
 /**
- * What `apply` would write: the config, `package.json` and the settings' hooks.
+ * The `package.json` of the repo as the flow leaves it, with what changes: the old
+ * devDependencies and scripts out, the shortcuts of the runner in.
+ * @param root - The repo.
+ * @param runner - The runner of the shortcuts.
+ * @param versions - This package's versions.
+ * @param t - The messages.
+ * @returns The two writes of package.json (the clean-up and the shortcuts), and whether the
+ * clean-up removed a dependency while the repo still has others to install.
+ */
+function planPackage(root: string, runner: Runner, versions: OwnVersions, t: Messages): { files: Planned[]; installable: boolean } {
+  const pkg = readJson(root, "package.json", t);
+  const legacy = pkg === null ? null : withoutLegacy(pkg, t);
+  const cleaned = legacy?.pkg ?? null;
+  const picked = pickScripts(cleaned, flowScripts(runner, versions.issueFlow), t);
+  const predicted = predictScripts(cleaned, picked.scripts, t);
+  const files: Planned[] = [];
+  if (legacy !== null && legacy.changes.length > 0)
+    files.push({ path: "package.json", changes: legacy.changes, kept: [], write: (dir) => writeJson(dir, "package.json", legacy.pkg) });
+  files.push({
+    path: "package.json",
+    changes: predicted.changes,
+    kept: [...picked.kept, ...predicted.clashes.map((name) => t.setup.keptScript(name))],
+    write: (dir) => void writeScripts(dir, runner, picked.scripts, FLOW_OWNED),
+  });
+  const has = (field: unknown): boolean => isObject(field) && Object.keys(field).length > 0;
+  return { files, installable: legacy !== null && legacy.removedDependencies && (has(legacy.pkg.dependencies) || has(legacy.pkg.devDependencies)) };
+}
+
+/**
+ * What `apply` would write: the settings' hooks, runner.json, the config and package.json.
  * @param root - The repo.
  * @param versions - This package's versions.
  * @param options - The options.
- * @param out - Where to ask about the recipes.
+ * @param out - Where to ask.
  * @param t - The messages.
- * @returns The files, or null if it had to ask about the recipes and could not.
+ * @returns The files and whether to run an install; null if it had to ask and could not, or
+ * the answer was no.
  * @throws ConfigError if the resulting config is invalid; SetupError if a file is broken.
  */
-async function plan(root: string, versions: OwnVersions, options: ApplyOptions, out: Output, t: Messages): Promise<Planned[] | null> {
+async function plan(root: string, versions: OwnVersions, options: ApplyOptions, out: Output, t: Messages): Promise<{ files: Planned[]; installable: boolean } | null> {
+  const mayAsk = out.interactive && !options.yes && !options.dryRun && !options.json;
+  const loaded = await loadRunnerFile(root, mayAsk ? async () => ((await confirm(out, t.apply.askNode)) ? "node" : null) : undefined);
+  if (loaded === null) {
+    warn(out, t.apply.nothingWrittenRunner);
+    return null;
+  }
+  if (loaded.warning !== null) warn(out, loaded.warning);
   const existing = readJson(root, CONFIG_PATH, t);
   const recipes = await pickRecipes(root, options, existing === null, out, t);
-  if (recipes === null) return null;
+  if (recipes === null) {
+    warn(out, t.apply.nothingWritten);
+    return null;
+  }
   const start = existing === null ? freshConfig(root, versions.issueFlow, t) : migrate(existing, versions.issueFlow, t);
   let { raw } = start;
   const configChanges = [...start.changes];
@@ -175,17 +222,21 @@ async function plan(root: string, versions: OwnVersions, options: ApplyOptions, 
     configKept.push(...applied.kept.map((change) => `${change} (${recipe.name})`));
   }
   parseConfig(raw, t);
-  const pkg = withFlowPackages(readJson(root, "package.json", t), versions, t);
-  const hooks = registerHooks(readJson(root, SETTINGS_FILE, t), "bun", versions.issueFlow, t); // provisional: the real runner comes with the runner.json wiring
-  const file = (path: string, value: Record<string, unknown>, changes: string[], kept: string[] = []): Planned => ({
-    path,
-    value,
-    changes: changes.map((line) => `${path}: ${line}`),
-    kept: kept.map((line) => `${path}: ${line}`),
-  });
+  const pinned = withFlowTools(loaded.config, versions, dependencyVersion(readJson(root, "package.json", t), GITHUB_REST), t);
+  const runner = effectiveRunner(pinned.config);
+  const hooks = registerHooks(readJson(root, SETTINGS_FILE, t), runner, versions.issueFlow, t);
+  const runnerChanges = [...(loaded.created ? [`runner: ${runner}`] : []), ...pinned.changes];
+  const packaged = planPackage(root, runner, versions, t);
+  const file = (path: string, changes: string[], kept: string[], write: (dir: string) => void): Planned => ({ path, changes, kept, write });
   // NOTE: the settings go first: the sandbox of claude-repo-guard is likeliest to block them,
   // and then nothing else has been written.
-  return [file(SETTINGS_FILE, hooks.settings, hooks.changes), file(CONFIG_PATH, raw, configChanges, configKept), file("package.json", pkg.pkg, pkg.changes, pkg.kept)];
+  const files = [
+    file(SETTINGS_FILE, hooks.changes, [], (dir) => writeJson(dir, SETTINGS_FILE, hooks.settings)),
+    file(RUNNER_FILE, runnerChanges, pinned.kept, (dir) => writeRunnerConfig(dir, pinned.config)),
+    file(CONFIG_PATH, configChanges, configKept, (dir) => writeJson(dir, CONFIG_PATH, raw)),
+    ...packaged.files,
+  ];
+  return { files: files.map((item) => ({ ...item, changes: item.changes.map((line) => `${item.path}: ${line}`), kept: item.kept.map((line) => `${item.path}: ${line}`) })), installable: packaged.installable };
 }
 
 /**
@@ -198,7 +249,7 @@ async function plan(root: string, versions: OwnVersions, options: ApplyOptions, 
  */
 function write(root: string, file: Planned, done: string[], t: Messages): void {
   try {
-    writeJson(root, file.path, file.value);
+    file.write(root);
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     if (code !== "EPERM" && code !== "EACCES") throw error;
@@ -227,23 +278,21 @@ export async function apply(options: ApplyOptions, out: Output): Promise<number>
   checkVersion(root, versions, t);
   const planned = await plan(root, versions, options, out, t);
   if (planned === null) {
-    warn(out, t.apply.nothingWritten);
     if (options.json) emitJson(out, { version: versions.issueFlow, changes: [], kept: [], written: false, next: [t.apply.passYes] });
     return 1;
   }
-  const files = planned.filter((file) => file.changes.length > 0);
+  const files = planned.files.filter((file) => file.changes.length > 0);
   const changes = files.flatMap((file) => file.changes);
-  const kept = planned.flatMap((file) => file.kept);
+  const kept = planned.files.flatMap((file) => file.kept);
   for (const line of kept) warn(out, line);
   const written = !options.dryRun && files.length > 0;
   const done: string[] = [];
   if (written)
     for (const file of files) {
       write(root, file, done, t);
-      done.push(file.path);
+      if (!done.includes(file.path)) done.push(file.path);
     }
-  const pkgChanged = files.some((file) => file.path === "package.json");
-  const install = pkgChanged ? `${packageManager(root, readJson(root, "package.json", t))} install` : null;
+  const install = planned.installable ? `${packageManager(root, readJson(root, "package.json", t))} install` : null;
   const next = files.length === 0 ? [] : [...(install === null ? [] : [install]), t.apply.reviewCommit];
   if (options.json) {
     emitJson(out, { version: versions.issueFlow, changes, kept, written, next });

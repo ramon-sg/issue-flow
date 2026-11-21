@@ -57,9 +57,10 @@ issue to start one by hand, and archive before they delete it. hook implements C
 Code's WorktreeCreate and WorktreeRemove for claude --worktree.
 
 apply leaves the repo as this version needs it: .agents/flow.json (the first time, with
-the recipes its files suggest), issue-flow at this version and github-rest and the scripts
-if missing in package.json, and the hooks; it changes no other version, and refuses a newer
-issue-flow or a range. doctor checks them. npx agent-kitchen apply runs apply at the version
+the recipes its files suggest), .agents/runner.json (the runner, Bun or Node, and the exact
+issue-flow and github-rest it runs), the shortcuts in package.json and the hooks, with no
+devDependencies (it removes the old ones); it never lowers a version, and refuses a newer
+issue-flow. doctor checks them. npx agent-kitchen apply runs apply at the version
 it picks, along with the skills, agent-cloud-kit and claude-repo-guard. init and upgrade still
 run apply, with a warning, until 0.4.0.
 
@@ -412,6 +413,7 @@ issue:start for those. --no-repo-deny goes after it, as any flag:
     scriptSet: (name) => `scripts: ${name}`,
     droppedDependency: (field, name) => `${field}: without ${name}`,
     droppedScript: (name) => `scripts: without ${name} (old version)`,
+    keptScript: (name) => `kept scripts: ${name}, which the repo has with another command`,
   },
   steps: {
     onlyExpects: (config, names, only) => `--only expects a setup step of ${config} (${names === "" ? "it has none" : names}): ${only}`,
@@ -538,6 +540,8 @@ issue:start for those. --no-repo-deny goes after it, as any flag:
     nothingWritten: "nothing written: the repo's files suggest recipes; pass --yes to take them, or --recipe to pick.",
     passYes: "pass --yes or --recipe",
     reviewCommit: "review the diff and commit it",
+    askNode: "Bun is not installed: use Node?",
+    nothingWrittenRunner: "nothing written: Bun is not installed and Node was not accepted; pass --yes to use Node.",
     already: (version) => `Already at issue-flow ${version}.`,
     writes: (version) => `issue-flow ${version}:`,
     wouldWrite: (version) => `issue-flow ${version} would write:`,

@@ -1,13 +1,9 @@
 /**
- * @file The repo's `package.json` as the flow needs it: `issue-flow` at the version that
- * runs and `github-rest` as exact dev dependencies (the skills call them with `npx`, which
- * then uses the repo's copy), and the scripts to start an issue, prune worktrees and review
- * a PR. `apply` adds `github-rest` only if it is missing: its version is the repo's to pick,
- * and `doctor` says when it falls short of what the flow needs. A script the repo already
- * has with another value stays as it is.
+ * @file What the flow knows about the repo's `package.json`: the names of its shortcuts
+ * (and the ones older versions wrote), where a dependency of the repo is and how to compare
+ * versions. The tools themselves are pinned in `.agents/runner.json` (see `runner-file.ts`),
+ * and a script the repo already has with another value stays as it is.
  */
-import type { Messages } from "./messages/index.js";
-import { type OwnVersions, PACKAGE } from "./setup-files.js";
 
 /** A version: X.Y.Z, with an optional pre-release and build. */
 const VERSION = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
@@ -114,14 +110,6 @@ export const LEGACY_SCRIPTS: Record<string, string> = {
   "pr:worktree": "issue-flow pr worktree",
 };
 
-/** The scripts `apply` adds. */
-const FLOW_SCRIPTS: Record<string, string> = {
-  "issue:start": "issue-flow issue start",
-  "issue:start:free": "issue-flow issue start --free",
-  "worktree:prune": "issue-flow worktree prune",
-  "pr:worktree": "issue-flow pr worktree",
-};
-
 /**
  * Where a package is in the repo's package.json, and its version.
  * @param pkg - The package.json.
@@ -146,47 +134,4 @@ function dependencyOf(pkg: Record<string, unknown> | null, name: string): { fiel
  */
 export function dependencyVersion(pkg: Record<string, unknown> | null, name: string): string | null {
   return dependencyOf(pkg, name)?.version ?? null;
-}
-
-/**
- * Pins `issue-flow` to the version that runs, adds `github-rest` if it is missing and the
- * scripts that are missing. Nothing else changes: a `github-rest` the repo has stays, with a
- * note if it falls short of the version the flow needs.
- * @param pkg - The package.json, or null if there is none.
- * @param versions - This package's versions.
- * @param t - The messages, for the changes.
- * @returns The new package.json, what changed and what was kept.
- * @example withFlowPackages(null, versions, t).changes // ["devDependencies: @ramon-sg/issue-flow 0.1.0", …]
- */
-export function withFlowPackages(
-  pkg: Record<string, unknown> | null,
-  versions: OwnVersions,
-  t: Messages,
-): { pkg: Record<string, unknown>; changes: string[]; kept: string[] } {
-  const next: Record<string, unknown> = pkg === null ? { private: true } : { ...pkg };
-  const scripts = { ...((next.scripts as Record<string, string> | undefined) ?? {}) };
-  const changes: string[] = [];
-  const kept: string[] = [];
-  const pin = (name: string, version: string, field: string, from: string | null): void => {
-    next[field] = { ...((next[field] as Record<string, string> | undefined) ?? {}), [name]: version };
-    changes.push(`${field}: ${name} ${from === null ? "" : `${from} → `}${version}`);
-  };
-  const flow = dependencyOf(next, PACKAGE);
-  if (flow?.version !== versions.issueFlow) pin(PACKAGE, versions.issueFlow, flow?.field ?? "devDependencies", flow?.version ?? null);
-  const rest = dependencyOf(next, GITHUB_REST);
-  if (rest === null) pin(GITHUB_REST, versions.githubRest, "devDependencies", null);
-  else if (!reaches(rest.version, versions.githubRest))
-    kept.push(t.setup.keptRest(GITHUB_REST, rest.version, versions.githubRest));
-  // NOTE: with its own issue:start (a wrapper), issue:start:free would skip it: it is not
-  // added, and the flow's one gets a note.
-  const ownStart = scripts[START_SCRIPT] !== undefined && scripts[START_SCRIPT] !== FLOW_SCRIPTS[START_SCRIPT];
-  if (ownStart && scripts[FREE_SCRIPT] === FLOW_SCRIPTS[FREE_SCRIPT])
-    kept.push(t.setup.keptFree(FREE_SCRIPT, START_SCRIPT));
-  for (const [name, command] of Object.entries(FLOW_SCRIPTS)) {
-    if (scripts[name] !== undefined || (name === FREE_SCRIPT && ownStart)) continue;
-    scripts[name] = command;
-    changes.push(`scripts: ${name}`);
-  }
-  next.scripts = scripts;
-  return { pkg: next, changes, kept };
 }

@@ -24,6 +24,21 @@ export const FLOW_OWNED = `${PACKAGE}@`;
 const EXACT = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?$/;
 
 /**
+ * Reads the repo's `runner.json` without creating it.
+ * @param root - The repo.
+ * @returns The config, or null if the repo has none.
+ * @throws SetupError if the file cannot be used (with the library's message).
+ */
+export function readRunnerFile(root: string): RunnerConfig | null {
+  try {
+    return readRunnerConfig(root);
+  } catch (error) {
+    if (error instanceof RunnerFileError) throw new SetupError(error.message);
+    throw error;
+  }
+}
+
+/**
  * Reads the repo's `runner.json`, or prepares a new one in memory (it writes nothing).
  * @param root - The repo.
  * @param ask - Asks the user for a runner when Bun is missing; undefined to fall back to Node.
@@ -35,7 +50,7 @@ export async function loadRunnerFile(
   ask: (() => Promise<Runner | null>) | undefined,
 ): Promise<{ config: RunnerConfig; created: boolean; warning: string | null } | null> {
   try {
-    const found = readRunnerConfig(root);
+    const found = readRunnerFile(root);
     if (found !== null) return { config: found, created: false, warning: null };
     const chosen = await chooseRunner({ ask });
     if (chosen === null) return null;
