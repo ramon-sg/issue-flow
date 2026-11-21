@@ -21,7 +21,7 @@ import { type OwnVersions, PACKAGE, SetupError } from "./setup-files.js";
 export const FLOW_OWNED = `${PACKAGE}@`;
 
 /** An exact version, as `runner.json` demands. */
-const EXACT = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+const EXACT = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?$/;
 
 /**
  * Reads the repo's `runner.json`, or prepares a new one in memory (it writes nothing).
@@ -155,11 +155,13 @@ export function withoutLegacy(
  * already the flow's; any other value is a clash and stays.
  * @param pkg - The package.json, or null if there is none.
  * @param scripts - The shortcuts to write.
+ * @param t - The messages, for the changes.
  * @returns The scripts that change and the ones left alone.
  */
 export function predictScripts(
   pkg: Record<string, unknown> | null,
   scripts: Record<string, string>,
+  t: Messages,
 ): { changes: string[]; clashes: string[] } {
   const current = scriptsOf(pkg);
   const changes: string[] = [];
@@ -167,7 +169,7 @@ export function predictScripts(
   for (const [name, command] of Object.entries(scripts)) {
     const found = Object.hasOwn(current, name) ? current[name] : undefined;
     if (found === command) continue;
-    if (found === undefined || found.includes(FLOW_OWNED)) changes.push(`scripts: ${name}`);
+    if (found === undefined || found.includes(FLOW_OWNED)) changes.push(t.setup.scriptSet(name));
     else clashes.push(name);
   }
   return { changes, clashes };

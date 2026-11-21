@@ -54,6 +54,7 @@ test("withFlowTools takes the legacy github-rest only if it is exact", () => {
   const empty = { runner: "bun", tools: {}, extra: {} };
   assert.equal(withFlowTools(empty, VERSIONS, "0.7.0", en).config.tools[REST], "0.7.0");
   assert.equal(withFlowTools(empty, VERSIONS, "^0.7.0", en).config.tools[REST], "0.9.0");
+  assert.equal(withFlowTools(empty, VERSIONS, "01.2.3", en).config.tools[REST], "0.9.0");
 });
 
 test("withoutLegacy drops the dependencies and the old scripts", () => {
@@ -75,11 +76,11 @@ test("withoutLegacy drops the dependencies and the old scripts", () => {
 
 test("predictScripts follows the rule of writeScripts", () => {
   const scripts = flowScripts("bun", "0.6.0");
-  assert.deepEqual(predictScripts({ scripts: { "issue:start": "./wrap.sh" } }, scripts).clashes, ["issue:start"]);
-  const old = predictScripts({ scripts: { "issue:start": "npx @ramon-sg/issue-flow@0.5.0 issue start" } }, scripts);
+  assert.deepEqual(predictScripts({ scripts: { "issue:start": "./wrap.sh" } }, scripts, en).clashes, ["issue:start"]);
+  const old = predictScripts({ scripts: { "issue:start": "npx @ramon-sg/issue-flow@0.5.0 issue start" } }, scripts, en);
   assert.ok(old.changes.includes("scripts: issue:start"));
   assert.deepEqual(old.clashes, []);
-  assert.equal(predictScripts(null, scripts).changes.length, 4);
+  assert.equal(predictScripts(null, scripts, en).changes.length, 4);
 });
 
 test("pickScripts skips issue:start:free next to the repo's own issue:start", () => {
