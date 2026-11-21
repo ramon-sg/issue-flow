@@ -11,12 +11,12 @@ colaboradores.
 
 ## Labels
 
-Los del repo (`npx @ramon-sg/github-rest label list`). Uno de tipo siempre:
+Los del repo (`github-rest label list`). Uno de tipo siempre:
 los de `branch.types.labels` en `.agents/flow.json` (por defecto `bug`,
 `enhancement`, `spike` o `documentation`).
 
 Los que el flujo espera, con su color, están en `labels` de
-`.agents/flow.json`, y los crea `npx @ramon-sg/issue-flow labels sync`.
+`.agents/flow.json`, y los crea `issue-flow labels sync`.
 Una taxonomía propia (área, tamaño) va ahí, no en este archivo.
 
 <!-- Cómo se usa la taxonomía del repo va acá, por ejemplo:

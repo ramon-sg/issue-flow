@@ -12,6 +12,10 @@ argument-hint: "<número de PR>"
 
 Responde al usuario en el idioma en que te escribe.
 
+## Cómo se corren las herramientas
+
+Corre `@ramon-sg/github-rest` y `@ramon-sg/issue-flow` con el ejecutor y la versión de `.agents/runner.json`: con `"runner": "bun"` (o sin `runner`), `bunx --bun <paquete>@<versión> <args>`; con `"node"`, `npx --yes <paquete>@<versión> <args>`. Abajo, `github-rest …` e `issue-flow …` abrevian ese comando.
+
 # Revisar un PR en un worktree
 
 ## Nunca en el checkout principal
@@ -22,7 +26,7 @@ commitear de otra sesión. El comando abre el PR en `pr-<n>`, dentro de la
 carpeta de worktrees del repo, en la rama real y siguiendo a origin:
 
 ```bash
-npx @ramon-sg/issue-flow pr worktree <n>
+issue-flow pr worktree <n>
 ```
 
 Con `timeout: 600000` en el Bash: corre los pasos de `worktrees.setup` de
@@ -48,7 +52,7 @@ comando, porque dejaría una rama vacía con nombre de PR.
 ## Revisar
 
 Desde el worktree (`cd <ruta>`, o una sesión nueva con
-`npx @ramon-sg/issue-flow pr worktree <n> --`, que abre Claude ahí):
+`issue-flow pr worktree <n> --`, que abre Claude ahí):
 
 1. **El contexto antes que el diff:** la issue que cierra, el plan si lo
    enlaza, y lo que el PR dice que probó. Si quien lo escribió leyó mal la
@@ -68,7 +72,7 @@ dentro de un worktree, Claude Code rechaza comandos que no puede analizar.
 ## Al terminar
 
 ```bash
-npx @ramon-sg/issue-flow worktree prune
+issue-flow worktree prune
 ```
 
 Borra los worktrees cuyo PR se mergeó o cerró, con su Docker y sus puertos,

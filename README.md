@@ -4,7 +4,7 @@
 
 Flujo de trabajo de issue a PR para cualquier repo, en local y en las sesiones de Claude en la nube: nombra la rama de cada issue, crea su worktree con puertos y Docker propios, abre el PR en draft y limpia cuando se mergea. Trae las skills que usan ese flujo.
 
-> **Instalar en un repo:** `npx agent-kitchen apply`, que instala este flujo con sus skills, las skills generales, `agent-cloud-kit` y `claude-repo-guard`, y los actualiza ([agent-kitchen](https://github.com/ramon-sg/agent-kitchen)). El paquete es `@ramon-sg/issue-flow` y el comando, `issue-flow`; sin el scope, `issue-flow` en npm es otro paquete.
+> **Instalar en un repo:** `agent-kitchen apply`, que instala este flujo con sus skills, las skills generales, `agent-cloud-kit` y `claude-repo-guard`, y los actualiza ([agent-kitchen](https://github.com/ramon-sg/agent-kitchen)). El paquete es `@ramon-sg/issue-flow` y el comando, `issue-flow`; sin el scope, `issue-flow` en npm es otro paquete.
 
 ## Qué va a tener
 
@@ -123,9 +123,9 @@ Solo cambia la terminal. Lo que se escribe en GitHub (el commit inicial, el cuer
 | `npm run issue:start:free 34` | `npm run issue:start:free 34` (con otras opciones, `npm run issue:start:free -- 34 --no-repo-deny`) |
 | `pnpm issue:start:free 34` | `pnpm issue:start:free 34` |
 | `yarn issue:start:free 34` | `yarn issue:start:free 34` |
-| `issue-flow` o `npx` | `issue-flow issue start 34` |
+| `bunx --bun @ramon-sg/issue-flow@<v>` (con Node, `npx --yes`) | `bunx --bun @ramon-sg/issue-flow@<v> issue start 34` (con Node, `npx --yes`; el de `runner.json`) |
 
-La forma de script solo se usa con los scripts que instala `apply` (`issue:start` y `issue:start:free`); un script ajeno que llame a `issue-flow` cae a `issue-flow issue start <n>`. Se repiten las opciones que definen cómo corre la sesión (`--free`, `--ask-permissions`, `--no-repo-deny`, `--namer`, `-R`, y `--lang` si lo pasaste como opción) y no las de una sola vez (`--new`, `--branch`, `--yes`, `--dry-run`, `--resume`, `--no-launch`, `--plan`).
+La forma de script solo se usa con los scripts que instala `apply` (`issue:start` y `issue:start:free`); un script ajeno que llame a `issue-flow` cae a esa misma forma con el ejecutor (sin `runner.json`, a `issue-flow issue start <n>`). Se repiten las opciones que definen cómo corre la sesión (`--free`, `--ask-permissions`, `--no-repo-deny`, `--namer`, `-R`, y `--lang` si lo pasaste como opción) y no las de una sola vez (`--new`, `--branch`, `--yes`, `--dry-run`, `--resume`, `--no-launch`, `--plan`).
 
 ## Worktrees: preparar, limpiar y borrar
 
@@ -182,18 +182,18 @@ issue-flow pr worktree 42 --no-setup    # sin los pasos de setup
 
 ## Orca y Paseo: `issue-flow adapter`
 
-`orca.yaml` y `paseo.json` solo llaman al adaptador, que deja el worktree igual que uno de `issue start`:
+`orca.yaml` y `paseo.json` solo llaman al adaptador, que deja el worktree igual que uno de `issue start`. `doctor` revisa que esos comandos lleven la versión de `runner.json`; tras un `apply`, actualízalos:
 
 ```yaml
 # orca.yaml
 setupAgentStartupPolicy: wait-for-setup
 scripts:
-  setup: npx @ramon-sg/issue-flow adapter setup
-  archive: npx @ramon-sg/issue-flow adapter archive
+  setup: bunx --bun @ramon-sg/issue-flow@<versión> adapter setup
+  archive: bunx --bun @ramon-sg/issue-flow@<versión> adapter archive
 ```
 
 ```json
-{ "worktree": { "setup": ["npx @ramon-sg/issue-flow adapter setup"], "teardown": "npx @ramon-sg/issue-flow adapter archive" } }
+{ "worktree": { "setup": ["bunx --bun @ramon-sg/issue-flow@<versión> adapter setup"], "teardown": "bunx --bun @ramon-sg/issue-flow@<versión> adapter archive" } }
 ```
 
 - **`setup [--only <paso>]`:** copia `.worktreeinclude` (Paseo no lo copia), corre los pasos de `setup` y, sin `--only`, empieza la issue de la que salió el worktree como `issue start <n> --adopt`. Con Paseo la issue sale de la rama (`feat/42-x`, `42-x`); con Orca, de su CLI (`orca worktree current --json`). Siempre sale con 0: si algo falla, dice qué correr.
@@ -219,25 +219,27 @@ Es el hook `SessionStart` de Claude Code. Lo que imprime le llega a Claude como 
 
 ## Lo que el flujo deja en el repo: `issue-flow apply`
 
-`npx agent-kitchen apply` corre `apply` en la versión que elige y después mueve las skills del flujo a la misma tag. Correrlo a mano sirve para probar el flujo en un repo sin lo demás.
+`agent-kitchen apply` corre `apply` en la versión que elige y después mueve las skills del flujo a la misma tag. Correrlo a mano sirve para probar el flujo en un repo sin lo demás.
 
 ```sh
-npx @ramon-sg/issue-flow@<versión> apply          # deja el repo como lo pide esa versión
-npx @ramon-sg/issue-flow@<versión> apply --yes    # sin preguntas, con las recetas que sugiere el repo
-npx @ramon-sg/issue-flow apply --recipe docker-compose   # suma una receta más tarde
-npx @ramon-sg/issue-flow apply --dry-run          # solo dice qué cambiaría (--json para agent-kitchen)
-npx @ramon-sg/issue-flow doctor                   # revisa que el repo esté como lo deja apply (--json)
+bunx --bun @ramon-sg/issue-flow@<versión> apply          # deja el repo como lo pide esa versión
+bunx --bun @ramon-sg/issue-flow@<versión> apply --yes    # sin preguntas, con las recetas que sugiere el repo
+bunx --bun @ramon-sg/issue-flow@<versión> apply --recipe docker-compose   # suma una receta más tarde
+bunx --bun @ramon-sg/issue-flow@<versión> apply --dry-run          # solo dice qué cambiaría (--json para agent-kitchen)
+bunx --bun @ramon-sg/issue-flow@<versión> doctor                   # revisa que el repo esté como lo deja apply (--json)
 ```
+
+Con Node, es el mismo comando con `npx --yes` en lugar de `bunx --bun`. Después de `apply`, el ejecutor y la versión son los de `.agents/runner.json`.
 
 `apply` deja el repo como lo pide la versión que corre, y correrlo otra vez no cambia nada. La versión la elige quien actualiza, al elegir cuál correr: `apply` no cambia la versión de ningún otro paquete.
 
 1. **`.agents/flow.json`:** si no existe, lo crea con el `$schema` de esta versión y, si el repo tiene `paseo.json`, con su plantilla de rama y sus tipos. Esa primera vez propone las recetas que sugieren los archivos del repo (con `--yes`, todas; sin terminal y sin `--yes`, no escribe nada y lo dice). Si ya existe, no pregunta: corre las migraciones de esta versión, mueve el `$schema` y suma las recetas de `--recipe`.
-2. **`package.json`:** `@ramon-sg/issue-flow` en esta versión, exacta. `@ramon-sg/github-rest` y los scripts `issue:start`, `issue:start:free`, `worktree:prune` y `pr:worktree` solo si faltan (`issue:start:free` no se agrega si el repo tiene su propio `issue:start`, que se saltaría): un `github-rest` que el repo ya tiene se queda, con un aviso si no llega a la versión que necesitan las skills.
-3. **`.claude/settings.json`:** los hooks `SessionStart`, `WorktreeCreate` y `WorktreeRemove`, fijados a esta versión y con 600 segundos. El de `SessionStart` corre `agent-cloud-kit session` en la nube, así que un hook propio de `agent-cloud-kit` se quita para que no corra dos veces.
+2. **`.agents/runner.json` y `package.json`:** `runner.json` guarda el ejecutor del repo (`bun` por defecto, o `node`) y las versiones exactas de `@ramon-sg/issue-flow` (la que corre) y `@ramon-sg/github-rest`; nunca baja una versión, y un `github-rest` más nuevo se queda, con un aviso si no llega a la que necesitan las skills. En `package.json` deja los atajos `issue:start`, `issue:start:free`, `worktree:prune` y `pr:worktree`, que llaman a esas herramientas con el ejecutor y la versión de `runner.json` (el repo no tiene dependencias de desarrollo del flujo: quita las antiguas). `issue:start:free` no se agrega si el repo tiene su propio `issue:start`, que se saltaría.
+3. **`.claude/settings.json`:** los hooks `SessionStart`, `WorktreeCreate` y `WorktreeRemove`, que corren esta versión con el ejecutor de `runner.json` y tienen 600 segundos. El de `SessionStart` corre `agent-cloud-kit session` en la nube, así que un hook propio de `agent-cloud-kit` se quita para que no corra dos veces.
 
 No consulta npm, y nunca baja de versión: si el repo ya tiene una issue-flow más nueva (por ejemplo, `package.json` subido a mano antes del `install`), o un rango como `^0.2.6`, se detiene y dice qué correr. `--json` da `{ version, changes, kept, written, next }`. Sale con 0 si aplicó o no había nada que hacer, y con 1 si se negó o tenía que preguntar y no pudo.
 
-**`doctor`** no cambia nada. Revisa la config y su `$schema`, las dependencias y que los hooks estén en esta versión. Cada problema dice qué lo arregla: `npx agent-kitchen apply` si el repo fija otra issue-flow (también mueve las skills), y `npx @ramon-sg/issue-flow apply` si la versión es esta pero sus archivos quedaron atrás.
+**`doctor`** no cambia nada. Revisa la config y su `$schema`, que `.agents/runner.json` sea válido, tenga su ejecutor instalado y fije `issue-flow` y `github-rest`, que los hooks y los atajos de `package.json` digan esa versión y usen ese ejecutor, y que no queden las dependencias de desarrollo antiguas. Cada problema dice qué lo arregla: `agent-kitchen apply` si el repo fija otra issue-flow (también mueve las skills), y `apply` con el ejecutor de `runner.json` si la versión es esta pero sus archivos quedaron atrás.
 
 **`init` y `upgrade`** siguen funcionando hasta la 0.4.0, con un aviso: `init` es `apply`, y `upgrade` es `apply --yes` sin recetas, porque nunca preguntaba.
 
@@ -256,7 +258,7 @@ Los pasos de preparación de las recetas son `trusted`: corren el código del wo
 
 ## Skills del flujo
 
-Viven en `skills/` y `skills-catalog.json` las lista. Se instalan con [`skills-manager`](https://github.com/ramon-sg/skills-manager), que las copia a `.agents/skills/` del repo para que lleguen también a la nube. Están en español, responden en el idioma en que les escribes y llaman a `npx @ramon-sg/issue-flow` y `npx @ramon-sg/github-rest`, que el repo tiene como dependencias de desarrollo. Van siempre con el scope: `issue-flow`, `github-rest` y `skills-manager` sin scope son paquetes de otras personas en npm, y `npx` los bajaría y correría si el repo no tiene los suyos instalados.
+Viven en `skills/` y `skills-catalog.json` las lista. Se instalan con [`skills-manager`](https://github.com/ramon-sg/skills-manager), que las copia a `.agents/skills/` del repo para que lleguen también a la nube. Están en español, responden en el idioma en que les escribes y corren `@ramon-sg/issue-flow` y `@ramon-sg/github-rest` con el ejecutor y la versión de `.agents/runner.json` (`bunx --bun <paquete>@<versión>` o `npx --yes <paquete>@<versión>`). Van siempre con el scope: `issue-flow`, `github-rest` y `skills-manager` sin scope son paquetes de otras personas en npm.
 
 | Skill | Categoría | Para qué sirve | Trae también |
 |---|---|---|---|
@@ -307,8 +309,8 @@ Todo es opcional; sin el archivo valen los valores por defecto. Una clave descon
 | `start.prBody` | `{keyword} #{number}`, la URL de la issue (`{url}`) y "En progreso." | Cuerpo del PR en draft |
 | `start.prTitle` | El título de la issue | Título del PR en draft; `{number}` y `{title}` son los de la issue |
 | `start.prLanguage` | Apagado | Idioma de los PR si no es el de las issues (`"English"`): el PR se abre como `Issue #{number}` y el prompt pide un título en ese idioma |
-| `start.prompt`, `start.resumePrompt` | Resumir la issue y seguir `start-issue`, o retomar desde `{plan}` | Pedido con que se abre Claude |
-| `start.summaryPrompt`, `start.summaryPlanPrompt` | Resumir y esperar | Pedido de `--plan` |
+| `start.prompt`, `start.resumePrompt` | Resumir la issue y seguir `start-issue`, o retomar desde `{plan}` | Pedido con que se abre Claude; `{githubRest}` es el comando de `github-rest` con el ejecutor y la versión de `.agents/runner.json` (o, sin ellos, el nombre del paquete, y el pedido termina con una frase que apunta a ese archivo) |
+| `start.summaryPrompt`, `start.summaryPlanPrompt` | Resumir y esperar | Pedido de `--plan`; también admiten `{githubRest}` |
 | `start.cloudPrompt` | `/start-issue {number} --yes{flags}` | Lo que `--cloud` le pide a la sesión; `{flags}` es `--new` o `--resume <rama>` |
 | `plans.dirs` | `docs/plans`, `docs/specs` | Dónde buscar el plan de la issue: lo que tocó la rama, o el documento cuyo `prs:` nombra su PR |
 | `art` | `true` | `false` apaga a Kuro en los mensajes finales. Solo sale en una terminal; `NO_COLOR` apaga el color |
@@ -318,9 +320,9 @@ Todo es opcional; sin el archivo valen los valores por defecto. Una clave descon
 ## Labels: `issue-flow labels sync`
 
 ```sh
-npx @ramon-sg/issue-flow labels sync --dry-run   # qué haría
-npx @ramon-sg/issue-flow labels sync             # crea los que faltan
-npx @ramon-sg/issue-flow labels sync --update    # también corrige color y descripción
+issue-flow labels sync --dry-run   # qué haría
+issue-flow labels sync             # crea los que faltan
+issue-flow labels sync --update    # también corrige color y descripción
 ```
 
 Crea en GitHub los labels de `labels` que el repo no tiene. Los nombres se comparan sin mayúsculas, como en GitHub: un `Bug` cuenta como `bug` y nunca se renombra. Uno que existe con otro color o descripción solo se avisa, salvo con `--update`. Nunca borra. `--json` da la lista con el estado de cada uno: `created`, `updated`, `ok`, `differs`, o `to-create` y `to-update` con `--dry-run`. Si GitHub rechaza uno, sigue con los demás, lo marca `failed` y sale con 1.

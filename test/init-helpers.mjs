@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const FAKE = join(dirname(fileURLToPath(import.meta.url)), "fake-npx.mjs");
+const FAKE_BUN = join(dirname(fileURLToPath(import.meta.url)), "fake-bun.mjs");
 
 // Puts the fake npx and npm in the sandbox's PATH.
 export function withNpx(s) {
@@ -12,6 +13,18 @@ export function withNpx(s) {
   writeFileSync(join(s.tmp, "bin", "npm"), `#!/bin/sh\nFAKE_NPX_AS=npm exec node "${FAKE}" "$@"\n`, { mode: 0o755 });
   writeFileSync(join(s.tmp, "npx.jsonl"), "");
   return s;
+}
+
+// Puts the fake bun and bunx in the sandbox's PATH: they answer `--version` and log anything else.
+export function withBun(s) {
+  writeFileSync(join(s.tmp, "bin", "bun"), `#!/bin/sh\nexec node "${FAKE_BUN}" "$@"\n`, { mode: 0o755 });
+  writeFileSync(join(s.tmp, "bin", "bunx"), `#!/bin/sh\nFAKE_BUN_AS=bunx exec node "${FAKE_BUN}" "$@"\n`, { mode: 0o755 });
+  return s;
+}
+
+// The calls to bun or bunx (`program`) of the last run, besides `--version`.
+export function runnerCalls(s, program) {
+  return npxCalls(s, program);
 }
 
 // The environment of a CLI run with the fakes; the log starts empty.

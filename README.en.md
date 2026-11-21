@@ -4,7 +4,7 @@
 
 An issue-to-PR workflow for any repo, locally and in Claude cloud sessions: it names the branch of each issue, creates its worktree with its own ports and Docker, opens the PR as a draft and cleans up when it is merged. It ships the skills that use that workflow.
 
-> **Install in a repo:** `npx agent-kitchen apply`, which installs this workflow with its skills, the general skills, `agent-cloud-kit` and `claude-repo-guard`, and keeps them updated ([agent-kitchen](https://github.com/ramon-sg/agent-kitchen)). The package is `@ramon-sg/issue-flow` and the command is `issue-flow`; without the scope, `issue-flow` on npm is a different package.
+> **Install in a repo:** `agent-kitchen apply`, which installs this workflow with its skills, the general skills, `agent-cloud-kit` and `claude-repo-guard`, and keeps them updated ([agent-kitchen](https://github.com/ramon-sg/agent-kitchen)). The package is `@ramon-sg/issue-flow` and the command is `issue-flow`; without the scope, `issue-flow` on npm is a different package.
 
 ## What you get
 
@@ -123,9 +123,9 @@ Only the terminal changes. What is written to GitHub (the initial commit, the PR
 | `npm run issue:start:free 34` | `npm run issue:start:free 34` (with other options, `npm run issue:start:free -- 34 --no-repo-deny`) |
 | `pnpm issue:start:free 34` | `pnpm issue:start:free 34` |
 | `yarn issue:start:free 34` | `yarn issue:start:free 34` |
-| `issue-flow` or `npx` | `issue-flow issue start 34` |
+| `bunx --bun @ramon-sg/issue-flow@<v>` (with Node, `npx --yes`) | `bunx --bun @ramon-sg/issue-flow@<v> issue start 34` (with Node, `npx --yes`; the one in `runner.json`) |
 
-The script form is used only with the scripts `apply` installs (`issue:start` and `issue:start:free`); a script of someone else's that calls `issue-flow` falls back to `issue-flow issue start <n>`. The options that define how the session runs are repeated (`--free`, `--ask-permissions`, `--no-repo-deny`, `--namer`, `-R`, and `--lang` if you passed it as an option) and the one-off ones are not (`--new`, `--branch`, `--yes`, `--dry-run`, `--resume`, `--no-launch`, `--plan`).
+The script form is used only with the scripts `apply` installs (`issue:start` and `issue:start:free`); a script of someone else's that calls `issue-flow` falls back to that same form with the runner (without `runner.json`, to `issue-flow issue start <n>`). The options that define how the session runs are repeated (`--free`, `--ask-permissions`, `--no-repo-deny`, `--namer`, `-R`, and `--lang` if you passed it as an option) and the one-off ones are not (`--new`, `--branch`, `--yes`, `--dry-run`, `--resume`, `--no-launch`, `--plan`).
 
 ## Worktrees: prepare, clean and delete
 
@@ -182,18 +182,18 @@ issue-flow pr worktree 42 --no-setup    # without the setup steps
 
 ## Orca and Paseo: `issue-flow adapter`
 
-`orca.yaml` and `paseo.json` only call the adapter, which leaves the worktree like one from `issue start`:
+`orca.yaml` and `paseo.json` only call the adapter, which leaves the worktree like one from `issue start`. `doctor` checks that those commands carry the version in `runner.json`; update them after an `apply`:
 
 ```yaml
 # orca.yaml
 setupAgentStartupPolicy: wait-for-setup
 scripts:
-  setup: npx @ramon-sg/issue-flow adapter setup
-  archive: npx @ramon-sg/issue-flow adapter archive
+  setup: bunx --bun @ramon-sg/issue-flow@<version> adapter setup
+  archive: bunx --bun @ramon-sg/issue-flow@<version> adapter archive
 ```
 
 ```json
-{ "worktree": { "setup": ["npx @ramon-sg/issue-flow adapter setup"], "teardown": "npx @ramon-sg/issue-flow adapter archive" } }
+{ "worktree": { "setup": ["bunx --bun @ramon-sg/issue-flow@<version> adapter setup"], "teardown": "bunx --bun @ramon-sg/issue-flow@<version> adapter archive" } }
 ```
 
 - **`setup [--only <step>]`:** copies `.worktreeinclude` (Paseo does not copy it), runs the `setup` steps and, without `--only`, starts the issue the worktree came from as `issue start <n> --adopt`. With Paseo the issue comes from the branch (`feat/42-x`, `42-x`); with Orca, from its CLI (`orca worktree current --json`). It always exits 0: if something fails, it says what to run.
@@ -219,25 +219,27 @@ It is Claude Code's `SessionStart` hook. What it prints reaches Claude as contex
 
 ## What the workflow leaves in the repo: `issue-flow apply`
 
-`npx agent-kitchen apply` runs `apply` in the version it chooses and then moves the workflow's skills to the same tag. Running it by hand is useful to try the workflow in a repo without the rest.
+`agent-kitchen apply` runs `apply` in the version it chooses and then moves the workflow's skills to the same tag. Running it by hand is useful to try the workflow in a repo without the rest.
 
 ```sh
-npx @ramon-sg/issue-flow@<version> apply          # leaves the repo as that version requires
-npx @ramon-sg/issue-flow@<version> apply --yes    # no questions, with the recipes the repo suggests
-npx @ramon-sg/issue-flow apply --recipe docker-compose   # adds one more recipe later
-npx @ramon-sg/issue-flow apply --dry-run          # only says what would change (--json for agent-kitchen)
-npx @ramon-sg/issue-flow doctor                   # checks the repo is as apply leaves it (--json)
+bunx --bun @ramon-sg/issue-flow@<version> apply          # leaves the repo as that version requires
+bunx --bun @ramon-sg/issue-flow@<version> apply --yes    # no questions, with the recipes the repo suggests
+bunx --bun @ramon-sg/issue-flow@<version> apply --recipe docker-compose   # adds one more recipe later
+bunx --bun @ramon-sg/issue-flow@<version> apply --dry-run          # only says what would change (--json for agent-kitchen)
+bunx --bun @ramon-sg/issue-flow@<version> doctor                   # checks the repo is as apply leaves it (--json)
 ```
+
+With Node, it is the same command with `npx --yes` instead of `bunx --bun`. After `apply`, the runner and the version are those of `.agents/runner.json`.
 
 `apply` leaves the repo as the version it runs requires, and running it again changes nothing. The version is chosen by whoever updates, by choosing which one to run: `apply` does not change the version of any other package.
 
 1. **`.agents/flow.json`:** if it does not exist, it creates it with this version's `$schema` and, if the repo has `paseo.json`, with its branch template and its types. That first time it proposes the recipes that the repo's files suggest (with `--yes`, all of them; with no terminal and no `--yes`, it writes nothing and says so). If it already exists, it does not ask: it runs this version's migrations, moves the `$schema` and adds the `--recipe` recipes.
-2. **`package.json`:** `@ramon-sg/issue-flow` at this version, exact. `@ramon-sg/github-rest` and the `issue:start`, `issue:start:free`, `worktree:prune` and `pr:worktree` scripts only if missing (`issue:start:free` is not added if the repo has its own `issue:start`, which it would skip): a `github-rest` the repo already has stays, with a warning if it does not reach the version the skills need.
-3. **`.claude/settings.json`:** the `SessionStart`, `WorktreeCreate` and `WorktreeRemove` hooks, pinned to this version and with 600 seconds. The `SessionStart` one runs `agent-cloud-kit session` in the cloud, so an `agent-cloud-kit` hook of its own is removed so it does not run twice.
+2. **`.agents/runner.json` and `package.json`:** `runner.json` stores the repo's runner (`bun` by default, or `node`) and the exact versions of `@ramon-sg/issue-flow` (the one that runs) and `@ramon-sg/github-rest`; it never goes down a version, and a newer `github-rest` stays, with a warning if it does not reach the one the skills need. In `package.json` it leaves the `issue:start`, `issue:start:free`, `worktree:prune` and `pr:worktree` shortcuts, which call those tools with the runner and version of `runner.json` (the repo has no flow devDependencies: it removes the old ones). `issue:start:free` is not added if the repo has its own `issue:start`, which it would skip.
+3. **`.claude/settings.json`:** the `SessionStart`, `WorktreeCreate` and `WorktreeRemove` hooks, which run this version with the runner of `runner.json` and have 600 seconds. The `SessionStart` one runs `agent-cloud-kit session` in the cloud, so an `agent-cloud-kit` hook of its own is removed so it does not run twice.
 
 It does not query npm, and never goes down a version: if the repo already has a newer issue-flow (for example, `package.json` bumped by hand before the `install`), or a range like `^0.2.6`, it stops and says what to run. `--json` gives `{ version, changes, kept, written, next }`. It exits 0 if it applied or there was nothing to do, and 1 if it refused or had to ask and could not.
 
-**`doctor`** changes nothing. It checks the config and its `$schema`, the dependencies and that the hooks are at this version. Each problem says what fixes it: `npx agent-kitchen apply` if the repo pins another issue-flow (it also moves the skills), and `npx @ramon-sg/issue-flow apply` if the version is this one but its files fell behind.
+**`doctor`** changes nothing. It checks the config and its `$schema`, that `.agents/runner.json` is valid, has its runner installed and pins `issue-flow` and `github-rest`, that the hooks and the `package.json` shortcuts name that version and use that runner, and that the old devDependencies are gone. Each problem says what fixes it: `agent-kitchen apply` if the repo pins another issue-flow (it also moves the skills), and `apply` with the runner of `runner.json` if the version is this one but its files fell behind.
 
 **`init` and `upgrade`** keep working until 0.4.0, with a warning: `init` is `apply`, and `upgrade` is `apply --yes` without recipes, because it never asked.
 
@@ -256,7 +258,7 @@ The recipes' preparation steps are `trusted`: they run the worktree's code (the 
 
 ## The workflow's skills
 
-They live in `skills/` and `skills-catalog.json` lists them. They are installed with [`skills-manager`](https://github.com/ramon-sg/skills-manager), which copies them to the repo's `.agents/skills/` so they reach the cloud too. They are written in Spanish, answer in the language you write to them in, and call `npx @ramon-sg/issue-flow` and `npx @ramon-sg/github-rest`, which the repo has as dev dependencies. They always go with the scope: `issue-flow`, `github-rest` and `skills-manager` without the scope are other people's packages on npm, and `npx` would download and run them if the repo does not have its own installed.
+They live in `skills/` and `skills-catalog.json` lists them. They are installed with [`skills-manager`](https://github.com/ramon-sg/skills-manager), which copies them to the repo's `.agents/skills/` so they reach the cloud too. They are written in Spanish, answer in the language you write to them in, and run `@ramon-sg/issue-flow` and `@ramon-sg/github-rest` with the runner and version of `.agents/runner.json` (`bunx --bun <package>@<version>` or `npx --yes <package>@<version>`). They always go with the scope: `issue-flow`, `github-rest` and `skills-manager` without the scope are other people's packages on npm.
 
 | Skill | Category | What it is for | Also brings |
 |---|---|---|---|
@@ -307,8 +309,8 @@ Everything is optional; without the file the defaults apply. An unknown key is a
 | `start.prBody` | `{keyword} #{number}`, the issue's URL (`{url}`) and "En progreso." | Draft PR body |
 | `start.prTitle` | The issue's title | Draft PR title; `{number}` and `{title}` are the issue's |
 | `start.prLanguage` | Off | Language of the PRs when it is not the issues' (`"English"`): the PR opens as `Issue #{number}` and the prompt asks for a title in that language |
-| `start.prompt`, `start.resumePrompt` | Summarize the issue and follow `start-issue`, or resume from `{plan}` | Prompt Claude opens with |
-| `start.summaryPrompt`, `start.summaryPlanPrompt` | Summarize and wait | `--plan`'s prompt |
+| `start.prompt`, `start.resumePrompt` | Summarize the issue and follow `start-issue`, or resume from `{plan}` | Prompt Claude opens with; `{githubRest}` is the `github-rest` command with the runner and version of `.agents/runner.json` (or, without them, the bare package name, and the prompt ends with a sentence pointing at that file) |
+| `start.summaryPrompt`, `start.summaryPlanPrompt` | Summarize and wait | `--plan`'s prompt; they also take `{githubRest}` |
 | `start.cloudPrompt` | `/start-issue {number} --yes{flags}` | What `--cloud` asks the session; `{flags}` is `--new` or `--resume <branch>` |
 | `plans.dirs` | `docs/plans`, `docs/specs` | Where to look for the issue's plan: what the branch touched, or the document whose `prs:` names its PR |
 | `art` | `true` | `false` turns off Kuro in the closing messages. It shows only in a terminal; `NO_COLOR` turns off color |
@@ -318,9 +320,9 @@ Everything is optional; without the file the defaults apply. An unknown key is a
 ## Labels: `issue-flow labels sync`
 
 ```sh
-npx @ramon-sg/issue-flow labels sync --dry-run   # what it would do
-npx @ramon-sg/issue-flow labels sync             # creates the missing ones
-npx @ramon-sg/issue-flow labels sync --update    # also fixes color and description
+issue-flow labels sync --dry-run   # what it would do
+issue-flow labels sync             # creates the missing ones
+issue-flow labels sync --update    # also fixes color and description
 ```
 
 Creates on GitHub the `labels` the repo does not have. Names are compared case-insensitively, as GitHub does: a `Bug` counts as `bug` and is never renamed. One that exists with another color or description is only reported, except with `--update`. It never deletes. `--json` gives the list with each one's status: `created`, `updated`, `ok`, `differs`, or `to-create` and `to-update` with `--dry-run`. If GitHub rejects one, it carries on with the rest, marks it `failed` and exits 1.

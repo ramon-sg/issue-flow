@@ -8,11 +8,11 @@ import { join } from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { startSandbox } from "./start-helpers.mjs";
-import { npxCalls, npxEnv, readRepoJson, withNpx } from "./init-helpers.mjs";
+import { npxCalls, npxEnv, readRepoJson, runnerCalls, withBun, withNpx } from "./init-helpers.mjs";
 
 const OWN = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const VERSION = OWN.version;
-const SESSION = `npx --yes @ramon-sg/issue-flow@${VERSION} session # runs agent-cloud-kit session in the cloud`;
+const SESSION = `bunx --bun @ramon-sg/issue-flow@${VERSION} session # runs agent-cloud-kit session in the cloud`;
 
 const CLI = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 
@@ -45,46 +45,190 @@ function tty(s, args, answers) {
   });
 }
 
+// A sandbox with the fake npx and bun in its PATH.
+const sandbox = () => withBun(withNpx(startSandbox()));
+const RUNNER_SCHEMA = /^https:\/\/.*runner\.schema\.json$/;
+const REST = OWN.devDependencies["@ramon-sg/github-rest"].replace(/^\^/, "");
 const commandsOf = (settings, event) => settings.hooks[event].flatMap((entry) => entry.hooks.map((hook) => hook.command));
 
-test("apply --yes sets an empty repo up: config, package.json and hooks, and runs no other tool", () => {
-  const s = withNpx(startSandbox());
+test("apply --yes in a repo without package.json writes runner.json, hooks and shortcuts, and no node_modules", () => {
+  const s = sandbox();
 
   const r = s.cli(["apply", "--yes"], { env: npxEnv(s) });
 
   assert.equal(r.status, 0, r.err);
   assert.deepEqual(readRepoJson(s, ".agents/flow.json"), { $schema: `https://raw.githubusercontent.com/ramon-sg/issue-flow/v${VERSION}/schema.json` });
+  const runner = readRepoJson(s, ".agents/runner.json");
+  assert.match(runner.$schema, RUNNER_SCHEMA);
+  assert.equal(runner.runner, "bun");
+  assert.deepEqual(runner.tools, { "@ramon-sg/github-rest": REST, "@ramon-sg/issue-flow": VERSION });
   const pkg = readRepoJson(s, "package.json");
-  assert.deepEqual(Object.keys(pkg.devDependencies).sort(), ["@ramon-sg/github-rest", "@ramon-sg/issue-flow"]);
-  assert.equal(pkg.devDependencies["@ramon-sg/github-rest"], OWN.dependencies["@ramon-sg/github-rest"].replace(/^\^/, ""));
-  assert.equal(pkg.devDependencies["@ramon-sg/issue-flow"], VERSION);
-  assert.equal(pkg.scripts["issue:start"], "issue-flow issue start");
-  assert.equal(pkg.scripts["issue:start:free"], "issue-flow issue start --free");
+  assert.deepEqual(pkg, {
+    private: true,
+    packageManager: "bun@1.4.4",
+    scripts: {
+      "issue:start": `bunx --bun @ramon-sg/issue-flow@${VERSION} issue start`,
+      "issue:start:free": `bunx --bun @ramon-sg/issue-flow@${VERSION} issue start --free`,
+      "worktree:prune": `bunx --bun @ramon-sg/issue-flow@${VERSION} worktree prune`,
+      "pr:worktree": `bunx --bun @ramon-sg/issue-flow@${VERSION} pr worktree`,
+    },
+  });
   const settings = readRepoJson(s, ".claude/settings.json");
   assert.deepEqual(commandsOf(settings, "SessionStart"), [SESSION]);
-  assert.deepEqual(commandsOf(settings, "WorktreeCreate"), [`npx --yes @ramon-sg/issue-flow@${VERSION} hook worktree-create`]);
+  assert.deepEqual(commandsOf(settings, "WorktreeCreate"), [`bunx --bun @ramon-sg/issue-flow@${VERSION} hook worktree-create`]);
   assert.equal(settings.hooks.WorktreeRemove[0].hooks[0].timeout, 600);
   assert.equal(existsSync(join(s.main, ".claude", "repo-guard.config.json")), false);
+  assert.equal(existsSync(join(s.main, "node_modules")), false);
   assert.deepEqual(npxCalls(s), []);
-  assert.match(r.out, /Next: run 'npm install', review the diff and commit it/);
+  assert.deepEqual(runnerCalls(s, "bunx"), []);
+  assert.match(r.out, /Next: review the diff and commit it/);
+  assert.doesNotMatch(r.out, /install/);
   assert.equal(r.err, "");
 });
 
-test("apply twice changes nothing", () => {
+test("with runner node everything runs with npx --yes", () => {
+  const s = sandbox();
+  mkdirSync(join(s.main, ".agents"));
+  writeFileSync(join(s.main, ".agents", "runner.json"), JSON.stringify({ runner: "node", tools: {} }));
+  writeFileSync(join(s.main, "package.json"), JSON.stringify({ name: "shop" }));
+
+  const r = s.cli(["apply", "--yes"], { env: npxEnv(s) });
+
+  assert.equal(r.status, 0, r.err);
+  const settings = readRepoJson(s, ".claude/settings.json");
+  assert.deepEqual(commandsOf(settings, "WorktreeCreate"), [`npx --yes @ramon-sg/issue-flow@${VERSION} hook worktree-create`]);
+  const pkg = readRepoJson(s, "package.json");
+  assert.equal(pkg.scripts["issue:start"], `npx --yes @ramon-sg/issue-flow@${VERSION} issue start`);
+  assert.equal(pkg.packageManager, undefined, "the repo had a package.json already");
+  assert.equal(readRepoJson(s, ".agents/runner.json").runner, "node");
+  assert.deepEqual(npxCalls(s), []);
+});
+
+test("without Bun and without a terminal it picks node with a warning", () => {
   const s = withNpx(startSandbox());
+
+  const r = s.cli(["apply", "--yes"], { env: npxEnv(s) });
+
+  assert.equal(r.status, 0, r.err);
+  assert.equal(readRepoJson(s, ".agents/runner.json").runner, "node");
+  assert.match(r.err, /Bun is not installed/);
+  assert.match(readRepoJson(s, "package.json").scripts["issue:start"], /^npx --yes /);
+});
+
+test("in a terminal without Bun it asks, and saying no writes nothing", async () => {
+  const s = withNpx(startSandbox());
+
+  const r = await tty(s, ["apply"], ["n"]);
+
+  assert.equal(r.status, 1, r.out);
+  assert.match(r.out, /Bun is not installed: use Node\? \[y\/N\]/);
+  assert.equal(existsSync(join(s.main, ".agents", "runner.json")), false);
+  assert.equal(existsSync(join(s.main, ".claude", "settings.json")), false);
+});
+
+test("in a terminal without Bun it asks, and saying yes uses node", async () => {
+  const s = withNpx(startSandbox());
+
+  const r = await tty(s, ["apply"], ["y"]);
+
+  assert.equal(r.status, 0, r.out);
+  assert.equal(readRepoJson(s, ".agents/runner.json").runner, "node");
+});
+
+test("apply moves a repo off devDependencies", () => {
+  const s = sandbox();
+  writeFileSync(
+    join(s.main, "package.json"),
+    JSON.stringify({
+      name: "shop",
+      devDependencies: { "@ramon-sg/issue-flow": "0.5.1", "@ramon-sg/github-rest": "0.6.0", typescript: "5.9.3" },
+      scripts: { "issue:start": "issue-flow issue start", "issue:start:free": "issue-flow issue start --free", "worktree:prune": "issue-flow worktree prune", "pr:worktree": "issue-flow pr worktree" },
+    }),
+  );
+
+  const r = s.cli(["apply", "--yes"], { env: npxEnv(s) });
+
+  assert.equal(r.status, 0, r.err);
+  const pkg = readRepoJson(s, "package.json");
+  assert.deepEqual(pkg.devDependencies, { typescript: "5.9.3" });
+  assert.equal(pkg.scripts["issue:start"], `bunx --bun @ramon-sg/issue-flow@${VERSION} issue start`);
+  assert.equal(pkg.scripts["pr:worktree"], `bunx --bun @ramon-sg/issue-flow@${VERSION} pr worktree`);
+  assert.equal(readRepoJson(s, ".agents/runner.json").tools["@ramon-sg/github-rest"], "0.6.0");
+  assert.match(r.out, /Next: run 'npm install', review the diff and commit it/);
+});
+
+test("apply keeps a script of the repo", () => {
+  const s = sandbox();
+  writeFileSync(join(s.main, "package.json"), JSON.stringify({ name: "shop", scripts: { "issue:start": "./scripts/start.sh" } }));
+
+  const r = s.cli(["apply", "--yes"], { env: npxEnv(s) });
+
+  assert.equal(r.status, 0, r.err);
+  const pkg = readRepoJson(s, "package.json");
+  assert.equal(pkg.scripts["issue:start"], "./scripts/start.sh");
+  assert.equal(pkg.scripts["issue:start:free"], undefined);
+  assert.equal(pkg.scripts["worktree:prune"], `bunx --bun @ramon-sg/issue-flow@${VERSION} worktree prune`);
+  assert.match(r.err, /package\.json: .*issue:start/);
+});
+
+test("apply refuses a runner.json with a newer issue-flow", () => {
+  const s = sandbox();
+  mkdirSync(join(s.main, ".agents"));
+  writeFileSync(join(s.main, ".agents", "runner.json"), JSON.stringify({ runner: "bun", tools: { "@ramon-sg/issue-flow": "99.0.0" } }));
+
+  const r = s.cli(["apply", "--yes"], { env: npxEnv(s) });
+
+  assert.equal(r.status, 1);
+  assert.match(r.err, /\.agents\/runner\.json has issue-flow 99\.0\.0, newer than this/);
+  assert.equal(existsSync(join(s.main, ".claude", "settings.json")), false);
+  assert.equal(existsSync(join(s.main, "package.json")), false);
+});
+
+test("apply with an invalid runner.json writes nothing", () => {
+  const s = sandbox();
+  mkdirSync(join(s.main, ".agents"));
+  writeFileSync(join(s.main, ".agents", "runner.json"), JSON.stringify({ runner: "bun", tools: { "@ramon-sg/issue-flow": "^0.5.0" } }));
+
+  const r = s.cli(["apply", "--yes"], { env: npxEnv(s) });
+
+  assert.equal(r.status, 1);
+  assert.match(r.err, /runner\.json/);
+  assert.match(r.err, /\^0\.5\.0/);
+  assert.equal(existsSync(join(s.main, ".claude", "settings.json")), false);
+  assert.equal(existsSync(join(s.main, ".agents", "flow.json")), false);
+});
+
+test("--dry-run --json lists the same changes as the real run", () => {
+  const dry = sandbox();
+  const real = sandbox();
+
+  const planned = dry.cli(["apply", "--dry-run", "--json", "--yes"], { env: npxEnv(dry) });
+  const done = real.cli(["apply", "--json", "--yes"], { env: npxEnv(real) });
+
+  assert.equal(planned.status, 0, planned.err);
+  assert.equal(done.status, 0, done.err);
+  assert.deepEqual(JSON.parse(planned.out).changes, JSON.parse(done.out).changes);
+  assert.equal(JSON.parse(planned.out).written, false);
+  assert.equal(existsSync(join(dry.main, ".agents")), false);
+  assert.equal(existsSync(join(dry.main, "package.json")), false);
+  assert.equal(existsSync(join(dry.main, ".claude")), false);
+});
+
+test("apply twice changes nothing", () => {
+  const s = sandbox();
   s.cli(["apply", "--yes"], { env: npxEnv(s) });
-  const before = ["package.json", ".agents/flow.json", ".claude/settings.json"].map((file) => readFileSync(join(s.main, file), "utf8"));
+  const before = ["package.json", ".agents/flow.json", ".agents/runner.json", ".claude/settings.json"].map((file) => readFileSync(join(s.main, file), "utf8"));
 
   const again = s.cli(["apply"], { env: npxEnv(s) });
 
   assert.equal(again.status, 0, again.err);
   assert.equal(again.out, `Already at issue-flow ${VERSION}.\n`);
-  const after = ["package.json", ".agents/flow.json", ".claude/settings.json"].map((file) => readFileSync(join(s.main, file), "utf8"));
+  const after = ["package.json", ".agents/flow.json", ".agents/runner.json", ".claude/settings.json"].map((file) => readFileSync(join(s.main, file), "utf8"));
   assert.deepEqual(after, before);
 });
 
 test("every setup step of a recipe is trusted: they run the worktree's code, which pr worktree must not", () => {
-  const s = withNpx(startSandbox());
+  const s = sandbox();
 
   const r = s.cli(["apply", "--yes", "--recipe", "npm,pnpm,bun,docker-compose,direnv"], { env: npxEnv(s) });
 
@@ -95,8 +239,8 @@ test("every setup step of a recipe is trusted: they run the worktree's code, whi
   assert.match(r.err, /kept the "deps" step of worktrees\.setup \(pnpm\)/);
 });
 
-test("apply keeps the repo's own hooks, scripts and github-rest, and drops agent-cloud-kit's SessionStart hook", () => {
-  const s = withNpx(startSandbox());
+test("apply keeps the repo's own hooks and scripts, moves github-rest into runner.json, and drops agent-cloud-kit's SessionStart hook", () => {
+  const s = sandbox();
   mkdirSync(join(s.main, ".claude"));
   const own = { type: "command", command: "echo mine" };
   const cloud = { type: "command", command: "/opt/agent-cloud-kit/bin/agent-cloud-kit session || true", timeout: 600 };
@@ -111,7 +255,8 @@ test("apply keeps the repo's own hooks, scripts and github-rest, and drops agent
   assert.deepEqual(commandsOf(settings, "SessionStart"), ["echo mine", SESSION]);
   assert.match(r.out, /dropped the agent-cloud-kit session SessionStart hook/);
   const pkg = readRepoJson(s, "package.json");
-  assert.equal(pkg.devDependencies["@ramon-sg/github-rest"], "0.1.0");
+  assert.equal(pkg.devDependencies, undefined);
+  assert.equal(readRepoJson(s, ".agents/runner.json").tools["@ramon-sg/github-rest"], "0.1.0");
   assert.equal(pkg.scripts["issue:start"], "bash scripts/start-issue.sh");
   assert.equal(pkg.scripts["issue:start:free"], undefined, "it would skip the repo's own issue:start");
   assert.match(r.err, /kept @ramon-sg\/github-rest 0\.1\.0 \(the skills need .* or newer: raise it\)/);
@@ -119,7 +264,7 @@ test("apply keeps the repo's own hooks, scripts and github-rest, and drops agent
 });
 
 test("apply in a terminal asks about the recipes the repo's files suggest, and keeps a step the repo has", async () => {
-  const s = withNpx(startSandbox());
+  const s = sandbox();
   writeFileSync(join(s.main, "pnpm-lock.yaml"), "");
   writeFileSync(join(s.main, "compose.yaml"), "");
   writeFileSync(join(s.main, ".envrc"), "");
@@ -131,11 +276,11 @@ test("apply in a terminal asks about the recipes the repo's files suggest, and k
   const { worktrees } = readRepoJson(s, ".agents/flow.json");
   assert.deepEqual(worktrees.setup.map((step) => step.name).sort(), ["deps", "docker"]);
   assert.deepEqual(worktrees.teardown.map((step) => step.name), ["docker"]);
-  assert.match(r.out, /Next: run 'pnpm install'/);
+  assert.match(r.out, /Next: review the diff and commit it/);
 });
 
 test("apply asks about recipes only the first time; --recipe adds one later, keeping a step the repo has", () => {
-  const s = withNpx(startSandbox());
+  const s = sandbox();
   writeFileSync(join(s.main, "compose.yaml"), "");
   mkdirSync(join(s.main, ".agents"));
   writeFileSync(join(s.main, ".agents", "flow.json"), JSON.stringify({ worktrees: { setup: [{ name: "deps", run: "pnpm i" }], ports: { start: 30000, blockSize: 10, blocks: 10 } } }));
@@ -153,19 +298,21 @@ test("apply asks about recipes only the first time; --recipe adds one later, kee
   assert.match(added.err, /kept the "deps" step of worktrees\.setup \(pnpm\)/);
 });
 
-test("apply notes an issue:start:free of the flow that skips the repo's own issue:start", () => {
-  const s = withNpx(startSandbox());
+test("apply drops an old issue:start:free that skips the repo's own issue:start", () => {
+  const s = sandbox();
   writeFileSync(join(s.main, "package.json"), JSON.stringify({ name: "shop", scripts: { "issue:start": "bash scripts/start-issue.sh", "issue:start:free": "issue-flow issue start --free" } }));
 
   const r = s.cli(["apply", "--yes"], { env: npxEnv(s) });
 
   assert.equal(r.status, 0, r.err);
-  assert.equal(readRepoJson(s, "package.json").scripts["issue:start:free"], "issue-flow issue start --free");
-  assert.match(r.err, /kept scripts: issue:start:free, which skips the repo's own issue:start: make it run that one with --free, or delete it/);
+  const pkg = readRepoJson(s, "package.json");
+  assert.equal(pkg.scripts["issue:start"], "bash scripts/start-issue.sh");
+  assert.equal(pkg.scripts["issue:start:free"], undefined);
+  assert.match(r.out, /scripts: without issue:start:free \(old version\)/);
 });
 
 test("without a terminal nor --yes, apply writes nothing when the repo suggests recipes, and does not wait", () => {
-  const s = withNpx(startSandbox());
+  const s = sandbox();
   writeFileSync(join(s.main, "pnpm-lock.yaml"), "");
 
   const r = s.cli(["apply"], { env: npxEnv(s) });
@@ -177,7 +324,7 @@ test("without a terminal nor --yes, apply writes nothing when the repo suggests 
 });
 
 test("without a terminal, apply --json still prints JSON when it writes nothing, and --dry-run previews the recipes", () => {
-  const s = withNpx(startSandbox());
+  const s = sandbox();
   writeFileSync(join(s.main, "pnpm-lock.yaml"), "");
 
   const json = s.cli(["apply", "--json"], { env: npxEnv(s) });
@@ -192,8 +339,8 @@ test("without a terminal, apply --json still prints JSON when it writes nothing,
 });
 
 test("apply --recipe staging-main sets the base branch; a base branch already set stays", () => {
-  const s = withNpx(startSandbox());
-  const other = withNpx(startSandbox());
+  const s = sandbox();
+  const other = sandbox();
   mkdirSync(join(other.main, ".agents"));
   writeFileSync(join(other.main, ".agents", "flow.json"), JSON.stringify({ baseBranch: "develop" }));
 
@@ -211,7 +358,7 @@ test("apply --recipe staging-main sets the base branch; a base branch already se
 });
 
 test("apply takes the branch rules of paseo.json into a new config", () => {
-  const s = withNpx(startSandbox());
+  const s = sandbox();
   const types = { labels: { bug: "fix" }, titlePrefixes: { "bug:": "fix" } };
   writeFileSync(join(s.main, "paseo.json"), JSON.stringify({ project: { v: 1, issues: { branchTemplate: "{type}/{number}-{slug}", types } } }));
 
@@ -222,7 +369,7 @@ test("apply takes the branch rules of paseo.json into a new config", () => {
 });
 
 test("apply refuses to run in a worktree: the config is the main checkout's", () => {
-  const s = withNpx(startSandbox());
+  const s = sandbox();
   const dir = join(s.tmp, "wt");
   s.git(s.main, "worktree", "add", "-q", "-b", "other", dir);
 

@@ -13,6 +13,10 @@ argument-hint: "[número de PR] — si no se pasa, el de la rama actual"
 
 Responde al usuario en el idioma en que te escribe.
 
+## Cómo se corren las herramientas
+
+Corre `@ramon-sg/github-rest` y `@ramon-sg/issue-flow` con el ejecutor y la versión de `.agents/runner.json`: con `"runner": "bun"` (o sin `runner`), `bunx --bun <paquete>@<versión> <args>`; con `"node"`, `npx --yes <paquete>@<versión> <args>`. Abajo, `github-rest …` e `issue-flow …` abrevian ese comando.
+
 # Comentarios de review de un PR
 
 > **Regla de oro:** el OK al plan del Paso 4 autoriza a aplicar los
@@ -25,7 +29,7 @@ bots revisan y cómo comentan, qué CI corre y cómo se leen sus logs, y los
 criterios propios de falso positivo. Léelo antes del Paso 2. Si no existe o
 sigue igual que la plantilla, vale lo de esta skill.
 
-Todo se lee por REST con `npx @ramon-sg/github-rest`, que también funciona en la nube.
+Todo se lee por REST con `github-rest`, que también funciona en la nube.
 Resolver un hilo solo existe en GraphQL: se hace en local con `gh`, y en la
 nube se deja dicho.
 
@@ -34,17 +38,17 @@ nube se deja dicho.
 Si no viene como argumento:
 
 ```bash
-npx @ramon-sg/github-rest pr find "$(git rev-parse --abbrev-ref HEAD)"
+github-rest pr find "$(git rev-parse --abbrev-ref HEAD)"
 ```
 
 ## Paso 2: Traer comentarios y estado de CI
 
 ```bash
-npx @ramon-sg/github-rest pr view <n>        # estado, isDraft, SHA del head y URL
-npx @ramon-sg/github-rest pr reviews <n>     # aprobaciones y resúmenes de los bots
-npx @ramon-sg/github-rest pr comments <n>    # comentarios del diff, agrupados por hilo
-npx @ramon-sg/github-rest issue comments <n> # comentarios generales del PR
-npx @ramon-sg/github-rest pr checks <n>      # {sha, checks: [{name, bucket, link}]}
+github-rest pr view <n>        # estado, isDraft, SHA del head y URL
+github-rest pr reviews <n>     # aprobaciones y resúmenes de los bots
+github-rest pr comments <n>    # comentarios del diff, agrupados por hilo
+github-rest issue comments <n> # comentarios generales del PR
+github-rest pr checks <n>      # {sha, checks: [{name, bucket, link}]}
 ```
 
 `pr comments` devuelve cada hilo con su `id` (el que usa `pr reply`), su
@@ -182,7 +186,7 @@ hecho. Clasificar algo como válido no lo arregla.
 Solo con los arreglos ya en origin y el OK para escribir en el PR:
 
 ```bash
-npx @ramon-sg/github-rest pr reply <n> <comment-id> --body-file <archivo>
+github-rest pr reply <n> <comment-id> --body-file <archivo>
 ```
 
 Resolver un hilo (los arreglados y los falsos positivos), solo en local:

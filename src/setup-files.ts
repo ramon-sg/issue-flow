@@ -49,24 +49,30 @@ export class SetupError extends Error {}
 /** The versions this package pins in the repo. */
 export interface OwnVersions {
   issueFlow: string;
-  /** The lowest `github-rest` the flow works with: the floor of its own dependency. */
+  /** The exact `github-rest` the bundle carries (its `devDependencies` pin). */
   githubRest: string;
+  /** The exact `@ramon-sg/runner` the bundle carries (its `devDependencies` pin). */
+  runner: string;
 }
 
 /**
- * This package's version and the lowest `github-rest` it works with, from its own
- * `package.json` (`"^0.3.0"` gives 0.3.0).
+ * This package's version and the exact `github-rest` and `runner` it carries, from its own
+ * `package.json` (the published CLI is a bundle, so they are `devDependencies`).
  * @returns The versions.
- * @throws SetupError if the package.json does not have them.
+ * @throws SetupError if the package.json does not have them, or they are not exact.
  * @example ownVersions().issueFlow // "0.1.0"
  */
 export function ownVersions(): OwnVersions {
   const file = join(dirname(fileURLToPath(import.meta.url)), "..", "package.json");
-  const pkg = JSON.parse(readFileSync(file, "utf8")) as { version?: string; dependencies?: Record<string, string> };
-  const githubRest = pkg.dependencies?.["@ramon-sg/github-rest"]?.replace(/^[\^~]/, "");
-  if (pkg.version === undefined || githubRest === undefined)
-    throw new SetupError(`${file} lacks the version of issue-flow or github-rest.`);
-  return { issueFlow: pkg.version, githubRest };
+  const pkg = JSON.parse(readFileSync(file, "utf8")) as { version?: string; devDependencies?: Record<string, string> };
+  const githubRest = pkg.devDependencies?.["@ramon-sg/github-rest"];
+  const runner = pkg.devDependencies?.["@ramon-sg/runner"];
+  const exact = /^\d+\.\d+\.\d+$/;
+  if (pkg.version === undefined || githubRest === undefined || runner === undefined)
+    throw new SetupError(`${file} lacks the version of issue-flow, github-rest or runner.`);
+  if (!exact.test(githubRest) || !exact.test(runner))
+    throw new SetupError(`${file} must pin github-rest and runner to exact versions (found ${githubRest} and ${runner}).`);
+  return { issueFlow: pkg.version, githubRest, runner };
 }
 
 /**

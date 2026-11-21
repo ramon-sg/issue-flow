@@ -28,6 +28,7 @@ export const es = {
   issue-flow apply [--yes] [--dry-run] [--json] [--recipe <nombre>,...]
   issue-flow doctor [--json]
   issue-flow labels sync [--update] [--dry-run] [--json] [-R owner/repo]
+  issue-flow --version [--json]
 
 En cualquier comando: [--lang es|en] elige el idioma de los mensajes (español por defecto;
 ISSUE_FLOW_LANG=es|en lo fija para siempre).
@@ -62,9 +63,10 @@ Paseo: setup cuando crean un worktree (sus pasos y, si vino de una issue, issue 
 WorktreeCreate y WorktreeRemove de Claude Code para claude --worktree.
 
 apply deja el repo como esta versión lo necesita: .agents/flow.json (la primera vez, con
-las recetas que sugieren sus archivos), issue-flow en esta versión y github-rest y los
-scripts si faltan en package.json, y los hooks; no cambia ninguna otra versión, y rechaza
-un issue-flow más nuevo o un rango. doctor los revisa. npx agent-kitchen apply ejecuta
+las recetas que sugieren sus archivos), .agents/runner.json (el ejecutor, Bun o Node, y los
+issue-flow y github-rest exactos que corre), los atajos de package.json y los hooks, sin
+devDependencies (quita las antiguas); nunca baja una versión, y rechaza un issue-flow más
+nuevo o un rango en package.json. doctor los revisa. agent-kitchen apply ejecuta
 apply en la versión que elige, junto con las skills, agent-cloud-kit y claude-repo-guard.
 init y upgrade todavía ejecutan apply, con una advertencia, hasta la 0.4.0.
 
@@ -410,12 +412,18 @@ issue:start para esos. --no-repo-deny va después, como cualquier flag:
     hooksNotObject: (file: string): string => `${file}: "hooks" no es un objeto; arréglalo y ejecuta de nuevo.`,
     hooksNotList: (file: string, event: string): string => `${file}: hooks.${event} no es una lista de entradas; arréglalo y ejecuta de nuevo.`,
     movedHook: (event: string, from: string, to: string): string => `se movió el hook ${event} de ${from} a ${to}`,
+    rewroteHook: (event: string, runner: string): string => `se reescribió el hook ${event} para usar ${runner}`,
     droppedCloud: (marker: string): string => `se quitó el hook SessionStart de ${marker}: lo ejecuta issue-flow session`,
     addedHook: (event: string): string => `se agregó el hook ${event}`,
     keptRest: (name: string, version: string, needed: string): string =>
       `se mantiene ${name} ${version} (las skills necesitan ${needed} o más reciente: súbelo)`,
     keptFree: (free: string, start: string): string =>
       `se mantiene scripts: ${free}, que se salta el ${start} del repo: haz que ejecute ese con --free, o bórralo`,
+    toolPinned: (name: string, from: string | null, to: string): string => `tools: ${name} ${from === null ? "" : `${from} → `}${to}`,
+    scriptSet: (name: string): string => `scripts: ${name}`,
+    droppedDependency: (field: string, name: string): string => `${field}: sin ${name}`,
+    droppedScript: (name: string): string => `scripts: sin ${name} (versión anterior)`,
+    keptScript: (name: string): string => `se mantiene scripts: ${name}, que el repo tiene con otro comando`,
   },
   steps: {
     onlyExpects: (config: string, names: string, only: string): string =>
@@ -524,11 +532,11 @@ issue:start para esos. --no-repo-deny va después, como cualquier flag:
   apply: {
     unknownRecipe: (name: string, names: string): string => `receta desconocida ${name}; las que hay son ${names}.`,
     askRecipe: (name: string, description: string): string => `Receta ${name}: ${description} ¿Agregarla?`,
-    notExact: (pinned: string, example: string, pkg: string): string =>
-      `package.json tiene issue-flow ${pinned}, no una versión exacta: los hooks necesitan una. Fija una (como ${example}) y ejecuta 'npx ${pkg}@<esa versión> apply'.`,
+    notExact: (pinned: string, example: string, command: string): string =>
+      `package.json tiene issue-flow ${pinned}, no una versión exacta: los hooks necesitan una. Fija una (como ${example}) y ejecuta '${command}' con el ejecutor de .agents/runner.json.`,
     hookOf: (file: string): string => `un hook de ${file}`,
-    newer: (where: string, found: string, ours: string, pkg: string): string =>
-      `${where} tiene issue-flow ${found}, más reciente que este ${ours}; ejecuta 'npx ${pkg}@${found} apply', o instala primero si se subió package.json a mano.`,
+    newer: (where: string, found: string, ours: string, command: string): string =>
+      `${where} tiene issue-flow ${found}, más reciente que este ${ours}; ejecuta '${command}', o instala primero si se subió package.json a mano.`,
     schemaAt: (version: string): string => `$schema en v${version}`,
     freshNew: "nuevo",
     freshPaseo: "nuevo, con las reglas de rama de paseo.json",
@@ -543,6 +551,8 @@ issue:start para esos. --no-repo-deny va después, como cualquier flag:
     nothingWritten: "no se escribió nada: los archivos del repo sugieren recetas; pasa --yes para tomarlas, o --recipe para elegir.",
     passYes: "pasa --yes o --recipe",
     reviewCommit: "revisa el diff y haz commit",
+    askNode: "Bun no está instalado: ¿usar Node?",
+    nothingWrittenRunner: "no se escribió nada: Bun no está instalado y no se aceptó Node; pasa --yes para usar Node.",
     already: (version: string): string => `Ya está en issue-flow ${version}.`,
     writes: (version: string): string => `issue-flow ${version}:`,
     wouldWrite: (version: string): string => `issue-flow ${version} escribiría:`,
@@ -551,17 +561,22 @@ issue:start para esos. --no-repo-deny va después, como cualquier flag:
   doctor: {
     insideCheckout: "ejecuta doctor dentro de un checkout del repo.",
     filesName: "archivos",
-    runAgentKitchen: "ejecuta npx agent-kitchen apply",
-    runApply: (pkg: string): string => `ejecuta npx ${pkg} apply`,
+    runAgentKitchen: "ejecuta agent-kitchen apply",
+    runApply: (command: string): string => `ejecuta ${command}`,
     valid: "válido",
     staleSchema: (version: string, hint: string): string => `válido, pero su $schema no está en v${version}: ${hint}`,
-    restMissing: (hint: string): string => `no está en package.json, y las skills lo llaman: ${hint}`,
-    restOld: (found: string, needed: string): string => `${found}, y las skills necesitan ${needed} o más reciente: súbelo en package.json`,
-    flowMissing: (hint: string): string => `no está en package.json: ${hint}`,
-    flowOther: (found: string, ours: string, hint: string): string => `package.json tiene ${found}, esta es ${ours}: ${hint}`,
+    restMissing: (hint: string): string => `sin entrada en "tools" de .agents/runner.json, y las skills lo llaman: ${hint}`,
+    restOld: (found: string, needed: string): string => `${found}, y las skills necesitan ${needed} o más reciente (es la que lleva adentro esta versión): súbela en .agents/runner.json`,
+    flowMissing: (hint: string): string => `sin entrada en "tools" de .agents/runner.json: ${hint}`,
+    flowOther: (found: string, ours: string, hint: string): string => `.agents/runner.json tiene ${found}, esta es ${ours}: ${hint}`,
     hookName: (event: string): string => `hook ${event}`,
     hookMissing: (file: string, hint: string): string => `no está en ${file}: ${hint}`,
     hookAt: (found: string, ours: string, hint: string): string => `en ${found}, esta es ${ours}: ${hint}`,
+    pinsName: "pins de herramientas",
+    scriptRunner: (name: string, runner: string, hint: string): string => `la versión coincide, pero el atajo "${name}" no está escrito para ${runner}, el ejecutor de runner.json: ${hint}`,
+    hookRunner: (runner: string, hint: string): string => `la versión coincide, pero el hook no está escrito para ${runner}, el ejecutor de runner.json: ${hint}`,
+    noLegacy: "sin issue-flow ni github-rest",
+    legacyLeft: (names: string, hint: string): string => `${names} siguen en package.json; ahora van en .agents/runner.json: quítalas con apply (${hint})`,
   },
   labels: {
     status: {

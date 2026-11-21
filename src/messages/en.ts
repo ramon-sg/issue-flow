@@ -22,6 +22,7 @@ export const en: Messages = {
   issue-flow apply [--yes] [--dry-run] [--json] [--recipe <name>,...]
   issue-flow doctor [--json]
   issue-flow labels sync [--update] [--dry-run] [--json] [-R owner/repo]
+  issue-flow --version [--json]
 
 On any command: [--lang es|en] picks the language of the messages (Spanish by default;
 ISSUE_FLOW_LANG=es|en sets it for good).
@@ -56,9 +57,10 @@ issue to start one by hand, and archive before they delete it. hook implements C
 Code's WorktreeCreate and WorktreeRemove for claude --worktree.
 
 apply leaves the repo as this version needs it: .agents/flow.json (the first time, with
-the recipes its files suggest), issue-flow at this version and github-rest and the scripts
-if missing in package.json, and the hooks; it changes no other version, and refuses a newer
-issue-flow or a range. doctor checks them. npx agent-kitchen apply runs apply at the version
+the recipes its files suggest), .agents/runner.json (the runner, Bun or Node, and the exact
+issue-flow and github-rest it runs), the shortcuts in package.json and the hooks, with no
+devDependencies (it removes the old ones); it never lowers a version, and refuses a newer
+issue-flow or a range in package.json. doctor checks them. agent-kitchen apply runs apply at the version
 it picks, along with the skills, agent-cloud-kit and claude-repo-guard. init and upgrade still
 run apply, with a warning, until 0.4.0.
 
@@ -401,11 +403,17 @@ issue:start for those. --no-repo-deny goes after it, as any flag:
     hooksNotObject: (file) => `${file}: "hooks" is not an object; fix it and run again.`,
     hooksNotList: (file, event) => `${file}: hooks.${event} is not a list of entries; fix it and run again.`,
     movedHook: (event, from, to) => `moved the ${event} hook from ${from} to ${to}`,
+    rewroteHook: (event, runner) => `rewrote the ${event} hook to use ${runner}`,
     droppedCloud: (marker) => `dropped the ${marker} SessionStart hook: issue-flow session runs it`,
     addedHook: (event) => `added the ${event} hook`,
     keptRest: (name, version, needed) => `kept ${name} ${version} (the skills need ${needed} or newer: raise it)`,
     keptFree: (free, start) =>
       `kept scripts: ${free}, which skips the repo's own ${start}: make it run that one with --free, or delete it`,
+    toolPinned: (name, from, to) => `tools: ${name} ${from === null ? "" : `${from} → `}${to}`,
+    scriptSet: (name) => `scripts: ${name}`,
+    droppedDependency: (field, name) => `${field}: without ${name}`,
+    droppedScript: (name) => `scripts: without ${name} (old version)`,
+    keptScript: (name) => `kept scripts: ${name}, which the repo has with another command`,
   },
   steps: {
     onlyExpects: (config, names, only) => `--only expects a setup step of ${config} (${names === "" ? "it has none" : names}): ${only}`,
@@ -513,11 +521,11 @@ issue:start for those. --no-repo-deny goes after it, as any flag:
   apply: {
     unknownRecipe: (name, names) => `unknown recipe ${name}; there are ${names}.`,
     askRecipe: (name, description) => `Recipe ${name}: ${description} Add it?`,
-    notExact: (pinned, example, pkg) =>
-      `package.json has issue-flow ${pinned}, not an exact version: the hooks need one. Pin one (such as ${example}) and run 'npx ${pkg}@<that version> apply'.`,
+    notExact: (pinned, example, command) =>
+      `package.json has issue-flow ${pinned}, not an exact version: the hooks need one. Pin one (such as ${example}) and run '${command}' with the runner of .agents/runner.json.`,
     hookOf: (file) => `a hook of ${file}`,
-    newer: (where, found, ours, pkg) =>
-      `${where} has issue-flow ${found}, newer than this ${ours}; run 'npx ${pkg}@${found} apply', or install first if package.json was bumped by hand.`,
+    newer: (where, found, ours, command) =>
+      `${where} has issue-flow ${found}, newer than this ${ours}; run '${command}', or install first if package.json was bumped by hand.`,
     schemaAt: (version) => `$schema at v${version}`,
     freshNew: "new",
     freshPaseo: "new, with the branch rules of paseo.json",
@@ -532,6 +540,8 @@ issue:start for those. --no-repo-deny goes after it, as any flag:
     nothingWritten: "nothing written: the repo's files suggest recipes; pass --yes to take them, or --recipe to pick.",
     passYes: "pass --yes or --recipe",
     reviewCommit: "review the diff and commit it",
+    askNode: "Bun is not installed: use Node?",
+    nothingWrittenRunner: "nothing written: Bun is not installed and Node was not accepted; pass --yes to use Node.",
     already: (version) => `Already at issue-flow ${version}.`,
     writes: (version) => `issue-flow ${version}:`,
     wouldWrite: (version) => `issue-flow ${version} would write:`,
@@ -540,17 +550,22 @@ issue:start for those. --no-repo-deny goes after it, as any flag:
   doctor: {
     insideCheckout: "run doctor inside a checkout of the repo.",
     filesName: "files",
-    runAgentKitchen: "run npx agent-kitchen apply",
-    runApply: (pkg) => `run npx ${pkg} apply`,
+    runAgentKitchen: "run agent-kitchen apply",
+    runApply: (command) => `run ${command}`,
     valid: "valid",
     staleSchema: (version, hint) => `valid, but its $schema is not at v${version}: ${hint}`,
-    restMissing: (hint) => `not in package.json, and the skills call it: ${hint}`,
-    restOld: (found, needed) => `${found}, and the skills need ${needed} or newer: raise it in package.json`,
-    flowMissing: (hint) => `not in package.json: ${hint}`,
-    flowOther: (found, ours, hint) => `package.json has ${found}, this is ${ours}: ${hint}`,
+    restMissing: (hint) => `no entry in "tools" of .agents/runner.json, and the skills call it: ${hint}`,
+    restOld: (found, needed) => `${found}, and the skills need ${needed} or newer (the one bundled inside this version): raise it in .agents/runner.json`,
+    flowMissing: (hint) => `no entry in "tools" of .agents/runner.json: ${hint}`,
+    flowOther: (found, ours, hint) => `.agents/runner.json has ${found}, this is ${ours}: ${hint}`,
     hookName: (event) => `${event} hook`,
     hookMissing: (file, hint) => `not in ${file}: ${hint}`,
     hookAt: (found, ours, hint) => `at ${found}, this is ${ours}: ${hint}`,
+    pinsName: "tool pins",
+    scriptRunner: (name, runner, hint) => `the version matches, but the "${name}" shortcut is not written for ${runner}, the runner in runner.json: ${hint}`,
+    hookRunner: (runner, hint) => `the version matches, but the hook is not written for ${runner}, the runner in runner.json: ${hint}`,
+    noLegacy: "no issue-flow or github-rest",
+    legacyLeft: (names, hint) => `${names} still in package.json; they live in .agents/runner.json now: remove them with apply (${hint})`,
   },
   labels: {
     status: {

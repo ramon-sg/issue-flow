@@ -23,6 +23,7 @@ import { DeclinedError } from "./start-state.js";
 import { type Messages, messages } from "./messages/index.js";
 import { type Output, processOutput, UsageError } from "./output.js";
 import { usageOf } from "./usage.js";
+import { ownVersions } from "./setup-files.js";
 
 /** An issue number: digits only. */
 const NUMBER = /^\d+$/;
@@ -197,6 +198,12 @@ export async function main(argv: string[], out: Output, cwd: string): Promise<nu
     throw new UsageError(error instanceof Error ? error.message : String(error));
   }
   const { values: flags, positionals } = parsed;
+  if (flags.version) {
+    const own = ownVersions();
+    // NOTE: the JSON is in English whatever the language, as every `--json` of the CLI.
+    out.stdout(flags.json ? `${JSON.stringify({ version: own.issueFlow, githubRest: own.githubRest, runner: own.runner })}\n` : `${own.issueFlow}\n`);
+    return 0;
+  }
   if (flags.help) {
     out.stdout(`${usageOf(positionals, out.t)}\n`);
     return 0;

@@ -15,6 +15,10 @@ description: |
 
 Responde al usuario en el idioma en que te escribe.
 
+## Cómo se corren las herramientas
+
+Corre `@ramon-sg/github-rest` y `@ramon-sg/issue-flow` con el ejecutor y la versión de `.agents/runner.json`: con `"runner": "bun"` (o sin `runner`), `bunx --bun <paquete>@<versión> <args>`; con `"node"`, `npx --yes <paquete>@<versión> <args>`. Abajo, `github-rest …` e `issue-flow …` abrevian ese comando.
+
 # Issues de GitHub
 
 Una issue es un prompt para quien la resuelva, persona o agente. Las cortas,
@@ -28,7 +32,7 @@ assignee, la taxonomía de labels, si hay un label para que un agente la tome
 solo y los topes. Léelo antes de clasificar. Si no existe o sigue igual que
 la plantilla, vale lo de esta skill.
 
-Todo va por REST: `npx @ramon-sg/github-rest` (dependencia de desarrollo del repo) y
+Todo va por REST: `github-rest` y
 `gh api`. Nunca `gh issue create`, `gh issue edit` ni `gh search`: usan
 GraphQL, que la nube de Claude bloquea. `github-rest` llama a `gh` por
 dentro: sirve para no usar GraphQL, no para trabajar sin token. Si
@@ -81,7 +85,7 @@ Infiere todo y déjalo editable en el borrador.
   labels que ya existen:
 
   ```bash
-  npx @ramon-sg/github-rest label list
+  github-rest label list
   ```
 
 - **Nunca crear labels de pasada.** GitHub crea el label que no existe al
@@ -91,8 +95,8 @@ Infiere todo y déjalo editable en el borrador.
   todos de una vez, con el color y la descripción del flujo:
 
   ```bash
-  npx @ramon-sg/issue-flow labels sync --dry-run   # qué faltan
-  npx @ramon-sg/issue-flow labels sync             # solo con OK
+  issue-flow labels sync --dry-run   # qué faltan
+  issue-flow labels sync             # solo con OK
   ```
 
   Un label que no está en esa lista no se crea: se propone sumarlo a
@@ -194,7 +198,7 @@ del label según `branch.types.labels` (por defecto `bug` → `fix`,
 `enhancement` → `feat`, `documentation` → `docs`, `spike` → `spike`). Así
 el cuerpo se escribe antes de que la issue tenga número y no queda viejo
 si cambia el label. A las issues que ya existen sin el bloque se
-les agrega con `npx @ramon-sg/issue-flow issue branch --missing`.
+les agrega con `issue-flow issue branch --missing`.
 
 ## 4. Partir lo que pasa del tope
 
@@ -258,7 +262,7 @@ body_file=$(mktemp "${TMPDIR:-/tmp}/issue-body.XXXXXX")   # o en el scratchpad
 cat > "$body_file" <<'EOF'
 <cuerpo>
 EOF
-npx @ramon-sg/github-rest issue create --title "<título>" --body-file "$body_file" \
+github-rest issue create --title "<título>" --body-file "$body_file" \
   --label "<tipo>,<otro>" --assignee <login>
 ```
 

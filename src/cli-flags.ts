@@ -8,6 +8,7 @@ import type { parseArgs } from "node:util";
 export const OPTIONS = {
   repo: { type: "string", short: "R" },
   json: { type: "boolean" },
+  version: { type: "boolean" },
   help: { type: "boolean", short: "h" },
   lang: { type: "string" },
   missing: { type: "boolean" },

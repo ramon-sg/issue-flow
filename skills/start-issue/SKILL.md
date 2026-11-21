@@ -16,14 +16,17 @@ argument-hint: "<número de issue> [--branch] [--resume <rama> | --new] [--yes]"
 
 Responde al usuario en el idioma en que te escribe.
 
+## Cómo se corren las herramientas
+
+Corre `@ramon-sg/github-rest` y `@ramon-sg/issue-flow` con el ejecutor y la versión de `.agents/runner.json`: con `"runner": "bun"` (o sin `runner`), `bunx --bun <paquete>@<versión> <args>`; con `"node"`, `npx --yes <paquete>@<versión> <args>`. Abajo, `github-rest …` e `issue-flow …` abrevian ese comando.
+
 # Empezar una issue
 
-El flujo vive en `issue-flow issue start` (dependencia de desarrollo del
-repo, se llama con `npx @ramon-sg/issue-flow`). Lee el estado, no lo adivina: ramas,
+El flujo vive en `issue-flow issue start` (se corre con el ejecutor de `.agents/runner.json`). Lee el estado, no lo adivina: ramas,
 PRs y worktrees de la issue en una sola pasada por REST. Correrlo dos veces
 no duplica nada: la segunda vez retoma.
 
-Desde una terminal, lo normal es `npx @ramon-sg/issue-flow issue start <n>`: crea el
+Desde una terminal, lo normal es `issue-flow issue start <n>`: crea el
 worktree, publica el PR en draft y abre Claude ahí, con el nombre de la rama
 y el pedido de resumir y planificar. Esta skill es para cuando el pedido
 llega dentro de una sesión: corre lo mismo, pero sin abrir Claude, porque
@@ -77,12 +80,12 @@ git rev-parse --abbrev-ref HEAD
 
 En la nube **no se usa `gh pr` ni `gh issue`** (el proxy bloquea GraphQL):
 `issue-flow` ya va por REST, y cualquier otra consulta también
-(`npx @ramon-sg/github-rest` o `gh api`).
+(`github-rest` o `gh api`).
 
 ## Paso 2: Resumen
 
 ```bash
-npx @ramon-sg/issue-flow issue start <n> --dry-run [--here | --adopt | --branch] [--resume <rama> | --new]
+issue-flow issue start <n> --dry-run [--here | --adopt | --branch] [--resume <rama> | --new]
 ```
 
 No crea ni cambia nada: solo actualiza las referencias a origin. `--here` y
@@ -111,7 +114,7 @@ suma a las acciones el resumen de la issue en su cuerpo (Paso 5).
 Con las mismas opciones del Paso 2:
 
 ```bash
-npx @ramon-sg/issue-flow issue start <n> --yes --no-launch [--here | --adopt | --branch] [--resume <rama> | --new]
+issue-flow issue start <n> --yes --no-launch [--here | --adopt | --branch] [--resume <rama> | --new]
 ```
 
 Con `timeout: 600000` en el Bash: en un worktree nuevo corre los pasos de
@@ -137,7 +140,7 @@ Siguiente: <el primer paso del flujo del Paso 5>
 ```
 
 - **Worktree nuevo:** la sesión de la issue se abre desde una terminal con
-  `npx @ramon-sg/issue-flow issue start <n>`, que encuentra lo que se acaba de crear y
+  `issue-flow issue start <n>`, que encuentra lo que se acaba de crear y
   abre Claude en el worktree con el nombre de la rama.
 - **Esta carpeta o adoptar:** esta misma sesión ya está en la rama. Sugiere
   `/rename <rama>` y sigue acá.
@@ -152,15 +155,15 @@ una o dos oraciones, para que una persona sepa de qué va el PR sin abrirla.
 Lenguaje llano, sin detalles de implementación, en el idioma del PR.
 
 ```bash
-npx @ramon-sg/github-rest pr view <pr>
-npx @ramon-sg/github-rest pr edit <pr> --body-file <archivo>
+github-rest pr view <pr>
+github-rest pr edit <pr> --body-file <archivo>
 ```
 
 Si `.agents/flow.json` tiene `start.prLanguage` y el título del PR no está
 en ese idioma, ponle uno en ese idioma que diga qué hace el PR:
 
 ```bash
-npx @ramon-sg/github-rest pr edit <pr> --title "<título>"
+github-rest pr edit <pr> --title "<título>"
 ```
 
 Lo demás del cuerpo (`Closes`, la URL, la sesión de la nube) queda igual.
@@ -187,7 +190,7 @@ sigue la misma tabla.
 
 Para dejar el PR listo sin mergearlo, `finish-pr`; para cerrarlo con merge,
 `close-pr`. Después del merge,
-`npx @ramon-sg/issue-flow worktree prune` borra el worktree con su Docker y sus puertos; si la sesión se abrió
+`issue-flow worktree prune` borra el worktree con su Docker y sus puertos; si la sesión se abrió
 con `issue-flow issue start`, lo ofrece al salir de Claude.
 
 ## Notas

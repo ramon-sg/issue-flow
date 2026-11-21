@@ -192,17 +192,20 @@ export function titleDrift(
 
 /** What the prompt adds when the PRs go in another language. */
 const PR_LANGUAGE_PROMPT =
-  "El PR va en {language}: si su título no está en {language}, ponle un título en {language} que diga qué hace, con `npx @ramon-sg/github-rest pr edit <pr> --title \"…\"`.";
+  "El PR va en {language}: si su título no está en {language}, ponle un título en {language} que diga qué hace, con `{githubRest} pr edit <pr> --title \"…\"`.";
 
 /**
  * The session's prompt, with the request for a PR title when the PRs go in another language.
  * @param prompt - The prompt.
  * @param language - `start.prLanguage`.
+ * @param githubRest - What stands for `{githubRest}`; left as is if omitted.
  * @returns The prompt.
  * @example withPrLanguage("Issue #4.", null) // "Issue #4."
  */
-export function withPrLanguage(prompt: string, language: string | null): string {
-  return language === null ? prompt : `${prompt} ${fill(PR_LANGUAGE_PROMPT, { language })}`;
+export function withPrLanguage(prompt: string, language: string | null, githubRest?: string): string {
+  if (language === null) return prompt;
+  const values: Record<string, string> = githubRest === undefined ? { language } : { language, githubRest };
+  return `${prompt} ${fill(PR_LANGUAGE_PROMPT, values)}`;
 }
 
 /**
