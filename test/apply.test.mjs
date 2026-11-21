@@ -56,7 +56,7 @@ test("apply --yes sets an empty repo up: config, package.json and hooks, and run
   assert.deepEqual(readRepoJson(s, ".agents/flow.json"), { $schema: `https://raw.githubusercontent.com/ramon-sg/issue-flow/v${VERSION}/schema.json` });
   const pkg = readRepoJson(s, "package.json");
   assert.deepEqual(Object.keys(pkg.devDependencies).sort(), ["@ramon-sg/github-rest", "@ramon-sg/issue-flow"]);
-  assert.equal(pkg.devDependencies["@ramon-sg/github-rest"], OWN.dependencies["@ramon-sg/github-rest"].replace(/^\^/, ""));
+  assert.equal(pkg.devDependencies["@ramon-sg/github-rest"], OWN.devDependencies["@ramon-sg/github-rest"].replace(/^\^/, ""));
   assert.equal(pkg.devDependencies["@ramon-sg/issue-flow"], VERSION);
   assert.equal(pkg.scripts["issue:start"], "issue-flow issue start");
   assert.equal(pkg.scripts["issue:start:free"], "issue-flow issue start --free");

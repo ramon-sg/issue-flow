@@ -28,6 +28,7 @@ export const es = {
   issue-flow apply [--yes] [--dry-run] [--json] [--recipe <nombre>,...]
   issue-flow doctor [--json]
   issue-flow labels sync [--update] [--dry-run] [--json] [-R owner/repo]
+  issue-flow --version [--json]
 
 En cualquier comando: [--lang es|en] elige el idioma de los mensajes (español por defecto;
 ISSUE_FLOW_LANG=es|en lo fija para siempre).

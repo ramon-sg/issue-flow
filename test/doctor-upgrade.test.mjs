@@ -20,7 +20,7 @@ function setUp() {
 }
 
 // The lowest github-rest the flow needs.
-const REST = OWN.dependencies["@ramon-sg/github-rest"].replace(/^\^/, "");
+const REST = OWN.devDependencies["@ramon-sg/github-rest"].replace(/^\^/, "");
 
 // The repo as an older issue-flow left it: issue-flow, hooks and schema at 0.0.9, and the
 // skills-manager that issue-flow used to add.
