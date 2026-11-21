@@ -57,21 +57,90 @@ test("doctor passes on a repo init set up, and runs no other tool", () => {
 
 test("doctor names each problem and what fixes it: issue-flow apply when the repo pins this version", () => {
   const s = setUp();
-  const pkg = readRepoJson(s, "package.json");
-  delete pkg.devDependencies["@ramon-sg/github-rest"];
-  writeFileSync(join(s.main, "package.json"), JSON.stringify(pkg));
+  const runner = readRepoJson(s, ".agents/runner.json");
+  delete runner.tools["@ramon-sg/github-rest"];
+  writeFileSync(join(s.main, ".agents", "runner.json"), JSON.stringify(runner));
   const settings = readRepoJson(s, ".claude/settings.json");
   settings.hooks.WorktreeRemove = [];
-  settings.hooks.WorktreeCreate[0].hooks[0].command = "npx --yes @ramon-sg/issue-flow@0.0.1 hook worktree-create";
+  settings.hooks.WorktreeCreate[0].hooks[0].command = "bunx --bun @ramon-sg/issue-flow@0.0.1 hook worktree-create";
   writeFileSync(join(s.main, ".claude", "settings.json"), JSON.stringify(settings));
 
   const r = s.cli(["doctor"], { env: npxEnv(s) });
 
   assert.equal(r.status, 1);
-  assert.match(r.out, /✗ @ramon-sg\/github-rest: not in package\.json, and the skills call it: run npx @ramon-sg\/issue-flow apply/);
+  assert.match(r.out, /✗ @ramon-sg\/github-rest: no entry in "tools" of \.agents\/runner\.json, and the skills call it: run npx @ramon-sg\/issue-flow apply/);
   assert.match(r.out, /✗ WorktreeRemove hook: not in \.claude\/settings\.json: run npx @ramon-sg\/issue-flow apply/);
   assert.match(r.out, /✗ WorktreeCreate hook: at 0\.0\.1, this is .*: run npx @ramon-sg\/issue-flow apply/);
   assert.match(r.out, /✓ SessionStart hook/);
+});
+
+test("doctor fails when a shortcut is at another version, and names it", () => {
+  const s = setUp();
+  const pkg = readRepoJson(s, "package.json");
+  pkg.scripts["issue:start"] = "bunx --bun @ramon-sg/issue-flow@0.0.1 issue start";
+  writeFileSync(join(s.main, "package.json"), JSON.stringify(pkg));
+
+  const r = s.cli(["doctor"], { env: npxEnv(s) });
+
+  assert.equal(r.status, 1);
+  assert.match(r.out, /✗ .*@ramon-sg\/issue-flow is not pinned to .* in: bunx --bun @ramon-sg\/issue-flow@0\.0\.1 issue start/);
+});
+
+test("doctor fails when a hook uses another runner", () => {
+  const s = setUp();
+  const runner = readRepoJson(s, ".agents/runner.json");
+  runner.runner = "node";
+  writeFileSync(join(s.main, ".agents", "runner.json"), JSON.stringify(runner));
+
+  const r = s.cli(["doctor"], { env: npxEnv(s) });
+
+  assert.equal(r.status, 1);
+  assert.match(r.out, /✗ SessionStart hook: .*runner/);
+});
+
+test("doctor fails when github-rest is older than the one inside", () => {
+  const s = setUp();
+  pinTool(s, "@ramon-sg/github-rest", "0.5.0");
+
+  const r = s.cli(["doctor"], { env: npxEnv(s) });
+
+  assert.equal(r.status, 1);
+  assert.match(r.out, new RegExp(`✗ @ramon-sg/github-rest: 0\\.5\\.0, and the skills need ${REST.replaceAll(".", "\\.")} or newer`));
+});
+
+test("doctor shows an invalid runner.json as a failed check, and does not throw", () => {
+  const s = setUp();
+  writeFileSync(join(s.main, ".agents", "runner.json"), "{ not json");
+
+  const r = s.cli(["doctor"], { env: npxEnv(s) });
+  const json = s.cli(["doctor", "--json"], { env: npxEnv(s) });
+
+  assert.equal(r.status, 1);
+  assert.match(r.out, /✗ runner: /);
+  assert.doesNotMatch(r.err, /at .*\.js/);
+  assert.ok(JSON.parse(json.out).some((check) => !check.ok));
+});
+
+test("doctor fails when there is no runner.json", () => {
+  const s = setUp();
+  rmSync(join(s.main, ".agents", "runner.json"));
+
+  const r = s.cli(["doctor"], { env: npxEnv(s) });
+
+  assert.equal(r.status, 1);
+  assert.match(r.out, /✗ @ramon-sg\/issue-flow: /);
+});
+
+test("doctor fails while devDependencies still have issue-flow", () => {
+  const s = setUp();
+  const pkg = readRepoJson(s, "package.json");
+  pkg.devDependencies = { "@ramon-sg/issue-flow": VERSION };
+  writeFileSync(join(s.main, "package.json"), JSON.stringify(pkg));
+
+  const r = s.cli(["doctor"], { env: npxEnv(s) });
+
+  assert.equal(r.status, 1);
+  assert.match(r.out, /✗ devDependencies: .*@ramon-sg\/issue-flow.*apply/);
 });
 
 test("doctor --json prints passing checks with their detail, and exits 0", () => {
@@ -81,7 +150,7 @@ test("doctor --json prints passing checks with their detail, and exits 0", () =>
 
   assert.equal(r.status, 0, r.err);
   const checks = JSON.parse(r.out);
-  assert.equal(checks.length, 6);
+  assert.equal(checks.length, 9);
   assert.ok(checks.every((check) => check.ok === true && typeof check.detail === "string" && check.detail !== ""), r.out);
 });
 
@@ -103,10 +172,12 @@ test("doctor --json prints the failing checks, for agent-kitchen", () => {
 
   assert.equal(r.status, 1);
   const checks = JSON.parse(r.out);
-  assert.deepEqual(checks.map((check) => check.name), [".agents/flow.json", "@ramon-sg/issue-flow", "@ramon-sg/github-rest", "SessionStart hook", "WorktreeCreate hook", "WorktreeRemove hook"]);
-  assert.deepEqual(checks.filter((check) => !check.ok).map((check) => check.name), [".agents/flow.json", "@ramon-sg/issue-flow", "SessionStart hook", "WorktreeCreate hook", "WorktreeRemove hook"]);
-  assert.ok(checks.filter((check) => !check.ok).every((check) => check.detail.endsWith("run npx agent-kitchen apply")), r.out);
+  assert.deepEqual(Object.keys(checks[0]), ["name", "ok", "detail"]);
+  assert.deepEqual(checks.map((check) => check.name), [".agents/flow.json", "runner", "@ramon-sg/issue-flow", "@ramon-sg/github-rest", "tool pins", "SessionStart hook", "WorktreeCreate hook", "WorktreeRemove hook", "devDependencies"]);
+  const failing = checks.filter((check) => !check.ok).map((check) => check.name);
+  assert.deepEqual(failing, [".agents/flow.json", "@ramon-sg/issue-flow", "@ramon-sg/github-rest", "tool pins", "SessionStart hook", "WorktreeCreate hook", "WorktreeRemove hook", "devDependencies"]);
   assert.match(checks[0].detail, /valid, but its \$schema is not at v/);
+  assert.match(checks[2].detail, /run npx agent-kitchen apply$/);
 });
 
 test("apply moves a repo from devDependencies and npx hooks at an old version to runner.json and bunx hooks at this one", () => {
@@ -128,6 +199,7 @@ test("apply moves a repo from devDependencies and npx hooks at an old version to
   assert.doesNotMatch(JSON.stringify(settings), /npx --yes/);
   assert.equal(readRepoJson(s, ".agents/flow.json").$schema, `https://raw.githubusercontent.com/ramon-sg/issue-flow/v${VERSION}/schema.json`);
   assert.equal(again.out, `Already at issue-flow ${VERSION}.\n`);
+  assert.equal(s.cli(["doctor"], { env: npxEnv(s) }).status, 0);
 });
 
 test("apply keeps a newer github-rest quietly, and an old one with a note", () => {
@@ -138,12 +210,15 @@ test("apply keeps a newer github-rest quietly, and an old one with a note", () =
 
   const quiet = newer.cli(["apply"], { env: npxEnv(newer) });
   const noted = old.cli(["apply"], { env: npxEnv(old) });
+  const doctor = old.cli(["doctor"], { env: npxEnv(old) });
 
   assert.equal(quiet.err, "");
   assert.equal(readRepoJson(newer, ".agents/runner.json").tools["@ramon-sg/github-rest"], "99.0.0");
   assert.equal(noted.status, 0, noted.err);
   assert.match(noted.out, /^Already at issue-flow /);
   assert.match(noted.err, /kept @ramon-sg\/github-rest 0\.1\.0 \(the skills need .* or newer: raise it\)/);
+  assert.equal(doctor.status, 1);
+  assert.match(doctor.out, /✗ @ramon-sg\/github-rest: 0\.1\.0, and the skills need .* or newer/);
 });
 
 test("apply --json gives the changes and what to run next; --dry-run writes nothing", () => {

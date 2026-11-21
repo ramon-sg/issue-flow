@@ -137,9 +137,9 @@ test("worktree ports, doctor and apply --dry-run speak Spanish, and English with
   assert.match(ports.err, /este repo no tiene puertos para worktrees/);
   assert.doesNotMatch(ports.err, /this repo has no ports/);
   assert.match(portsEn.err, /this repo has no ports for worktrees/);
-  assert.match(doctor.out, /no está en package\.json/);
-  assert.doesNotMatch(doctor.out, /not in package\.json/);
-  assert.match(doctorEn.out, /not in package\.json/);
+  assert.match(doctor.out, /no está en \.claude\/settings\.json/);
+  assert.doesNotMatch(doctor.out, /not in \.claude\/settings\.json/);
+  assert.match(doctorEn.out, /not in \.claude\/settings\.json/);
   assert.match(dry.out, /escribiría:/);
   assert.doesNotMatch(dry.out, /would write/);
   assert.match(dryEn.out, /would write:/);
