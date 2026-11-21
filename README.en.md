@@ -309,8 +309,8 @@ Everything is optional; without the file the defaults apply. An unknown key is a
 | `start.prBody` | `{keyword} #{number}`, the issue's URL (`{url}`) and "En progreso." | Draft PR body |
 | `start.prTitle` | The issue's title | Draft PR title; `{number}` and `{title}` are the issue's |
 | `start.prLanguage` | Off | Language of the PRs when it is not the issues' (`"English"`): the PR opens as `Issue #{number}` and the prompt asks for a title in that language |
-| `start.prompt`, `start.resumePrompt` | Summarize the issue and follow `start-issue`, or resume from `{plan}` | Prompt Claude opens with |
-| `start.summaryPrompt`, `start.summaryPlanPrompt` | Summarize and wait | `--plan`'s prompt |
+| `start.prompt`, `start.resumePrompt` | Summarize the issue and follow `start-issue`, or resume from `{plan}` | Prompt Claude opens with; `{githubRest}` is the `github-rest` command with the runner and version of `.agents/runner.json` (or, without them, a sentence pointing at that file) |
+| `start.summaryPrompt`, `start.summaryPlanPrompt` | Summarize and wait | `--plan`'s prompt; they also take `{githubRest}` |
 | `start.cloudPrompt` | `/start-issue {number} --yes{flags}` | What `--cloud` asks the session; `{flags}` is `--new` or `--resume <branch>` |
 | `plans.dirs` | `docs/plans`, `docs/specs` | Where to look for the issue's plan: what the branch touched, or the document whose `prs:` names its PR |
 | `art` | `true` | `false` turns off Kuro in the closing messages. It shows only in a terminal; `NO_COLOR` turns off color |

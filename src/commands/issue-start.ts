@@ -13,7 +13,6 @@ import { ask, confirm, forgetTypedAhead } from "../ask.js";
 import { show } from "../banner.js";
 import { branchType } from "../branch-name.js";
 import { checkedOutAt, checkoutRoot, failure, git, gitLines, locateRepo, onOrigin, ownCommits } from "../git.js";
-import { githubRestCommand } from "../runner-file.js";
 import { fill, issueColor, nextBranch, titleDrift, withPrLanguage } from "../issue-text.js";
 import { inPath, launchSession, permissionArgs, teleportSession } from "../launch.js";
 import { type Messages, messages } from "../messages/index.js";
@@ -21,6 +20,7 @@ import { emitJson, type Output, warn } from "../output.js";
 import { findOpenPlan, findPlan, type PlanQuery } from "../plan-doc.js";
 import { proposeBranches } from "../propose.js";
 import { type Lifted, liftRepoDeny, restoreRepoDeny } from "../repo-deny.js";
+import { githubRestCommand } from "../runner-file.js";
 import { type Lock, lockWorktree, unlockWorktree } from "../session-lock.js";
 import { afterSession, choosePlace, copyWorktreeIncludes, prepareBranch, publish } from "../start-place.js";
 import {

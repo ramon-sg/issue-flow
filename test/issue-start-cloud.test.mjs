@@ -591,3 +591,14 @@ test("--cloud never puts a branch with shell characters in the session's prompt"
   assert.match(r.err, /has characters the cloud session's prompt cannot carry/);
   assert.deepEqual(s.claudeCalls(), []);
 });
+
+test("--here prints a prompt that runs github-rest with the runner of runner.json", () => {
+  const s = startSandbox();
+  mkdirSync(join(s.main, ".agents"), { recursive: true });
+  writeFileSync(join(s.main, ".agents", "runner.json"), '{"runner":"node","tools":{"@ramon-sg/github-rest":"0.6.0"}}\n');
+
+  const r = s.run(["214", "--here"], { input: "y\n", env: SESSION_ENV });
+
+  assert.equal(r.status, 0, r.err);
+  assert.match(r.out, /\nPrompt: .*`npx --yes @ramon-sg\/github-rest@0\.6\.0 issue view 214`/);
+});

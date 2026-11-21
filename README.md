@@ -309,8 +309,8 @@ Todo es opcional; sin el archivo valen los valores por defecto. Una clave descon
 | `start.prBody` | `{keyword} #{number}`, la URL de la issue (`{url}`) y "En progreso." | Cuerpo del PR en draft |
 | `start.prTitle` | El título de la issue | Título del PR en draft; `{number}` y `{title}` son los de la issue |
 | `start.prLanguage` | Apagado | Idioma de los PR si no es el de las issues (`"English"`): el PR se abre como `Issue #{number}` y el prompt pide un título en ese idioma |
-| `start.prompt`, `start.resumePrompt` | Resumir la issue y seguir `start-issue`, o retomar desde `{plan}` | Pedido con que se abre Claude |
-| `start.summaryPrompt`, `start.summaryPlanPrompt` | Resumir y esperar | Pedido de `--plan` |
+| `start.prompt`, `start.resumePrompt` | Resumir la issue y seguir `start-issue`, o retomar desde `{plan}` | Pedido con que se abre Claude; `{githubRest}` es el comando de `github-rest` con el ejecutor y la versión de `.agents/runner.json` (o, sin ellos, un texto que apunta a ese archivo) |
+| `start.summaryPrompt`, `start.summaryPlanPrompt` | Resumir y esperar | Pedido de `--plan`; también admiten `{githubRest}` |
 | `start.cloudPrompt` | `/start-issue {number} --yes{flags}` | Lo que `--cloud` le pide a la sesión; `{flags}` es `--new` o `--resume <rama>` |
 | `plans.dirs` | `docs/plans`, `docs/specs` | Dónde buscar el plan de la issue: lo que tocó la rama, o el documento cuyo `prs:` nombra su PR |
 | `art` | `true` | `false` apaga a Kuro en los mensajes finales. Solo sale en una terminal; `NO_COLOR` apaga el color |
