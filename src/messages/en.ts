@@ -60,7 +60,7 @@ apply leaves the repo as this version needs it: .agents/flow.json (the first tim
 the recipes its files suggest), .agents/runner.json (the runner, Bun or Node, and the exact
 issue-flow and github-rest it runs), the shortcuts in package.json and the hooks, with no
 devDependencies (it removes the old ones); it never lowers a version, and refuses a newer
-issue-flow. doctor checks them. npx agent-kitchen apply runs apply at the version
+issue-flow. doctor checks them. agent-kitchen apply runs apply at the version
 it picks, along with the skills, agent-cloud-kit and claude-repo-guard. init and upgrade still
 run apply, with a warning, until 0.4.0.
 
@@ -521,11 +521,11 @@ issue:start for those. --no-repo-deny goes after it, as any flag:
   apply: {
     unknownRecipe: (name, names) => `unknown recipe ${name}; there are ${names}.`,
     askRecipe: (name, description) => `Recipe ${name}: ${description} Add it?`,
-    notExact: (pinned, example, pkg) =>
-      `package.json has issue-flow ${pinned}, not an exact version: the hooks need one. Pin one (such as ${example}) and run 'npx ${pkg}@<that version> apply'.`,
+    notExact: (pinned, example, command) =>
+      `package.json has issue-flow ${pinned}, not an exact version: the hooks need one. Pin one (such as ${example}) and run '${command}' with the runner of .agents/runner.json.`,
     hookOf: (file) => `a hook of ${file}`,
-    newer: (where, found, ours, pkg) =>
-      `${where} has issue-flow ${found}, newer than this ${ours}; run 'npx ${pkg}@${found} apply', or install first if package.json was bumped by hand.`,
+    newer: (where, found, ours, command) =>
+      `${where} has issue-flow ${found}, newer than this ${ours}; run '${command}', or install first if package.json was bumped by hand.`,
     schemaAt: (version) => `$schema at v${version}`,
     freshNew: "new",
     freshPaseo: "new, with the branch rules of paseo.json",
@@ -550,8 +550,8 @@ issue:start for those. --no-repo-deny goes after it, as any flag:
   doctor: {
     insideCheckout: "run doctor inside a checkout of the repo.",
     filesName: "files",
-    runAgentKitchen: "run npx agent-kitchen apply",
-    runApply: (pkg) => `run npx ${pkg} apply`,
+    runAgentKitchen: "run agent-kitchen apply",
+    runApply: (command) => `run ${command}`,
     valid: "valid",
     staleSchema: (version, hint) => `valid, but its $schema is not at v${version}: ${hint}`,
     restMissing: (hint) => `no entry in "tools" of .agents/runner.json, and the skills call it: ${hint}`,
@@ -562,7 +562,7 @@ issue:start for those. --no-repo-deny goes after it, as any flag:
     hookMissing: (file, hint) => `not in ${file}: ${hint}`,
     hookAt: (found, ours, hint) => `at ${found}, this is ${ours}: ${hint}`,
     pinsName: "tool pins",
-    hookRunner: (runner, hint) => `the version matches, but ${runner}, the runner of runner.json, does not run it: ${hint}`,
+    hookRunner: (runner, hint) => `the version matches, but the hook is not written for ${runner}, the runner in runner.json: ${hint}`,
     noLegacy: "no issue-flow or github-rest",
     legacyLeft: (names, hint) => `${names} still in package.json; they live in .agents/runner.json now: remove them with apply (${hint})`,
   },

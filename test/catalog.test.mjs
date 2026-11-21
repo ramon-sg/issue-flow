@@ -121,4 +121,28 @@ describe("skill contents", () => {
       assert.doesNotMatch(readFileSync(file, "utf8"), PROJECT_NAMES, file);
     }
   });
+
+  test("no skill runs npx", () => {
+    for (const file of files(join(ROOT, "skills"))) {
+      assert.doesNotMatch(readFileSync(file, "utf8"), /\bnpx @ramon-sg\//, file);
+    }
+  });
+
+  test("every skill that runs a tool explains how", () => {
+    for (const skill of CATALOG.skills) {
+      const text = readFileSync(join(ROOT, "skills", skill.name, "SKILL.md"), "utf8");
+      const blocks = [...text.matchAll(/```[^\n]*\n([\s\S]*?)```/g)].map((match) => match[1]).join("\n");
+      if (/\b(github-rest|issue-flow) /.test(blocks)) assert.match(text, /\.agents\/runner\.json/, skill.name);
+    }
+  });
+
+  test("no source nor README writes a fixed npx for the flow's tools", () => {
+    const sources = files(join(ROOT, "src")).filter((file) => file.endsWith(".ts"));
+    const readmes = readdirSync(ROOT).filter((name) => /^README.*\.md$/.test(name)).map((name) => join(ROOT, name));
+    for (const file of [...sources, ...readmes]) {
+      const text = readFileSync(file, "utf8").split("\n").filter((line) => !line.includes("npx -y ${pkg}@1 setup")).join("\n");
+      assert.doesNotMatch(text, /npx (--yes )?@ramon-sg\//, file);
+      assert.doesNotMatch(text, /npx \$\{pkg\}/, file);
+    }
+  });
 });

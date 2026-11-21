@@ -86,13 +86,13 @@ export const DEFAULT_CONFIG: FlowConfig = {
     prTitle: null,
     prLanguage: null,
     prompt:
-      "Issue #{number}. Lee la issue con `npx @ramon-sg/github-rest issue view {number}`, resúmela en lenguaje llano y sigue la skill start-issue para elegir el flujo.",
+      "Issue #{number}. Lee la issue con `{githubRest} issue view {number}`, resúmela en lenguaje llano y sigue la skill start-issue para elegir el flujo.",
     resumePrompt:
-      "Issue #{number}. Lee la issue con `npx @ramon-sg/github-rest issue view {number}`, resúmela en lenguaje llano y retoma el trabajo según {plan}: revisa qué tareas quedan.",
+      "Issue #{number}. Lee la issue con `{githubRest} issue view {number}`, resúmela en lenguaje llano y retoma el trabajo según {plan}: revisa qué tareas quedan.",
     summaryPrompt:
-      "Issue #{number}. Lee la issue con `npx @ramon-sg/github-rest issue view {number}` y resúmela en lenguaje llano. No empieces a trabajar ni a planificar: espera mi pedido.",
+      "Issue #{number}. Lee la issue con `{githubRest} issue view {number}` y resúmela en lenguaje llano. No empieces a trabajar ni a planificar: espera mi pedido.",
     summaryPlanPrompt:
-      "Issue #{number}. Lee la issue con `npx @ramon-sg/github-rest issue view {number}` y resúmela en lenguaje llano. Tiene un plan abierto en {plan}: di en una línea qué tareas quedan. No empieces a trabajar ni a planificar: espera mi pedido.",
+      "Issue #{number}. Lee la issue con `{githubRest} issue view {number}` y resúmela en lenguaje llano. Tiene un plan abierto en {plan}: di en una línea qué tareas quedan. No empieces a trabajar ni a planificar: espera mi pedido.",
     cloudPrompt: "/start-issue {number} --yes{flags}",
   },
   plans: { dirs: ["docs/plans", "docs/specs"] },

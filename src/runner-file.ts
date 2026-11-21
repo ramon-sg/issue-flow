@@ -5,10 +5,12 @@
  * Nothing here writes: `apply` does.
  */
 import {
+  RUNNER_FILE,
   RunnerFileError,
   type Runner,
   type RunnerConfig,
   chooseRunner,
+  effectiveRunner,
   readRunnerConfig,
   setTool,
   toolCommandText,
@@ -36,6 +38,39 @@ export function readRunnerFile(root: string): RunnerConfig | null {
     if (error instanceof RunnerFileError) throw new SetupError(error.message);
     throw error;
   }
+}
+
+/** What stands for the `github-rest` command when `runner.json` cannot say. */
+const GITHUB_REST_FALLBACK = `${GITHUB_REST} (con el ejecutor y la versión de ${RUNNER_FILE})`;
+
+/**
+ * The command that runs `github-rest`, for the prompts: the repo's runner and pinned
+ * version, or a sentence that points at `runner.json` if the file is missing, has no entry
+ * or cannot be used (a bad file must not stop a start).
+ * @param root - The repo.
+ * @returns The command, without arguments.
+ * @example githubRestCommand(root) // "bunx --bun @ramon-sg/github-rest@0.6.0"
+ */
+export function githubRestCommand(root: string): string {
+  try {
+    const config = readRunnerFile(root);
+    const version = config !== null && Object.hasOwn(config.tools, GITHUB_REST) ? config.tools[GITHUB_REST] : undefined;
+    return config === null || version === undefined ? GITHUB_REST_FALLBACK : toolCommandText(effectiveRunner(config), GITHUB_REST, version);
+  } catch (error) {
+    if (error instanceof SetupError) return GITHUB_REST_FALLBACK;
+    throw error;
+  }
+}
+
+/**
+ * The command that runs `issue-flow apply` at a version, to suggest it in a message.
+ * @param runner - The repo's runner, or null if it is not known.
+ * @param version - The version to run.
+ * @returns The command; without the runner, just the package at that version.
+ * @example applyCommand("node", "0.6.0") // "npx --yes", then the package at 0.6.0 and "apply"
+ */
+export function applyCommand(runner: Runner | null, version: string): string {
+  return runner === null ? `${PACKAGE}@${version} apply` : toolCommandText(runner, PACKAGE, version, ["apply"]);
 }
 
 /**

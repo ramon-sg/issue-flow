@@ -15,6 +15,10 @@ argument-hint: "[número de PR] — si no se pasa, el de la rama actual"
 
 Responde al usuario en el idioma en que te escribe.
 
+## Cómo se corren las herramientas
+
+Corre `@ramon-sg/github-rest` y `@ramon-sg/issue-flow` con el ejecutor y la versión de `.agents/runner.json`: con `"runner": "bun"` (o sin `runner`), `bunx --bun <paquete>@<versión> <args>`; con `"node"`, `npx --yes <paquete>@<versión> <args>`. Abajo, `github-rest …` e `issue-flow …` abrevian ese comando.
+
 # Terminar un PR
 
 > **Regla de oro:** lo que documenta el cambio (el plan, el README, `docs/`)
@@ -49,7 +53,7 @@ Si la corre `close-pr`, el OK del ciclo completo que el usuario le dio a
 
 ```bash
 branch=$(git rev-parse --abbrev-ref HEAD)
-npx @ramon-sg/github-rest pr find "$branch"
+github-rest pr find "$branch"
 echo "${CLAUDE_CODE_REMOTE:-}"
 [ "$(git rev-parse --path-format=absolute --git-dir)" = "$(git rev-parse --path-format=absolute --git-common-dir)" ] \
   && echo "checkout principal" || echo "worktree"
@@ -63,7 +67,7 @@ GitHub, y los Pasos 6 y 7 siguen por REST.
 Paso 4, con el último SHA auditado:
 
 ```bash
-npx @ramon-sg/github-rest pr view <n> > pr.json
+github-rest pr view <n> > pr.json
 jq -r .body pr.json | grep -o 'finish-pr: auditado [0-9a-f]\{40\}' | tail -1   # la marca
 jq -r .headRefOid pr.json                                                     # HEAD en origin
 git rev-parse HEAD
@@ -139,7 +143,7 @@ auditoría y los documentos:
 ```
 
 ```bash
-npx @ramon-sg/github-rest pr edit <n> --body-file <archivo>
+github-rest pr edit <n> --body-file <archivo>
 ```
 
 ## Paso 5: Sacar de draft
@@ -151,7 +155,7 @@ Mira primero si sigue en draft (`pr view` lo lee por REST, también en la
 nube):
 
 ```bash
-npx @ramon-sg/github-rest pr view <n> | jq .isDraft
+github-rest pr view <n> | jq .isDraft
 ```
 
 Si es `false`, ya está listo: no hay nada que hacer, sigue al Paso 6.
@@ -210,7 +214,7 @@ Las tres cosas, o el PR no está listo:
    un repo de una persona, su OK en la conversación):
 
    ```bash
-   npx @ramon-sg/github-rest pr reviews <n> | jq '[.[] | select(.state == "APPROVED" or .state == "CHANGES_REQUESTED" or .state == "DISMISSED")]
+   github-rest pr reviews <n> | jq '[.[] | select(.state == "APPROVED" or .state == "CHANGES_REQUESTED" or .state == "DISMISSED")]
      | group_by(.user) | map(last | {user, state})'
    ```
 
@@ -220,7 +224,7 @@ Las tres cosas, o el PR no está listo:
 2. **Checks en verde:**
 
    ```bash
-   npx @ramon-sg/github-rest pr checks <n> | jq -r '.checks[] | "\(.bucket)\t\(.name)"'
+   github-rest pr checks <n> | jq -r '.checks[] | "\(.bucket)\t\(.name)"'
    ```
 
    Ninguno en `fail` ni `pending`, salvo que el usuario lo decida sabiendo
@@ -261,7 +265,7 @@ lo usa tras su merge):
 - **Rama en origin:** la borra GitHub si el repo tiene "Automatically
   delete head branches" (Settings → General). Si no, el botón "Delete
   branch" del PR, o `git push origin --delete <rama>`.
-- **Worktree:** `npx @ramon-sg/issue-flow worktree prune` borra los worktrees
+- **Worktree:** `issue-flow worktree prune` borra los worktrees
   cuyo PR se mergeó, con su Docker y sus puertos, si no hay nada sin
   commitear ni sin push, y adelanta la base local a la de origin.
 - **Checkout principal:** `git checkout <base> && git pull --ff-only &&

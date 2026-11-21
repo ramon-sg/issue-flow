@@ -68,9 +68,9 @@ test("doctor names each problem and what fixes it: issue-flow apply when the rep
   const r = s.cli(["doctor"], { env: npxEnv(s) });
 
   assert.equal(r.status, 1);
-  assert.match(r.out, /✗ @ramon-sg\/github-rest: no entry in "tools" of \.agents\/runner\.json, and the skills call it: run npx @ramon-sg\/issue-flow apply/);
-  assert.match(r.out, /✗ WorktreeRemove hook: not in \.claude\/settings\.json: run npx @ramon-sg\/issue-flow apply/);
-  assert.match(r.out, /✗ WorktreeCreate hook: at 0\.0\.1, this is .*: run npx @ramon-sg\/issue-flow apply/);
+  assert.match(r.out, /✗ @ramon-sg\/github-rest: no entry in "tools" of \.agents\/runner\.json, and the skills call it: run bunx --bun @ramon-sg\/issue-flow@\d+\.\d+\.\d+ apply/);
+  assert.match(r.out, /✗ WorktreeRemove hook: not in \.claude\/settings\.json: run bunx --bun @ramon-sg\/issue-flow@\d+\.\d+\.\d+ apply/);
+  assert.match(r.out, /✗ WorktreeCreate hook: at 0\.0\.1, this is .*: run bunx --bun @ramon-sg\/issue-flow@\d+\.\d+\.\d+ apply/);
   assert.match(r.out, /✓ SessionStart hook/);
 });
 
@@ -177,7 +177,7 @@ test("doctor --json prints the failing checks, for agent-kitchen", () => {
   const failing = checks.filter((check) => !check.ok).map((check) => check.name);
   assert.deepEqual(failing, [".agents/flow.json", "@ramon-sg/issue-flow", "@ramon-sg/github-rest", "tool pins", "SessionStart hook", "WorktreeCreate hook", "WorktreeRemove hook", "devDependencies"]);
   assert.match(checks[0].detail, /valid, but its \$schema is not at v/);
-  assert.match(checks[2].detail, /run npx agent-kitchen apply$/);
+  assert.match(checks[2].detail, /run agent-kitchen apply$/);
 });
 
 test("apply moves a repo from devDependencies and npx hooks at an old version to runner.json and bunx hooks at this one", () => {
@@ -273,7 +273,7 @@ test("apply never moves the repo back nor pins over a range", () => {
   const hooked = hookedRepo.cli(["apply", "--dry-run"], { env: npxEnv(hookedRepo) });
 
   assert.equal(r.status, 1);
-  assert.match(r.err, /\.agents\/runner\.json has issue-flow 99\.0\.0, newer than this .*; run 'npx @ramon-sg\/issue-flow@99\.0\.0 apply'/);
+  assert.match(r.err, /\.agents\/runner\.json has issue-flow 99\.0\.0, newer than this .*; run 'bunx --bun @ramon-sg\/issue-flow@99\.0\.0 apply'/);
   assert.equal(readFileSync(join(s.main, ".agents", "runner.json"), "utf8"), before);
   assert.equal(old.status, 1);
   assert.match(old.err, /package\.json has issue-flow 99\.0\.0, newer than this/);

@@ -13,6 +13,7 @@ import { ask, confirm, forgetTypedAhead } from "../ask.js";
 import { show } from "../banner.js";
 import { branchType } from "../branch-name.js";
 import { checkedOutAt, checkoutRoot, failure, git, gitLines, locateRepo, onOrigin, ownCommits } from "../git.js";
+import { githubRestCommand } from "../runner-file.js";
 import { fill, issueColor, nextBranch, titleDrift, withPrLanguage } from "../issue-text.js";
 import { inPath, launchSession, permissionArgs, teleportSession } from "../launch.js";
 import { type Messages, messages } from "../messages/index.js";
@@ -226,13 +227,14 @@ function planQuery(context: Context): PlanQuery {
  * @param onlySummary - Whether it only summarizes and waits (`--plan`).
  * @returns The prompt.
  */
-function promptFor(context: Pick<Context, "options" | "issue">, plan: string | null, onlySummary: boolean): string {
+function promptFor(context: Pick<Context, "options" | "issue" | "mainRoot">, plan: string | null, onlySummary: boolean): string {
   const { start } = context.options.config;
   const template = onlySummary
     ? plan === null ? start.summaryPrompt : start.summaryPlanPrompt
     : plan === null ? start.prompt : start.resumePrompt;
-  const prompt = fill(template, { number: String(context.issue.number), title: context.issue.title, plan: plan ?? "" });
-  return withPrLanguage(prompt, start.prLanguage);
+  const githubRest = githubRestCommand(context.mainRoot);
+  const prompt = fill(template, { number: String(context.issue.number), title: context.issue.title, plan: plan ?? "", githubRest });
+  return withPrLanguage(prompt, start.prLanguage, githubRest);
 }
 
 /**

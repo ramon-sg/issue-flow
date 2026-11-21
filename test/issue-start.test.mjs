@@ -472,7 +472,7 @@ test("--branch: a dirty main checkout stops it; a clean one goes on the branch, 
   assert.equal(r.status, 0, r.err);
   assert.equal(s.git(s.main, "rev-parse", "--abbrev-ref", "HEAD"), BRANCH);
   assert.match(r.out, /Mode: {9}branch in the main checkout/);
-  assert.deepEqual(s.claudeCalls().map((call) => call.args.slice(3, 5)), [[BRANCH, "Issue #214. Lee la issue con `npx @ramon-sg/github-rest issue view 214`, resúmela en lenguaje llano y sigue la skill start-issue para elegir el flujo."]]);
+  assert.deepEqual(s.claudeCalls().map((call) => call.args.slice(3, 5)), [[BRANCH, "Issue #214. Lee la issue con `@ramon-sg/github-rest (con el ejecutor y la versión de .agents/runner.json) issue view 214`, resúmela en lenguaje llano y sigue la skill start-issue para elegir el flujo."]]);
   assert.equal(s.claudeCalls()[0].cwd, s.main);
   assert.equal(existsSync(join(s.main, ".claude", "worktrees")), false);
 });
@@ -538,7 +538,7 @@ test("--plan: one line of JSON with the branch and the prompt, and nothing writt
   assert.deepEqual(JSON.parse(r.out), {
     action: "new",
     branch: BRANCH,
-    prompt: "Issue #214. Lee la issue con `npx @ramon-sg/github-rest issue view 214` y resúmela en lenguaje llano. No empieces a trabajar ni a planificar: espera mi pedido.",
+    prompt: "Issue #214. Lee la issue con `@ramon-sg/github-rest (con el ejecutor y la versión de .agents/runner.json) issue view 214` y resúmela en lenguaje llano. No empieces a trabajar ni a planificar: espera mi pedido.",
     url: "https://github.com/acme/widgets/issues/214",
     title: "Avisar devoluciones a Odoo",
     warnings: [],
@@ -1063,4 +1063,44 @@ test("a PR title GitHub refuses to change only warns", () => {
 
   assert.equal(r.status, 0, r.err);
   assert.match(r.err, /could not update the title of PR #210; edit it by hand\./);
+});
+
+test("the prompt runs github-rest with the runner and version of runner.json", () => {
+  const s = startSandbox();
+  mkdirSync(join(s.main, ".agents"), { recursive: true });
+  writeFileSync(join(s.main, ".agents", "runner.json"), '{"runner":"node","tools":{"@ramon-sg/github-rest":"0.6.0"}}\n');
+
+  const plan = JSON.parse(s.run(["214", "--plan"]).out);
+  const r = s.run(["214", "--yes"]);
+
+  assert.equal(r.status, 0, r.err);
+  for (const prompt of [plan.prompt, sessions(s)[0].args.at(-1)]) {
+    assert.match(prompt, /`npx --yes @ramon-sg\/github-rest@0\.6\.0 issue view 214`/);
+  }
+});
+
+test("without runner.json, an entry or a valid file, the prompt points at .agents/runner.json", () => {
+  for (const content of [null, '{"tools":{}}\n', "{ no es json"]) {
+    const s = startSandbox();
+    if (content !== null) {
+      mkdirSync(join(s.main, ".agents"), { recursive: true });
+      writeFileSync(join(s.main, ".agents", "runner.json"), content);
+    }
+
+    const r = s.run(["214", "--plan"]);
+
+    assert.equal(r.status, 0, r.err);
+    assert.match(JSON.parse(r.out).prompt, /@ramon-sg\/github-rest \(con el ejecutor y la versión de \.agents\/runner\.json\) issue view 214/);
+  }
+});
+
+test("with start.prLanguage and runner.json, the title request runs pr edit with the runner", () => {
+  const s = startSandbox();
+  mkdirSync(join(s.main, ".agents"), { recursive: true });
+  writeFileSync(join(s.main, ".agents", "flow.json"), '{ "start": { "prLanguage": "English" } }\n');
+  writeFileSync(join(s.main, ".agents", "runner.json"), '{"tools":{"@ramon-sg/github-rest":"0.6.0"}}\n');
+
+  const plan = JSON.parse(s.run(["214", "--plan"]).out);
+
+  assert.match(plan.prompt, /`bunx --bun @ramon-sg\/github-rest@0\.6\.0 pr edit <pr> --title "…"`/);
 });

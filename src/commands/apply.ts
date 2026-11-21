@@ -19,7 +19,7 @@ import { type Messages, messages } from "../messages/index.js";
 import { emitJson, type Output, UsageError, warn } from "../output.js";
 import { dependencyVersion, GITHUB_REST, isNewer } from "../package-edits.js";
 import { applyRecipe, detectedRecipes, loadRecipes, projectPrefix, type Recipe } from "../recipes.js";
-import { FLOW_OWNED, flowScripts, loadRunnerFile, pickScripts, predictScripts, readRunnerFile, withFlowTools, withoutLegacy } from "../runner-file.js";
+import { FLOW_OWNED, applyCommand, flowScripts, loadRunnerFile, pickScripts, predictScripts, readRunnerFile, withFlowTools, withoutLegacy } from "../runner-file.js";
 import { hookVersions, registerHooks } from "../settings-hooks.js";
 import { isStaleSchema, type OwnVersions, ownVersions, PACKAGE, packageManager, readJson, schemaUrl, SETTINGS_FILE, SetupError, writeJson } from "../setup-files.js";
 
@@ -134,8 +134,10 @@ async function pickRecipes(root: string, options: ApplyOptions, fresh: boolean, 
 function checkVersion(root: string, versions: OwnVersions, t: Messages): void {
   const pinned = dependencyVersion(readJson(root, "package.json", t), PACKAGE);
   if (pinned !== null && !EXACT.test(pinned))
-    throw new SetupError(t.apply.notExact(pinned, versions.issueFlow, PACKAGE));
-  const tool = readRunnerFile(root)?.tools[PACKAGE];
+    throw new SetupError(t.apply.notExact(pinned, versions.issueFlow, applyCommand(null, "<that version>")));
+  const config = readRunnerFile(root);
+  const runner = config === null ? null : effectiveRunner(config);
+  const tool = config?.tools[PACKAGE];
   const found = [
     ...(tool === undefined ? [] : [{ where: RUNNER_FILE, version: tool }]),
     ...(pinned === null ? [] : [{ where: "package.json", version: pinned.replace(/^=/, "") }]),
@@ -145,7 +147,7 @@ function checkVersion(root: string, versions: OwnVersions, t: Messages): void {
   ];
   const newer = found.find((item) => isNewer(item.version, versions.issueFlow));
   if (newer !== undefined)
-    throw new SetupError(t.apply.newer(newer.where, newer.version, versions.issueFlow, PACKAGE));
+    throw new SetupError(t.apply.newer(newer.where, newer.version, versions.issueFlow, applyCommand(runner, newer.version)));
 }
 
 /** A file `apply` writes, with what changes in it and what it keeps as the repo had it. */

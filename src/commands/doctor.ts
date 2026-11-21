@@ -4,18 +4,18 @@
  * runner installed, `issue-flow` and `github-rest` pinned in it), that the hooks and the
  * `package.json` shortcuts run the pinned version with the repo's runner, and that the old
  * devDependencies are gone. It changes nothing; each problem says what fixes it:
- * `npx agent-kitchen apply` when the repo pins another issue-flow (it also moves the skills),
- * and `issue-flow apply` when the version is this one but its files fell behind. `--json`
+ * `agent-kitchen apply` when the repo pins another issue-flow (it also moves the skills),
+ * and `issue-flow apply` (with the runner of runner.json) when the version is this one but its files fell behind. `--json`
  * prints the checks for `agent-kitchen`, which adds those of the skills and the other tools.
  */
-import { checkRunner, checkToolPins, effectiveRunner, type Check as LibraryCheck, type RunnerConfig } from "@ramon-sg/runner";
+import { checkRunner, checkToolPins, effectiveRunner, type Check as LibraryCheck, type Runner, type RunnerConfig } from "@ramon-sg/runner";
 import { CONFIG_PATH, ConfigError } from "../config-base.js";
 import { loadConfig } from "../config.js";
 import { locateRepo } from "../git.js";
 import { type Messages, messages } from "../messages/index.js";
 import type { Output } from "../output.js";
 import { dependencyVersion, GITHUB_REST, reaches } from "../package-edits.js";
-import { FLOW_OWNED, readRunnerFile } from "../runner-file.js";
+import { FLOW_OWNED, applyCommand, readRunnerFile } from "../runner-file.js";
 import { HOOK_EVENTS, hookCommand, hookVersions, ourHookCommands } from "../settings-hooks.js";
 import { isStaleSchema, ownVersions, PACKAGE, readJson, SETTINGS_FILE, SetupError } from "../setup-files.js";
 
@@ -30,11 +30,12 @@ interface Check {
  * What fixes a problem: `issue-flow apply` if the repo pins this version, else agent-kitchen.
  * @param pinned - The issue-flow the repo pins, or null.
  * @param version - This package's version.
+ * @param runner - The repo's runner, or null if `runner.json` cannot say.
  * @param t - The messages.
  * @returns The hint.
  */
-function fix(pinned: string | null, version: string, t: Messages): string {
-  return pinned === version ? t.doctor.runApply(PACKAGE) : t.doctor.runAgentKitchen;
+function fix(pinned: string | null, version: string, runner: Runner | null, t: Messages): string {
+  return pinned === version ? t.doctor.runApply(applyCommand(runner, version)) : t.doctor.runAgentKitchen;
 }
 
 /**
@@ -92,10 +93,11 @@ function toolChecks(root: string, versions: { issueFlow: string; githubRest: str
   const read = readRunner(root);
   if ("error" in read) return [PACKAGE, GITHUB_REST].map((name) => ({ name, ok: false, detail: read.error }));
   const tools = read.config?.tools ?? {};
+  const runner = read.config === null ? null : effectiveRunner(read.config);
   const flow = Object.hasOwn(tools, PACKAGE) ? (tools[PACKAGE] ?? null) : null;
   const rest = Object.hasOwn(tools, GITHUB_REST) ? (tools[GITHUB_REST] ?? null) : null;
   const version = versions.issueFlow;
-  const restDetail = rest === null ? t.doctor.restMissing(fix(flow, version, t)) : reaches(rest, versions.githubRest) ? rest : t.doctor.restOld(rest, versions.githubRest);
+  const restDetail = rest === null ? t.doctor.restMissing(fix(flow, version, runner, t)) : reaches(rest, versions.githubRest) ? rest : t.doctor.restOld(rest, versions.githubRest);
   return [
     { name: PACKAGE, ok: flow === version, detail: flow === null ? t.doctor.flowMissing(t.doctor.runAgentKitchen) : flow === version ? version : t.doctor.flowOther(flow, version, t.doctor.runAgentKitchen) },
     { name: GITHUB_REST, ok: rest !== null && reaches(rest, versions.githubRest), detail: restDetail },
@@ -172,7 +174,7 @@ export function doctor(cwd: string, json: boolean, out: Output): number {
   try {
     const read = readRunner(root);
     const pinned = "config" in read ? (read.config?.tools[PACKAGE] ?? null) : null;
-    const hint = fix(pinned, versions.issueFlow, t);
+    const hint = fix(pinned, versions.issueFlow, "config" in read && read.config !== null ? effectiveRunner(read.config) : null, t);
     const settings = readJson(root, SETTINGS_FILE, t);
     checks = [
       configCheck(root, hint, versions.issueFlow, t),
