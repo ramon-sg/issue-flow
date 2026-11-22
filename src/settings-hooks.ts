@@ -31,10 +31,10 @@ export const HOOK_EVENTS = Object.keys(HOOK_COMMANDS);
 /**
  * The command of one of the hooks, at a version.
  * @param event - The hook event.
- * @param runner - The repo's runner (`bunx --bun` or `npx --yes`).
+ * @param runner - The repo's runner (`bun x --bun` or `npx --yes`).
  * @param version - This package's version.
  * @returns The command.
- * @example hookCommand("WorktreeCreate", "bun", "0.1.0") // "bunx --bun @ramon-sg/issue-flow@0.1.0 hook worktree-create"
+ * @example hookCommand("WorktreeCreate", "bun", "0.1.0") // "bun x --bun @ramon-sg/issue-flow@0.1.0 hook worktree-create"
  */
 export function hookCommand(event: string, runner: Runner, version: string): string {
   const hook = HOOK_COMMANDS[event];
@@ -47,6 +47,8 @@ type Hook = { command?: unknown } & Record<string, unknown>;
 
 /**
  * The version of our hook in a command, or null if the command is not ours for that event.
+ * It looks only at the package and the subcommand, not at the runner in front, so the
+ * `bunx --bun …` hooks that versions before 0.6.1 wrote are ours too and get rewritten.
  * @param command - The command.
  * @param event - The event.
  * @returns The version.
@@ -151,7 +153,7 @@ export function hookVersions(settings: Record<string, unknown> | null): Record<s
  * The commands of our hooks in the settings, whatever their version or runner.
  * @param settings - The settings, or null.
  * @returns The commands.
- * @example ourHookCommands(settings) // ["bunx --bun @ramon-sg/issue-flow@0.1.0 hook worktree-create", …]
+ * @example ourHookCommands(settings) // ["bun x --bun @ramon-sg/issue-flow@0.1.0 hook worktree-create", …]
  */
 export function ourHookCommands(settings: Record<string, unknown> | null): string[] {
   const hooks = isObject(settings?.hooks) ? settings.hooks : {};

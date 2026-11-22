@@ -1102,5 +1102,5 @@ test("with start.prLanguage and runner.json, the title request runs pr edit with
 
   const plan = JSON.parse(s.run(["214", "--plan"]).out);
 
-  assert.match(plan.prompt, /`bunx --bun @ramon-sg\/github-rest@0\.6\.0 pr edit <pr> --title "…"`/);
+  assert.match(plan.prompt, /`bun x --bun @ramon-sg\/github-rest@0\.6\.0 pr edit <pr> --title "…"`/);
 });

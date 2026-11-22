@@ -52,7 +52,7 @@ export const GITHUB_REST_NOTE = `(Corre ${GITHUB_REST} con el ejecutor y la vers
  * or cannot be used (a bad file must not stop a start).
  * @param root - The repo.
  * @returns The command, without arguments.
- * @example githubRestCommand(root) // "bunx --bun @ramon-sg/github-rest@0.6.0"
+ * @example githubRestCommand(root) // "bun x --bun @ramon-sg/github-rest@0.6.0"
  */
 export function githubRestCommand(root: string): string {
   try {
@@ -136,7 +136,7 @@ export function withFlowTools(
  * @param runner - The runner.
  * @param version - The `issue-flow` version they pin.
  * @returns Script name to command.
- * @example flowScripts("bun", "0.6.0")["issue:start"] // "bunx --bun @ramon-sg/issue-flow@0.6.0 issue start"
+ * @example flowScripts("bun", "0.6.0")["issue:start"] // "bun x --bun @ramon-sg/issue-flow@0.6.0 issue start"
  */
 export function flowScripts(runner: Runner, version: string): Record<string, string> {
   const run = (...args: string[]): string => toolCommandText(runner, PACKAGE, version, args);

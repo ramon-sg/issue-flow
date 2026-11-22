@@ -1,6 +1,6 @@
 {
   "name": "@ramon-sg/issue-flow",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Issue-to-PR workflow for any repo: names each issue's branch, creates its worktree, opens the draft PR and launches Claude Code, locally and in Claude's cloud.",
   "license": "MIT",
   "type": "module",
@@ -31,7 +31,7 @@
   },
   "devDependencies": {
     "@ramon-sg/github-rest": "0.6.0",
-    "@ramon-sg/runner": "1.0.0",
+    "@ramon-sg/runner": "1.0.1",
     "@ramon-sg/skills-manager": "1.2.0",
     "@types/node": "^24.0.0",
     "esbuild": "0.28.2",

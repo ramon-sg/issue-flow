@@ -31,7 +31,7 @@ function atOldVersion(s) {
   pkg.scripts = { "issue:start": "issue-flow issue start", "issue:start:free": "issue-flow issue start --free", "worktree:prune": "issue-flow worktree prune", "pr:worktree": "issue-flow pr worktree" };
   writeFileSync(join(s.main, "package.json"), JSON.stringify(pkg));
   rmSync(join(s.main, ".agents", "runner.json"));
-  const settings = readFileSync(join(s.main, ".claude", "settings.json"), "utf8").replaceAll(`bunx --bun @ramon-sg/issue-flow@${VERSION}`, "npx --yes @ramon-sg/issue-flow@0.0.9");
+  const settings = readFileSync(join(s.main, ".claude", "settings.json"), "utf8").replaceAll(`bun x --bun @ramon-sg/issue-flow@${VERSION}`, "npx --yes @ramon-sg/issue-flow@0.0.9");
   writeFileSync(join(s.main, ".claude", "settings.json"), settings);
   const config = readRepoJson(s, ".agents/flow.json");
   writeFileSync(join(s.main, ".agents", "flow.json"), JSON.stringify({ ...config, $schema: config.$schema.replace(`v${VERSION}`, "v0.0.9") }));
@@ -68,9 +68,9 @@ test("doctor names each problem and what fixes it: issue-flow apply when the rep
   const r = s.cli(["doctor"], { env: npxEnv(s) });
 
   assert.equal(r.status, 1);
-  assert.match(r.out, /✗ @ramon-sg\/github-rest: no entry in "tools" of \.agents\/runner\.json, and the skills call it: run bunx --bun @ramon-sg\/issue-flow@\d+\.\d+\.\d+ apply/);
-  assert.match(r.out, /✗ WorktreeRemove hook: not in \.claude\/settings\.json: run bunx --bun @ramon-sg\/issue-flow@\d+\.\d+\.\d+ apply/);
-  assert.match(r.out, /✗ WorktreeCreate hook: at 0\.0\.1, this is .*: run bunx --bun @ramon-sg\/issue-flow@\d+\.\d+\.\d+ apply/);
+  assert.match(r.out, /✗ @ramon-sg\/github-rest: no entry in "tools" of \.agents\/runner\.json, and the skills call it: run bun x --bun @ramon-sg\/issue-flow@\d+\.\d+\.\d+ apply/);
+  assert.match(r.out, /✗ WorktreeRemove hook: not in \.claude\/settings\.json: run bun x --bun @ramon-sg\/issue-flow@\d+\.\d+\.\d+ apply/);
+  assert.match(r.out, /✗ WorktreeCreate hook: at 0\.0\.1, this is .*: run bun x --bun @ramon-sg\/issue-flow@\d+\.\d+\.\d+ apply/);
   assert.match(r.out, /✓ SessionStart hook/);
 });
 
@@ -96,6 +96,35 @@ test("doctor fails when a hook uses another runner", () => {
 
   assert.equal(r.status, 1);
   assert.match(r.out, /✗ SessionStart hook: .*runner/);
+});
+
+test("doctor flags the bunx hooks and shortcuts older versions wrote, and apply moves them to bun x once", () => {
+  const s = setUp();
+  const spec = `@ramon-sg/issue-flow@${VERSION}`;
+  const settingsFile = join(s.main, ".claude", "settings.json");
+  writeFileSync(settingsFile, readFileSync(settingsFile, "utf8").replaceAll(`bun x --bun ${spec}`, `bunx --bun ${spec}`));
+  const pkgFile = join(s.main, "package.json");
+  writeFileSync(pkgFile, readFileSync(pkgFile, "utf8").replaceAll(`bun x --bun ${spec}`, `bunx --bun ${spec}`));
+
+  const before = s.cli(["doctor"], { env: npxEnv(s) });
+  const r = s.cli(["apply"], { env: npxEnv(s) });
+  const after = s.cli(["doctor"], { env: npxEnv(s) });
+
+  assert.equal(before.status, 1);
+  assert.match(before.out, /✗ WorktreeCreate hook: the version matches, but the hook is not written for bun/);
+  assert.match(before.out, /the "issue:start" shortcut is not written for bun/);
+  assert.equal(r.status, 0, r.err);
+  const settings = readRepoJson(s, ".claude/settings.json");
+  for (const event of ["SessionStart", "WorktreeCreate", "WorktreeRemove"]) {
+    const commands = settings.hooks[event].flatMap((entry) => entry.hooks.map((hook) => hook.command));
+    assert.equal(commands.length, 1, event);
+    assert.match(commands[0], new RegExp(`^bun x --bun ${spec.replaceAll(".", "\\.")} `));
+  }
+  const scripts = readRepoJson(s, "package.json").scripts;
+  assert.equal(scripts["issue:start"], `bun x --bun ${spec} issue start`);
+  assert.equal(scripts["pr:worktree"], `bun x --bun ${spec} pr worktree`);
+  assert.doesNotMatch(JSON.stringify({ settings, scripts }), /bunx/);
+  assert.equal(after.status, 0, after.out);
 });
 
 test("doctor fails when github-rest is older than the one inside", () => {
@@ -180,7 +209,7 @@ test("doctor --json prints the failing checks, for agent-kitchen", () => {
   assert.match(checks[2].detail, /run agent-kitchen apply$/);
 });
 
-test("apply moves a repo from devDependencies and npx hooks at an old version to runner.json and bunx hooks at this one", () => {
+test("apply moves a repo from devDependencies and npx hooks at an old version to runner.json and bun x hooks at this one", () => {
   const s = setUp();
   atOldVersion(s);
 
@@ -192,9 +221,9 @@ test("apply moves a repo from devDependencies and npx hooks at an old version to
   assert.deepEqual(calls, { npx: [], npm: [] });
   assert.deepEqual(readRepoJson(s, "package.json").devDependencies, { "@ramon-sg/skills-manager": "1.0.0" });
   assert.deepEqual(readRepoJson(s, ".agents/runner.json").tools, { "@ramon-sg/github-rest": REST, "@ramon-sg/issue-flow": VERSION });
-  assert.equal(readRepoJson(s, "package.json").scripts["issue:start"], `bunx --bun @ramon-sg/issue-flow@${VERSION} issue start`);
+  assert.equal(readRepoJson(s, "package.json").scripts["issue:start"], `bun x --bun @ramon-sg/issue-flow@${VERSION} issue start`);
   const settings = readRepoJson(s, ".claude/settings.json");
-  assert.match(settings.hooks.SessionStart[0].hooks[0].command, new RegExp(`^bunx --bun @ramon-sg/issue-flow@${VERSION.replaceAll(".", "\\.")} session `));
+  assert.match(settings.hooks.SessionStart[0].hooks[0].command, new RegExp(`^bun x --bun @ramon-sg/issue-flow@${VERSION.replaceAll(".", "\\.")} session `));
   assert.equal(settings.hooks.SessionStart.length, 1);
   assert.doesNotMatch(JSON.stringify(settings), /npx --yes/);
   assert.equal(readRepoJson(s, ".agents/flow.json").$schema, `https://raw.githubusercontent.com/ramon-sg/issue-flow/v${VERSION}/schema.json`);
@@ -273,7 +302,7 @@ test("apply never moves the repo back nor pins over a range", () => {
   const hooked = hookedRepo.cli(["apply", "--dry-run"], { env: npxEnv(hookedRepo) });
 
   assert.equal(r.status, 1);
-  assert.match(r.err, /\.agents\/runner\.json has issue-flow 99\.0\.0, newer than this .*; run 'bunx --bun @ramon-sg\/issue-flow@99\.0\.0 apply'/);
+  assert.match(r.err, /\.agents\/runner\.json has issue-flow 99\.0\.0, newer than this .*; run 'bun x --bun @ramon-sg\/issue-flow@99\.0\.0 apply'/);
   assert.equal(readFileSync(join(s.main, ".agents", "runner.json"), "utf8"), before);
   assert.equal(old.status, 1);
   assert.match(old.err, /package\.json has issue-flow 99\.0\.0, newer than this/);
@@ -334,7 +363,7 @@ test("apply refuses to run in a worktree, and leaves the main checkout alone", (
 
 // The adapter commands a repo pastes into paseo.json and orca.yaml, at a version.
 function adapterFiles(s, version) {
-  const spec = `bunx --bun @ramon-sg/issue-flow@${version}`;
+  const spec = `bun x --bun @ramon-sg/issue-flow@${version}`;
   writeFileSync(join(s.main, "paseo.json"), JSON.stringify({ worktree: { setup: [`${spec} adapter setup`], teardown: `${spec} adapter archive` } }));
   writeFileSync(join(s.main, "orca.yaml"), `setupAgentStartupPolicy: wait-for-setup\nscripts:\n  setup: ${spec} adapter setup\n  archive: ${spec} adapter archive\n`);
 }
@@ -349,14 +378,14 @@ test("doctor fails when the adapter commands in paseo.json and orca.yaml are at 
 
   assert.equal(ok.status, 0, ok.out);
   assert.equal(old.status, 1);
-  assert.match(old.out, /✗ .*not pinned to .* in: bunx --bun @ramon-sg\/issue-flow@0\.0\.1 adapter setup/);
-  assert.match(old.out, /not pinned to .* in: bunx --bun @ramon-sg\/issue-flow@0\.0\.1 adapter archive/);
-  assert.match(old.out, /in: {3}setup: bunx --bun @ramon-sg\/issue-flow@0\.0\.1 adapter setup/);
+  assert.match(old.out, /✗ .*not pinned to .* in: bun x --bun @ramon-sg\/issue-flow@0\.0\.1 adapter setup/);
+  assert.match(old.out, /not pinned to .* in: bun x --bun @ramon-sg\/issue-flow@0\.0\.1 adapter archive/);
+  assert.match(old.out, /in: {3}setup: bun x --bun @ramon-sg\/issue-flow@0\.0\.1 adapter setup/);
 });
 
 test("doctor names a paseo.json or an orca.yaml alone", () => {
   const s = setUp();
-  writeFileSync(join(s.main, "orca.yaml"), "scripts:\n  setup: bunx --bun @ramon-sg/issue-flow@0.0.1 adapter setup\n");
+  writeFileSync(join(s.main, "orca.yaml"), "scripts:\n  setup: bun x --bun @ramon-sg/issue-flow@0.0.1 adapter setup\n");
 
   const r = s.cli(["doctor"], { env: npxEnv(s) });
 

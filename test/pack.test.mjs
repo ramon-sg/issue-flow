@@ -38,16 +38,15 @@ test("the packed CLI runs init outside this repo, with its own version and recip
   const own = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
   const versions = spawnSync(process.execPath, [cli, "--version", "--json"], { cwd: repo, encoding: "utf8" });
   assert.equal(versions.status, 0, versions.stderr);
-  assert.deepEqual(JSON.parse(versions.stdout), { version: own.version, githubRest: "0.6.0", runner: "1.0.0" });
+  assert.deepEqual(JSON.parse(versions.stdout), { version: own.version, githubRest: "0.6.0", runner: "1.0.1" });
   const plain = spawnSync(process.execPath, [cli, "--version"], { cwd: repo, encoding: "utf8" });
   assert.equal(plain.stdout, `${own.version}\n`);
 
-  // NOTE: a PATH with only fake bun and bunx, so the run neither needs Bun nor runs a tool.
+  // NOTE: a PATH with only a fake bun, so the run neither needs Bun nor runs a tool.
   const bin = join(dir, "bin");
   mkdirSync(bin);
   const fake = join(ROOT, "test", "fake-bun.mjs");
-  for (const name of ["bun", "bunx"])
-    writeFileSync(join(bin, name), `#!/bin/sh\nFAKE_BUN_AS=${name} exec "${process.execPath}" "${fake}" "$@"\n`, { mode: 0o755 });
+  writeFileSync(join(bin, "bun"), `#!/bin/sh\nexec "${process.execPath}" "${fake}" "$@"\n`, { mode: 0o755 });
   const r = spawnSync(process.execPath, [cli, "init", "--yes"], { cwd: repo, encoding: "utf8", env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
 
   assert.equal(r.status, 0, r.stderr);

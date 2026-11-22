@@ -123,7 +123,7 @@ Solo cambia la terminal. Lo que se escribe en GitHub (el commit inicial, el cuer
 | `npm run issue:start:free 34` | `npm run issue:start:free 34` (con otras opciones, `npm run issue:start:free -- 34 --no-repo-deny`) |
 | `pnpm issue:start:free 34` | `pnpm issue:start:free 34` |
 | `yarn issue:start:free 34` | `yarn issue:start:free 34` |
-| `bunx --bun @ramon-sg/issue-flow@<v>` (con Node, `npx --yes`) | `bunx --bun @ramon-sg/issue-flow@<v> issue start 34` (con Node, `npx --yes`; el de `runner.json`) |
+| `bun x --bun @ramon-sg/issue-flow@<v>` (con Node, `npx --yes`) | `bun x --bun @ramon-sg/issue-flow@<v> issue start 34` (con Node, `npx --yes`; el de `runner.json`) |
 
 La forma de script solo se usa con los scripts que instala `apply` (`issue:start` y `issue:start:free`); un script ajeno que llame a `issue-flow` cae a esa misma forma con el ejecutor (sin `runner.json`, a `issue-flow issue start <n>`). Se repiten las opciones que definen cómo corre la sesión (`--free`, `--ask-permissions`, `--no-repo-deny`, `--namer`, `-R`, y `--lang` si lo pasaste como opción) y no las de una sola vez (`--new`, `--branch`, `--yes`, `--dry-run`, `--resume`, `--no-launch`, `--plan`).
 
@@ -188,12 +188,12 @@ issue-flow pr worktree 42 --no-setup    # sin los pasos de setup
 # orca.yaml
 setupAgentStartupPolicy: wait-for-setup
 scripts:
-  setup: bunx --bun @ramon-sg/issue-flow@<versión> adapter setup
-  archive: bunx --bun @ramon-sg/issue-flow@<versión> adapter archive
+  setup: bun x --bun @ramon-sg/issue-flow@<versión> adapter setup
+  archive: bun x --bun @ramon-sg/issue-flow@<versión> adapter archive
 ```
 
 ```json
-{ "worktree": { "setup": ["bunx --bun @ramon-sg/issue-flow@<versión> adapter setup"], "teardown": "bunx --bun @ramon-sg/issue-flow@<versión> adapter archive" } }
+{ "worktree": { "setup": ["bun x --bun @ramon-sg/issue-flow@<versión> adapter setup"], "teardown": "bun x --bun @ramon-sg/issue-flow@<versión> adapter archive" } }
 ```
 
 - **`setup [--only <paso>]`:** copia `.worktreeinclude` (Paseo no lo copia), corre los pasos de `setup` y, sin `--only`, empieza la issue de la que salió el worktree como `issue start <n> --adopt`. Con Paseo la issue sale de la rama (`feat/42-x`, `42-x`); con Orca, de su CLI (`orca worktree current --json`). Siempre sale con 0: si algo falla, dice qué correr.
@@ -222,14 +222,14 @@ Es el hook `SessionStart` de Claude Code. Lo que imprime le llega a Claude como 
 `agent-kitchen apply` corre `apply` en la versión que elige y después mueve las skills del flujo a la misma tag. Correrlo a mano sirve para probar el flujo en un repo sin lo demás.
 
 ```sh
-bunx --bun @ramon-sg/issue-flow@<versión> apply          # deja el repo como lo pide esa versión
-bunx --bun @ramon-sg/issue-flow@<versión> apply --yes    # sin preguntas, con las recetas que sugiere el repo
-bunx --bun @ramon-sg/issue-flow@<versión> apply --recipe docker-compose   # suma una receta más tarde
-bunx --bun @ramon-sg/issue-flow@<versión> apply --dry-run          # solo dice qué cambiaría (--json para agent-kitchen)
-bunx --bun @ramon-sg/issue-flow@<versión> doctor                   # revisa que el repo esté como lo deja apply (--json)
+bun x --bun @ramon-sg/issue-flow@<versión> apply          # deja el repo como lo pide esa versión
+bun x --bun @ramon-sg/issue-flow@<versión> apply --yes    # sin preguntas, con las recetas que sugiere el repo
+bun x --bun @ramon-sg/issue-flow@<versión> apply --recipe docker-compose   # suma una receta más tarde
+bun x --bun @ramon-sg/issue-flow@<versión> apply --dry-run          # solo dice qué cambiaría (--json para agent-kitchen)
+bun x --bun @ramon-sg/issue-flow@<versión> doctor                   # revisa que el repo esté como lo deja apply (--json)
 ```
 
-Con Node, es el mismo comando con `npx --yes` en lugar de `bunx --bun`. Después de `apply`, el ejecutor y la versión son los de `.agents/runner.json`.
+Con Node, es el mismo comando con `npx --yes` en lugar de `bun x --bun`. Después de `apply`, el ejecutor y la versión son los de `.agents/runner.json`.
 
 `apply` deja el repo como lo pide la versión que corre, y correrlo otra vez no cambia nada. La versión la elige quien actualiza, al elegir cuál correr: `apply` no cambia la versión de ningún otro paquete.
 
@@ -258,7 +258,7 @@ Los pasos de preparación de las recetas son `trusted`: corren el código del wo
 
 ## Skills del flujo
 
-Viven en `skills/` y `skills-catalog.json` las lista. Se instalan con [`skills-manager`](https://github.com/ramon-sg/skills-manager), que las copia a `.agents/skills/` del repo para que lleguen también a la nube. Están en español, responden en el idioma en que les escribes y corren `@ramon-sg/issue-flow` y `@ramon-sg/github-rest` con el ejecutor y la versión de `.agents/runner.json` (`bunx --bun <paquete>@<versión>` o `npx --yes <paquete>@<versión>`). Van siempre con el scope: `issue-flow`, `github-rest` y `skills-manager` sin scope son paquetes de otras personas en npm.
+Viven en `skills/` y `skills-catalog.json` las lista. Se instalan con [`skills-manager`](https://github.com/ramon-sg/skills-manager), que las copia a `.agents/skills/` del repo para que lleguen también a la nube. Están en español, responden en el idioma en que les escribes y corren `@ramon-sg/issue-flow` y `@ramon-sg/github-rest` con el ejecutor y la versión de `.agents/runner.json` (`bun x --bun <paquete>@<versión>` o `npx --yes <paquete>@<versión>`). Van siempre con el scope: `issue-flow`, `github-rest` y `skills-manager` sin scope son paquetes de otras personas en npm.
 
 | Skill | Categoría | Para qué sirve | Trae también |
 |---|---|---|---|

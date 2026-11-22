@@ -12,7 +12,7 @@ import { npxCalls, npxEnv, readRepoJson, runnerCalls, withBun, withNpx } from ".
 
 const OWN = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const VERSION = OWN.version;
-const SESSION = `bunx --bun @ramon-sg/issue-flow@${VERSION} session # runs agent-cloud-kit session in the cloud`;
+const SESSION = `bun x --bun @ramon-sg/issue-flow@${VERSION} session # runs agent-cloud-kit session in the cloud`;
 
 const CLI = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 
@@ -67,20 +67,20 @@ test("apply --yes in a repo without package.json writes runner.json, hooks and s
     private: true,
     packageManager: "bun@1.4.4",
     scripts: {
-      "issue:start": `bunx --bun @ramon-sg/issue-flow@${VERSION} issue start`,
-      "issue:start:free": `bunx --bun @ramon-sg/issue-flow@${VERSION} issue start --free`,
-      "worktree:prune": `bunx --bun @ramon-sg/issue-flow@${VERSION} worktree prune`,
-      "pr:worktree": `bunx --bun @ramon-sg/issue-flow@${VERSION} pr worktree`,
+      "issue:start": `bun x --bun @ramon-sg/issue-flow@${VERSION} issue start`,
+      "issue:start:free": `bun x --bun @ramon-sg/issue-flow@${VERSION} issue start --free`,
+      "worktree:prune": `bun x --bun @ramon-sg/issue-flow@${VERSION} worktree prune`,
+      "pr:worktree": `bun x --bun @ramon-sg/issue-flow@${VERSION} pr worktree`,
     },
   });
   const settings = readRepoJson(s, ".claude/settings.json");
   assert.deepEqual(commandsOf(settings, "SessionStart"), [SESSION]);
-  assert.deepEqual(commandsOf(settings, "WorktreeCreate"), [`bunx --bun @ramon-sg/issue-flow@${VERSION} hook worktree-create`]);
+  assert.deepEqual(commandsOf(settings, "WorktreeCreate"), [`bun x --bun @ramon-sg/issue-flow@${VERSION} hook worktree-create`]);
   assert.equal(settings.hooks.WorktreeRemove[0].hooks[0].timeout, 600);
   assert.equal(existsSync(join(s.main, ".claude", "repo-guard.config.json")), false);
   assert.equal(existsSync(join(s.main, "node_modules")), false);
   assert.deepEqual(npxCalls(s), []);
-  assert.deepEqual(runnerCalls(s, "bunx"), []);
+  assert.deepEqual(runnerCalls(s, "bun"), []);
   assert.match(r.out, /Next: review the diff and commit it/);
   assert.doesNotMatch(r.out, /install/);
   assert.equal(r.err, "");
@@ -151,8 +151,8 @@ test("apply moves a repo off devDependencies", () => {
   assert.equal(r.status, 0, r.err);
   const pkg = readRepoJson(s, "package.json");
   assert.deepEqual(pkg.devDependencies, { typescript: "5.9.3" });
-  assert.equal(pkg.scripts["issue:start"], `bunx --bun @ramon-sg/issue-flow@${VERSION} issue start`);
-  assert.equal(pkg.scripts["pr:worktree"], `bunx --bun @ramon-sg/issue-flow@${VERSION} pr worktree`);
+  assert.equal(pkg.scripts["issue:start"], `bun x --bun @ramon-sg/issue-flow@${VERSION} issue start`);
+  assert.equal(pkg.scripts["pr:worktree"], `bun x --bun @ramon-sg/issue-flow@${VERSION} pr worktree`);
   assert.equal(readRepoJson(s, ".agents/runner.json").tools["@ramon-sg/github-rest"], "0.6.0");
   assert.match(r.out, /Next: run 'npm install', review the diff and commit it/);
 });
@@ -167,7 +167,7 @@ test("apply keeps a script of the repo", () => {
   const pkg = readRepoJson(s, "package.json");
   assert.equal(pkg.scripts["issue:start"], "./scripts/start.sh");
   assert.equal(pkg.scripts["issue:start:free"], undefined);
-  assert.equal(pkg.scripts["worktree:prune"], `bunx --bun @ramon-sg/issue-flow@${VERSION} worktree prune`);
+  assert.equal(pkg.scripts["worktree:prune"], `bun x --bun @ramon-sg/issue-flow@${VERSION} worktree prune`);
   assert.match(r.err, /package\.json: .*issue:start/);
 });
 

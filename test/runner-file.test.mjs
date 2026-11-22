@@ -20,8 +20,8 @@ function repoWith(runner) {
 }
 
 test("flowScripts builds one command per runner", () => {
-  assert.equal(flowScripts("bun", "0.6.0")["issue:start"], "bunx --bun @ramon-sg/issue-flow@0.6.0 issue start");
-  assert.equal(flowScripts("bun", "0.6.0")["issue:start:free"], "bunx --bun @ramon-sg/issue-flow@0.6.0 issue start --free");
+  assert.equal(flowScripts("bun", "0.6.0")["issue:start"], "bun x --bun @ramon-sg/issue-flow@0.6.0 issue start");
+  assert.equal(flowScripts("bun", "0.6.0")["issue:start:free"], "bun x --bun @ramon-sg/issue-flow@0.6.0 issue start --free");
   assert.equal(flowScripts("node", "0.6.0")["pr:worktree"], "npx --yes @ramon-sg/issue-flow@0.6.0 pr worktree");
   assert.equal(flowScripts("node", "0.6.0")["worktree:prune"], "npx --yes @ramon-sg/issue-flow@0.6.0 worktree prune");
 });
