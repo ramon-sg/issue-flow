@@ -81,7 +81,7 @@ test("without a script, the resume command runs the issue-flow pinned in runner.
   const resume = (extra) => again({ number: 34, cwd: s.main, launchedAs: launchOf({}, { free: true }) }, extra);
 
   pin("bun");
-  assert.equal(resume(), "bunx --bun @ramon-sg/issue-flow@0.6.0 issue start 34 --free");
+  assert.equal(resume(), "bun x --bun @ramon-sg/issue-flow@0.6.0 issue start 34 --free");
   pin("node");
   assert.equal(resume("--cloud"), "npx --yes @ramon-sg/issue-flow@0.6.0 issue start 34 --cloud");
 });

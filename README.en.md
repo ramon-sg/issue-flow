@@ -123,7 +123,7 @@ Only the terminal changes. What is written to GitHub (the initial commit, the PR
 | `npm run issue:start:free 34` | `npm run issue:start:free 34` (with other options, `npm run issue:start:free -- 34 --no-repo-deny`) |
 | `pnpm issue:start:free 34` | `pnpm issue:start:free 34` |
 | `yarn issue:start:free 34` | `yarn issue:start:free 34` |
-| `bunx --bun @ramon-sg/issue-flow@<v>` (with Node, `npx --yes`) | `bunx --bun @ramon-sg/issue-flow@<v> issue start 34` (with Node, `npx --yes`; the one in `runner.json`) |
+| `bun x --bun @ramon-sg/issue-flow@<v>` (with Node, `npx --yes`) | `bun x --bun @ramon-sg/issue-flow@<v> issue start 34` (with Node, `npx --yes`; the one in `runner.json`) |
 
 The script form is used only with the scripts `apply` installs (`issue:start` and `issue:start:free`); a script of someone else's that calls `issue-flow` falls back to that same form with the runner (without `runner.json`, to `issue-flow issue start <n>`). The options that define how the session runs are repeated (`--free`, `--ask-permissions`, `--no-repo-deny`, `--namer`, `-R`, and `--lang` if you passed it as an option) and the one-off ones are not (`--new`, `--branch`, `--yes`, `--dry-run`, `--resume`, `--no-launch`, `--plan`).
 
@@ -188,12 +188,12 @@ issue-flow pr worktree 42 --no-setup    # without the setup steps
 # orca.yaml
 setupAgentStartupPolicy: wait-for-setup
 scripts:
-  setup: bunx --bun @ramon-sg/issue-flow@<version> adapter setup
-  archive: bunx --bun @ramon-sg/issue-flow@<version> adapter archive
+  setup: bun x --bun @ramon-sg/issue-flow@<version> adapter setup
+  archive: bun x --bun @ramon-sg/issue-flow@<version> adapter archive
 ```
 
 ```json
-{ "worktree": { "setup": ["bunx --bun @ramon-sg/issue-flow@<version> adapter setup"], "teardown": "bunx --bun @ramon-sg/issue-flow@<version> adapter archive" } }
+{ "worktree": { "setup": ["bun x --bun @ramon-sg/issue-flow@<version> adapter setup"], "teardown": "bun x --bun @ramon-sg/issue-flow@<version> adapter archive" } }
 ```
 
 - **`setup [--only <step>]`:** copies `.worktreeinclude` (Paseo does not copy it), runs the `setup` steps and, without `--only`, starts the issue the worktree came from as `issue start <n> --adopt`. With Paseo the issue comes from the branch (`feat/42-x`, `42-x`); with Orca, from its CLI (`orca worktree current --json`). It always exits 0: if something fails, it says what to run.
@@ -222,14 +222,14 @@ It is Claude Code's `SessionStart` hook. What it prints reaches Claude as contex
 `agent-kitchen apply` runs `apply` in the version it chooses and then moves the workflow's skills to the same tag. Running it by hand is useful to try the workflow in a repo without the rest.
 
 ```sh
-bunx --bun @ramon-sg/issue-flow@<version> apply          # leaves the repo as that version requires
-bunx --bun @ramon-sg/issue-flow@<version> apply --yes    # no questions, with the recipes the repo suggests
-bunx --bun @ramon-sg/issue-flow@<version> apply --recipe docker-compose   # adds one more recipe later
-bunx --bun @ramon-sg/issue-flow@<version> apply --dry-run          # only says what would change (--json for agent-kitchen)
-bunx --bun @ramon-sg/issue-flow@<version> doctor                   # checks the repo is as apply leaves it (--json)
+bun x --bun @ramon-sg/issue-flow@<version> apply          # leaves the repo as that version requires
+bun x --bun @ramon-sg/issue-flow@<version> apply --yes    # no questions, with the recipes the repo suggests
+bun x --bun @ramon-sg/issue-flow@<version> apply --recipe docker-compose   # adds one more recipe later
+bun x --bun @ramon-sg/issue-flow@<version> apply --dry-run          # only says what would change (--json for agent-kitchen)
+bun x --bun @ramon-sg/issue-flow@<version> doctor                   # checks the repo is as apply leaves it (--json)
 ```
 
-With Node, it is the same command with `npx --yes` instead of `bunx --bun`. After `apply`, the runner and the version are those of `.agents/runner.json`.
+With Node, it is the same command with `npx --yes` instead of `bun x --bun`. After `apply`, the runner and the version are those of `.agents/runner.json`.
 
 `apply` leaves the repo as the version it runs requires, and running it again changes nothing. The version is chosen by whoever updates, by choosing which one to run: `apply` does not change the version of any other package.
 
@@ -258,7 +258,7 @@ The recipes' preparation steps are `trusted`: they run the worktree's code (the 
 
 ## The workflow's skills
 
-They live in `skills/` and `skills-catalog.json` lists them. They are installed with [`skills-manager`](https://github.com/ramon-sg/skills-manager), which copies them to the repo's `.agents/skills/` so they reach the cloud too. They are written in Spanish, answer in the language you write to them in, and run `@ramon-sg/issue-flow` and `@ramon-sg/github-rest` with the runner and version of `.agents/runner.json` (`bunx --bun <package>@<version>` or `npx --yes <package>@<version>`). They always go with the scope: `issue-flow`, `github-rest` and `skills-manager` without the scope are other people's packages on npm.
+They live in `skills/` and `skills-catalog.json` lists them. They are installed with [`skills-manager`](https://github.com/ramon-sg/skills-manager), which copies them to the repo's `.agents/skills/` so they reach the cloud too. They are written in Spanish, answer in the language you write to them in, and run `@ramon-sg/issue-flow` and `@ramon-sg/github-rest` with the runner and version of `.agents/runner.json` (`bun x --bun <package>@<version>` or `npx --yes <package>@<version>`). They always go with the scope: `issue-flow`, `github-rest` and `skills-manager` without the scope are other people's packages on npm.
 
 | Skill | Category | What it is for | Also brings |
 |---|---|---|---|

@@ -15,14 +15,14 @@ export function withNpx(s) {
   return s;
 }
 
-// Puts the fake bun and bunx in the sandbox's PATH: they answer `--version` and log anything else.
+// Puts the fake bun in the sandbox's PATH (tools run as `bun x`, so there is no bunx): it
+// answers `--version` and logs anything else.
 export function withBun(s) {
   writeFileSync(join(s.tmp, "bin", "bun"), `#!/bin/sh\nexec node "${FAKE_BUN}" "$@"\n`, { mode: 0o755 });
-  writeFileSync(join(s.tmp, "bin", "bunx"), `#!/bin/sh\nFAKE_BUN_AS=bunx exec node "${FAKE_BUN}" "$@"\n`, { mode: 0o755 });
   return s;
 }
 
-// The calls to bun or bunx (`program`) of the last run, besides `--version`.
+// The calls to bun (`program`) of the last run, besides `--version`.
 export function runnerCalls(s, program) {
   return npxCalls(s, program);
 }
